@@ -39,19 +39,15 @@ STATE_TOPIC = f"{NODE}/state"
 ATTR_TOPIC = f"{NODE}/location/attributes"
 TRACKER_STATE_TOPIC = f"{NODE}/location/state"
 AVAIL_TOPIC = f"{NODE}/availability"
-CMD_PREFIX = f"{NODE}/cmd/"          # button commands: alpine_a290/cmd/<name>
+CMD_PREFIX = f"{NODE}/cmd/"
 STATE_FILE = os.environ.get("A290_STATE_FILE", "/data/state.json")
 
 DEVICE = {"identifiers": [NODE], "name": "Alpine A290", "manufacturer": "Alpine", "model": "A290"}
-# Single-sourced from config.yaml via the builder's BUILD_VERSION arg (Dockerfile -> env).
 VERSION = os.environ.get("A290_VERSION", "dev")
 
-_LOOP = None  # asyncio loop, set in main(), bridges paho callbacks
-# The entity catalog (SENSORS/BINARY_SENSORS/ICONS/OPTIONAL_ENDPOINTS/ACTION_BUTTONS) is in
-# catalog.py.
+_LOOP = None
 
 HOME_POWER_MAX_KW = 7.4
-# Friendly labels for the float ChargeState/PlugState the API returns.
 CHARGE_STATUS_LABELS = {
     ChargeState.NOT_IN_CHARGE: "Not Charging",
     ChargeState.WAITING_FOR_A_PLANNED_CHARGE: "Waiting (Planned)",
@@ -72,13 +68,12 @@ PLUG_STATUS_LABELS = {
     PlugState.PLUG_ERROR: "Plug Error",
     PlugState.PLUG_UNKNOWN: "Unknown",
 }
-RHD_LOCALES = {"en_gb", "en_ie"}   # right-hand drive (for seat driver/passenger mapping)
-MILES_LOCALES = {"en_gb"}          # only the UK uses miles
-# plug stuck-detection thresholds
-PLUG_KM_DELTA = 1       # km driven since baseline
-PLUG_SOC_DROP = 2       # %SoC dropped since baseline
-PLUG_MIN_AGE = 600      # ignore baselines < 10 min
-PLUG_MAX_AGE = 12 * 3600  # ...or > 12 h
+RHD_LOCALES = {"en_gb", "en_ie"}
+MILES_LOCALES = {"en_gb"}
+PLUG_KM_DELTA = 1
+PLUG_SOC_DROP = 2
+PLUG_MIN_AGE = 600
+PLUG_MAX_AGE = 12 * 3600
 
 
 def cfg(name, default=""):
@@ -88,7 +83,6 @@ def cfg(name, default=""):
 def setup_logging():
     level = getattr(logging, cfg("A290_LOG_LEVEL", "info").upper(), logging.INFO)
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(message)s")
-    # Clamp library loggers to INFO so the add-on's debug flag can't leak Kamereon tokens.
     for noisy in ("renault_api", "renault_api.kamereon", "renault_api.gigya"):
         logging.getLogger(noisy).setLevel(max(level, logging.INFO))
 
@@ -112,7 +106,6 @@ def load_state():
 def save_state(state):
     try:
         os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
-        # Write-then-rename: a kill mid-write can't truncate state.json to garbage.
         tmp = f"{STATE_FILE}.tmp"
         with open(tmp, "w") as fh:
             json.dump(state, fh)
@@ -128,13 +121,10 @@ def _on_message(client, userdata, msg):
         asyncio.run_coroutine_threadsafe(run_command(cmd), _LOOP)
 
 
-# Set by main() so _on_connect can re-publish discovery after a broker restart.
 _MQTT_CTX = {"supported": None, "dist_unit": None}
 
 
 def _on_connect(client, userdata, flags, reason_code, properties=None):
-    # paho doesn't replay subscriptions and a restarted broker may drop retained discovery,
-    # so re-establish both on every (re)connect — else buttons/entities silently disappear.
     client.subscribe(f"{CMD_PREFIX}#")
     if _MQTT_CTX["supported"] is not None:
         publish_discovery(client, _MQTT_CTX["supported"], _MQTT_CTX["dist_unit"])
@@ -148,7 +138,7 @@ def mqtt_connect():
         client.username_pw_set(cfg("MQTT_USER"), cfg("MQTT_PASS"))
     client.will_set(AVAIL_TOPIC, "offline", retain=True)
     client.on_message = _on_message
-    client.on_connect = _on_connect   # re-subscribe + re-publish discovery on every connect
+    client.on_connect = _on_connect
     LOG.info("Connecting to MQTT %s:%s", cfg("MQTT_HOST"), cfg("MQTT_PORT", "1883"))
     client.connect(cfg("MQTT_HOST"), int(cfg("MQTT_PORT", "1883") or "1883"), keepalive=60)
     client.loop_start()
@@ -158,7 +148,6 @@ def mqtt_connect():
 def publish_discovery(client, supported_eps, dist_unit):
     skip = {obj for ep, objs in OPTIONAL_ENDPOINTS.items()
             if ep not in supported_eps for obj in objs}
-    # Clear retained discovery for unsupported + retired entities.
     for obj in set(skip) | set(RETIRED_SENSORS):
         client.publish(f"{DISCOVERY_PREFIX}/sensor/{NODE}/{obj}/config", "", retain=True)
     published = 0
@@ -167,7 +156,7 @@ def publish_discovery(client, supported_eps, dist_unit):
             continue
         published += 1
         if obj in ("a290_range", "a290_mileage"):
-            unit = dist_unit   # locale-aware (mi for UK, km elsewhere)
+            unit = dist_unit
         conf = {"name": name, "object_id": obj, "unique_id": obj,
                 "state_topic": STATE_TOPIC, "value_template": "{{ value_json.%s }}" % obj[5:],
                 "availability_topic": AVAIL_TOPIC, "device": DEVICE}
@@ -196,7 +185,7 @@ def publish_discovery(client, supported_eps, dist_unit):
     client.publish(f"{DISCOVERY_PREFIX}/device_tracker/{NODE}/location/config", json.dumps(tracker), retain=True)
     buttons = []
     for obj, (name, icon, ep) in ACTION_BUTTONS.items():
-        short = obj[5:]   # object_id without the "a290_" prefix
+        short = obj[5:]
         topic = f"{DISCOVERY_PREFIX}/button/{NODE}/{short}/config"
         if ep in supported_eps:
             conf = {"name": name, "object_id": obj, "unique_id": obj,
@@ -205,7 +194,7 @@ def publish_discovery(client, supported_eps, dist_unit):
             client.publish(topic, json.dumps(conf), retain=True)
             buttons.append(short)
         else:
-            client.publish(topic, "", retain=True)   # forbidden on this model — clear it
+            client.publish(topic, "", retain=True)
     LOG.info("Published discovery: %d sensors (%d unsupported cleared), %d binary_sensors, device_tracker, buttons=%s",
              published, len(skip), len(BINARY_SENSORS), buttons or "none")
 
@@ -272,7 +261,7 @@ async def _login_vehicle(websession, locale):
     return await account.get_api_vehicle(cfg("A290_VIN"))
 
 
-API_TIMEOUT = aiohttp.ClientTimeout(total=60, connect=10)   # bound every Renault API call
+API_TIMEOUT = aiohttp.ClientTimeout(total=60, connect=10)
 
 
 class VehicleSession:
@@ -292,7 +281,7 @@ class VehicleSession:
             try:
                 self._vehicle = await _login_vehicle(self._websession, self.locale)
             except Exception:
-                await self.invalidate()   # never leak a half-open session
+                await self.invalidate()
                 raise
             LOG.info("Logged in to the Renault API (session cached for reuse)")
         return self._vehicle
@@ -340,7 +329,7 @@ async def detect_supported(vsession):
                 LOG.warning("supports_endpoint(%s) check failed: %s", ep, err)
         LOG.info("Supported optional endpoints: %s", sorted(supported))
     except Exception as err:  # noqa: BLE001
-        await vsession.invalidate()   # don't keep a half-broken login
+        await vsession.invalidate()
         LOG.warning("Endpoint-support detection failed (publishing sensors, hiding action buttons): %s", err)
     return supported
 
@@ -350,7 +339,6 @@ def _precondition_temp():
     return float(cfg("A290_PRECONDITION_TEMPERATURE", "20") or "20")
 
 
-# Command suffix (ACTION_BUTTONS object_id minus "a290_") -> action on the vehicle.
 COMMAND_ACTIONS = {
     "charge_start":     lambda v: v.set_charge_start(),
     "horn":             lambda v: v.start_horn(),
@@ -444,15 +432,12 @@ async def resolve_account(client):
     raise RuntimeError("No MYRENAULT account found and A290_ACCOUNT_ID not set")
 
 
-# Debug API dump (debug_dump: true) — read-only endpoints to dump, IDs/secrets redacted.
-# The safe diagnostic path: library DEBUG logging would leak tokens; this doesn't.
 _DEBUG_METHODS = [
     "get_details", "get_battery_status", "get_battery_soc", "get_cockpit",
     "get_hvac_status", "get_hvac_settings", "get_location", "get_charge_schedule",
     "get_charge_mode", "get_charging_settings", "get_tyre_pressure", "get_lock_status",
     "get_res_state", "get_contracts", "get_notification_settings",
 ]
-# Keys masked regardless of value — identifiers / contact info (not telemetry).
 _DEBUG_REDACT_KEYS = {"registrationnumber", "vin", "tcucode", "radiocode", "siret",
                       "msisdn", "phonenumber", "phone", "email", "firstname", "lastname"}
 
@@ -494,11 +479,11 @@ async def dump_api(vehicle):
 
 
 async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
-    vehicle = await vsession.vehicle()       # cached login, reused across polls
+    vehicle = await vsession.vehicle()
     locale = vsession.locale
     battery = await vehicle.get_battery_status()
-    plug = battery.get_plug_status()                 # decode once (label + flap)
-    charging = is_charging(battery)                  # single source of truth
+    plug = battery.get_plug_status()
+    charging = is_charging(battery)
     data = {
         "battery_level": battery.batteryLevel,
         "range": _dist(battery.batteryAutonomy, dist_unit),
@@ -508,12 +493,11 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
         "available_energy": _num(getattr(battery, "batteryAvailableEnergy", None)),
         "plug_status": _enum_label(plug, PLUG_STATUS_LABELS, getattr(battery, "plugStatus", None)),
         "charging_flap": "Open: Plugged In" if plug == PlugState.PLUGGED else "Closed",
-        # Headline matches the Charging binary sensor; else show the precise ChargeState.
         "charging_status": "Charging" if charging else charging_status_label(battery),
         "last_updated": getattr(battery, "timestamp", None) or iso(now_ts()),
         "drive_side": "RHD" if locale.lower() in RHD_LOCALES else "LHD",
     }
-    mileage = None   # keep raw km for plug-suspect distance maths
+    mileage = None
     try:
         mileage = getattr(await vehicle.get_cockpit(), "totalMileage", None)
         data["mileage"] = _dist(mileage, dist_unit)
@@ -522,15 +506,13 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
     try:
         hvac = await vehicle.get_hvac_status()
         data["external_temperature"] = getattr(hvac, "externalTemperature", None)
-        # The A290's HVAC endpoint never populates internalTemperature (cabin temp),
-        # so we don't publish a Cabin Temperature entity — see RETIRED_SENSORS.
         data["hvac_status"] = str(getattr(hvac, "hvacStatus", ""))
         data["hvac_soc_threshold"] = getattr(hvac, "socThreshold", None)
         data["hvac_last_activity"] = getattr(hvac, "lastUpdateTime", None)
     except Exception as err:  # noqa: BLE001
         LOG.warning("hvac unavailable: %s", err)
     try:
-        sched = await vehicle.get_charge_schedule()   # KCM ev/settings (preconditioning)
+        sched = await vehicle.get_charge_schedule()
         p = _find_precond(sched)
         data["preconditioning_temperature"] = p.get("preconditioningTemperature")
         data["heated_steering_wheel"] = _bool_on(p.get("preconditioningHeatedStrgWheel"))
@@ -576,7 +558,7 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
 
     data.update(update_charge_session(state, battery, capacity_kwh, charging))
     data["charging"] = "on" if charging else "off"
-    plug_code = plug.value if plug is not None else None   # int, JSON-safe for the baseline
+    plug_code = plug.value if plug is not None else None
     data["plug_suspect"] = detect_plug_suspect(state, plug_code, mileage,
                                                 battery.batteryLevel, charging)
     if debug_enabled():
@@ -594,8 +576,6 @@ async def start_health_server():
     app.router.add_get("/healthz", lambda _req: web.Response(text="ok"))
     runner = web.AppRunner(app)
     await runner.setup()
-    # Bind all interfaces so the Supervisor watchdog can reach it on the container network;
-    # the port isn't exposed (no `ports:` mapping), so it stays on HA's internal network.
     await web.TCPSite(runner, "0.0.0.0", HEALTH_PORT).start()  # nosec B104
     LOG.info("Health endpoint listening on :%d/healthz", HEALTH_PORT)
     return runner
@@ -617,24 +597,23 @@ async def main():
     stale_secs = int(cfg("A290_STALE_HOURS", "6") or "6") * 3600
 
     _LOOP = asyncio.get_running_loop()
-    health = await start_health_server()   # backs the Dockerfile HEALTHCHECK
+    health = await start_health_server()
     state = load_state()
     vsession = VehicleSession(locale)
     supported = await detect_supported(vsession)
     _MQTT_CTX["supported"], _MQTT_CTX["dist_unit"] = supported, dist_unit
     client = mqtt_connect()
-    publish_discovery(client, supported, dist_unit)   # initial; _on_connect re-publishes on reconnect
-    await deploy.run_deploy()  # optional dashboard auto-deploy; never fatal
+    publish_discovery(client, supported, dist_unit)
+    await deploy.run_deploy()
 
     stop = asyncio.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
         _LOOP.add_signal_handler(sig, stop.set)
 
     fails = 0
-    max_backoff = max(interval, 1800)   # cap the inter-poll wait during sustained outages
+    max_backoff = max(interval, 1800)
     while not stop.is_set():
         try:
-            # Cap the whole cycle so a hung poll can't outlast the interval.
             data, location_attrs = await asyncio.wait_for(
                 poll_once(vsession, state, capacity, supported, dist_unit),
                 timeout=max(30, interval - 10))
@@ -657,8 +636,6 @@ async def main():
             last_ok = state.get("last_success", 0)
             stale = (now_ts() - last_ok) > stale_secs if last_ok else True
             auth = any(s in str(err).lower() for s in ("login", "password", "credential", "401", "403"))
-            # Re-login only on an auth error or a wedged session — not on every transient
-            # failure, else an outage would hammer Gigya every cycle.
             if auth or fails % 3 == 0:
                 await vsession.invalidate()
             client.publish(STATE_TOPIC, json.dumps({
@@ -667,7 +644,6 @@ async def main():
             }), retain=True)
             client.publish(AVAIL_TOPIC, "online", retain=True)
             save_state(state)
-        # Back off while failing; normal interval once a poll succeeds.
         wait = interval if fails == 0 else min(interval * 2 ** (fails - 1), max_backoff)
         try:
             await asyncio.wait_for(stop.wait(), timeout=wait)
@@ -682,5 +658,5 @@ async def main():
     client.disconnect()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     asyncio.run(main())

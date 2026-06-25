@@ -6,9 +6,11 @@
   forbidden on the A290, so the tile pointed at an entity that's never published.
 - Add README badges (CI, version, license, Home Assistant add-on, architectures, and a
   one-click "add repository" button).
-- Raise unit-test coverage from ~54% to **96%** (`poll_once`, command dispatch, endpoint
-  detection, MQTT wiring, the health server, account resolution, the `main()` loop, and the
-  deploy WebSocket client) and bump the CI coverage gate to **90%**.
+- Raise unit-test coverage from ~54% to **100%** (`poll_once`, command dispatch, endpoint
+  detection, MQTT wiring, the health server, account resolution, the `main()` loop, login,
+  and the deploy WebSocket client) and bump the CI coverage gate to **95%**.
+- Strip the verbose code comments — `main.py`/`deploy.py`/`catalog.py` now carry only the
+  functional `noqa`/`nosec`/`pragma` markers and short docstrings.
 
 ## 1.2.3
 

@@ -2,7 +2,6 @@
 sensors, icons, optional endpoints, control buttons). Object_ids are prefixed "a290_"; the
 discovery value_template strips that prefix."""
 
-# object_id -> (name, device_class, unit, state_class)
 SENSORS = {
     "a290_battery_level":        ("Battery Level", "battery", "%", "measurement"),
     "a290_range":                ("Range", "distance", "km", "measurement"),
@@ -41,7 +40,6 @@ SENSORS = {
     "a290_last_charge_average_power":  ("Last Charge Average Power", "power", "kW", None),
     "a290_last_charge_type":           ("Last Charge Type", None, None, None),
 }
-# object_id -> (name, device_class)
 BINARY_SENSORS = {
     "a290_charging":              ("Charging", "battery_charging"),
     "a290_heated_steering_wheel": ("Heated Steering Wheel", None),
@@ -52,7 +50,6 @@ BINARY_SENSORS = {
     "a290_data_stale":            ("Data Stale", "problem"),
 }
 
-# Icons for text/status sensors with no device_class (else HA shows mdi:eye).
 ICONS = {
     "a290_plug_status":           "mdi:power-plug",
     "a290_charging_status":       "mdi:battery-charging",
@@ -66,17 +63,12 @@ ICONS = {
     "a290_heated_seat_passenger": "mdi:car-seat-heater",
 }
 
-# Endpoint -> object_ids gated on supports_endpoint() (the A290 forbids these), so the
-# sensors are only shipped when the car exposes them.
 OPTIONAL_ENDPOINTS = {
     "charge-mode": ["a290_charge_mode"],
     "pressure": ["a290_tyre_pressure_fl", "a290_tyre_pressure_fr",
                  "a290_tyre_pressure_rl", "a290_tyre_pressure_rr"],
 }
 
-# object_id -> (name, icon, action endpoint). Published only when supports_endpoint() is
-# true; command topic is alpine_a290/cmd/<object_id minus "a290_">. On the A290, charge-start
-# is forbidden (cleared) and refresh-location is a best-effort fallback.
 ACTION_BUTTONS = {
     "a290_charge_start":     ("Start Charging",   "mdi:ev-station",      "actions/charge-start"),
     "a290_horn":             ("Sound Horn",       "mdi:bullhorn",        "actions/horn-start"),
@@ -86,6 +78,4 @@ ACTION_BUTTONS = {
     "a290_refresh_location": ("Refresh Location", "mdi:crosshairs-gps",  "actions/refresh-location"),
 }
 
-# Retired object_ids — retained discovery cleared on startup. cabin_temperature: the A290
-# never returns internalTemperature.
 RETIRED_SENSORS = ["a290_cabin_temperature"]
