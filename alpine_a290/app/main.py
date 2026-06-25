@@ -1,28 +1,10 @@
 """Alpine A290 add-on — poll the Renault/Kamereon API and publish to HA via MQTT discovery.
 
-v0.5 — adds charge control (an MQTT "Start Charging" button that calls the library's
-kcm-settings charge-start, i.e. the documented instant-charge trick) and plug
-stuck-detection (Connected-but-driven / Disconnected-but-charging) as a binary sensor.
-
-Read endpoints (v0.4): battery-status, KCM ev/soc-level, cockpit, location, HVAC,
-tyre pressure, charge mode. Charge-session tracking + health sensors (v0.3) persist to
-/data/state.json.
-
-Platform caveats (R5 E-Tech / A290, CMF-BEV): batteryCapacity is always 0 (we use the
-configured capacity); chargingStatus is a float ChargeState (0.0/0.2/1.0/-1.0/… —
-decoded via the library enum, not just 0/1/-1); chargingInstantaneousPower
-units are unreliable; batteryTemperature is sometimes absent; the HVAC endpoint never
-returns internalTemperature (cabin temp), so no Cabin Temperature entity is published.
-
-Controls (ACTION_BUTTONS): each command button is published only when the car supports its
-action endpoint (vehicle.supports_endpoint), so we never ship a dead control. On the A290
-(model A5E1AE): horn, flash-lights, start-climate and stop-climate are supported;
-refresh-location falls back to the default endpoint (untested — may 403 on press);
-charge-start is forbidden at the Renault API level (every variant renault-api offers —
-KCA actions/charge-start, KCM charge/start, pause-resume, and the R5's ev/settings
-disable-programs trick — returns "access is forbidden", verified against renault-api 0.5.12
-and current main), so its button is cleared and never shipped here. Start-climate's target
-cabin temperature comes from the precondition_temperature add-on option (default 20 °C).
+A290/CMF-BEV (model A5E1AE) quirks: batteryCapacity is always 0 (we use the configured
+capacity); chargingStatus is a float ChargeState decoded via the library enum;
+chargingInstantaneousPower units are unreliable; batteryTemperature/internalTemperature are
+often absent. Control buttons (ACTION_BUTTONS) are gated on supports_endpoint(); charge-start
+is forbidden on this model, so it's never shipped.
 """
 import asyncio
 import inspect
@@ -61,21 +43,15 @@ CMD_PREFIX = f"{NODE}/cmd/"          # button commands: alpine_a290/cmd/<name>
 STATE_FILE = os.environ.get("A290_STATE_FILE", "/data/state.json")
 
 DEVICE = {"identifiers": [NODE], "name": "Alpine A290", "manufacturer": "Alpine", "model": "A290"}
-# Single-sourced from config.yaml: the HA builder passes its `version:` as the BUILD_VERSION
-# arg, which the Dockerfile exposes as A290_VERSION (os.environ here — cfg() isn't defined
-# yet at module-eval time). "dev" for local builds without the arg.
+# Single-sourced from config.yaml via the builder's BUILD_VERSION arg (Dockerfile -> env).
 VERSION = os.environ.get("A290_VERSION", "dev")
 
-_LOOP = None  # asyncio loop, set in main(), used to bridge paho callbacks
-
-# Entity catalog (sensors / binary sensors / icons / optional endpoints / control buttons /
-# retired ids) lives in catalog.py — the per-model surface, kept out of this engine.
+_LOOP = None  # asyncio loop, set in main(), bridges paho callbacks
+# The entity catalog (SENSORS/BINARY_SENSORS/ICONS/OPTIONAL_ENDPOINTS/ACTION_BUTTONS) is in
+# catalog.py.
 
 HOME_POWER_MAX_KW = 7.4
-# Friendly labels for the library's ChargeState/PlugState enums. The API returns
-# chargingStatus as a float (0.0, 0.2, 1.0, -1.0, …) that renault-api decodes via
-# ChargeState; we map every member so sub-states never surface as raw numbers. The
-# dashboards key on "Charging"/"Connected"/"Disconnected", so those are preserved.
+# Friendly labels for the float ChargeState/PlugState the API returns.
 CHARGE_STATUS_LABELS = {
     ChargeState.NOT_IN_CHARGE: "Not Charging",
     ChargeState.WAITING_FOR_A_PLANNED_CHARGE: "Waiting (Planned)",
@@ -96,16 +72,13 @@ PLUG_STATUS_LABELS = {
     PlugState.PLUG_ERROR: "Plug Error",
     PlugState.PLUG_UNKNOWN: "Unknown",
 }
-# Drive side from locale (UK + Ireland are RHD; the rest of the supported markets LHD).
-# The dashboard uses this to map the API's left/right seats to driver/passenger.
-RHD_LOCALES = {"en_gb", "en_ie"}
-# Distance units: only the UK uses miles; everywhere else (incl. Ireland) uses km.
-MILES_LOCALES = {"en_gb"}
-# plug stuck-detection thresholds (mirrors the original template logic)
-PLUG_KM_DELTA = 1       # km driven since baseline => evidence of "actually unplugged"
+RHD_LOCALES = {"en_gb", "en_ie"}   # right-hand drive (for seat driver/passenger mapping)
+MILES_LOCALES = {"en_gb"}          # only the UK uses miles
+# plug stuck-detection thresholds
+PLUG_KM_DELTA = 1       # km driven since baseline
 PLUG_SOC_DROP = 2       # %SoC dropped since baseline
-PLUG_MIN_AGE = 600      # ignore baselines younger than 10 min
-PLUG_MAX_AGE = 12 * 3600  # ...or older than 12 h
+PLUG_MIN_AGE = 600      # ignore baselines < 10 min
+PLUG_MAX_AGE = 12 * 3600  # ...or > 12 h
 
 
 def cfg(name, default=""):
@@ -115,9 +88,7 @@ def cfg(name, default=""):
 def setup_logging():
     level = getattr(logging, cfg("A290_LOG_LEVEL", "info").upper(), logging.INFO)
     logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(message)s")
-    # renault-api logs full Kamereon request/response bodies at DEBUG — incl. the bearer
-    # JWT, VIN and GPS. Never let the add-on's debug flag turn that on: clamp the library
-    # loggers' floor to INFO so a token can't leak into the add-on log.
+    # Clamp library loggers to INFO so the add-on's debug flag can't leak Kamereon tokens.
     for noisy in ("renault_api", "renault_api.kamereon", "renault_api.gigya"):
         logging.getLogger(noisy).setLevel(max(level, logging.INFO))
 
@@ -141,8 +112,7 @@ def load_state():
 def save_state(state):
     try:
         os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
-        # Write-then-rename so a kill mid-write can't truncate state.json to garbage
-        # (load_state would then silently drop all charge history).
+        # Write-then-rename: a kill mid-write can't truncate state.json to garbage.
         tmp = f"{STATE_FILE}.tmp"
         with open(tmp, "w") as fh:
             json.dump(state, fh)
@@ -158,15 +128,13 @@ def _on_message(client, userdata, msg):
         asyncio.run_coroutine_threadsafe(run_command(cmd), _LOOP)
 
 
-# Set by main() before connecting so _on_connect can (re)publish discovery after a broker
-# restart that may have wiped retained messages.
+# Set by main() so _on_connect can re-publish discovery after a broker restart.
 _MQTT_CTX = {"supported": None, "dist_unit": None}
 
 
 def _on_connect(client, userdata, flags, reason_code, properties=None):
-    # Runs on every (re)connect. paho does not replay subscriptions, and a restarted broker
-    # may have dropped retained discovery — so without this, button presses are silently
-    # ignored and entities vanish after a broker bounce. Re-establish both here.
+    # paho doesn't replay subscriptions and a restarted broker may drop retained discovery,
+    # so re-establish both on every (re)connect — else buttons/entities silently disappear.
     client.subscribe(f"{CMD_PREFIX}#")
     if _MQTT_CTX["supported"] is not None:
         publish_discovery(client, _MQTT_CTX["supported"], _MQTT_CTX["dist_unit"])
@@ -190,8 +158,7 @@ def mqtt_connect():
 def publish_discovery(client, supported_eps, dist_unit):
     skip = {obj for ep, objs in OPTIONAL_ENDPOINTS.items()
             if ep not in supported_eps for obj in objs}
-    # Clear discovery for unsupported + retired entities (removes ones a previous
-    # version may have published with retain=True).
+    # Clear retained discovery for unsupported + retired entities.
     for obj in set(skip) | set(RETIRED_SENSORS):
         client.publish(f"{DISCOVERY_PREFIX}/sensor/{NODE}/{obj}/config", "", retain=True)
     published = 0
@@ -238,9 +205,7 @@ def publish_discovery(client, supported_eps, dist_unit):
             client.publish(topic, json.dumps(conf), retain=True)
             buttons.append(short)
         else:
-            # Endpoint forbidden on this model (e.g. charge-start on the A290) — clear any
-            # retained button a previous version published so the dead control disappears.
-            client.publish(topic, "", retain=True)
+            client.publish(topic, "", retain=True)   # forbidden on this model — clear it
     LOG.info("Published discovery: %d sensors (%d unsupported cleared), %d binary_sensors, device_tracker, buttons=%s",
              published, len(skip), len(BINARY_SENSORS), buttons or "none")
 
@@ -311,19 +276,10 @@ API_TIMEOUT = aiohttp.ClientTimeout(total=60, connect=10)   # bound every Renaul
 
 
 class VehicleSession:
-    """One logged-in renault-api vehicle + its aiohttp session, reused across polls.
-
-    Earlier versions logged in (full Gigya auth) on *every* poll — ~288 logins/day at the
-    default 300 s interval, which risks Renault-side throttling. Here the websession and
-    vehicle are created once and reused; renault-api refreshes its own access tokens as
-    they expire, so steady-state polling needs no fresh login. ``invalidate()`` drops the
-    cached login (closing the socket) so the next ``vehicle()`` re-authenticates from
-    scratch — the poll loop calls it after any failed poll so a stale token or a dropped
-    connection always self-heals on the following cycle.
-
-    Owned solely by the poll loop (detect_supported + poll_once). Button presses keep their
-    own short-lived login in run_command, so there's no concurrent use of this session.
-    """
+    """One logged-in vehicle + aiohttp session, reused across polls instead of a fresh
+    Gigya login each cycle (~288/day). renault-api refreshes its own tokens; invalidate()
+    drops the cached login so the next call re-authenticates. Owned by the poll loop only —
+    button presses keep their own short-lived login in run_command."""
 
     def __init__(self, locale):
         self.locale = locale
@@ -332,8 +288,6 @@ class VehicleSession:
 
     async def vehicle(self):
         if self._vehicle is None:
-            # Bound every request: aiohttp's default is no timeout, so a hung Kamereon
-            # socket would otherwise stall the single poll loop forever.
             self._websession = aiohttp.ClientSession(timeout=API_TIMEOUT)
             try:
                 self._vehicle = await _login_vehicle(self._websession, self.locale)
@@ -365,13 +319,9 @@ async def _supports(vehicle, ep):
 
 
 async def detect_supported(vsession):
-    """Probe which optional endpoints this car exposes (reusing the cached login).
-
-    Returns a set of endpoint names. The GET data endpoints (OPTIONAL_ENDPOINTS) default
-    to supported if detection fails — they're read-only and harmless if empty. The action
-    endpoints behind ACTION_BUTTONS default to *unsupported* so a platform that forbids one
-    (e.g. charge-start on the A290) never gets a dead control button.
-    """
+    """Set of supported endpoint names. Data endpoints default to supported on a detection
+    error (read-only, harmless if empty); action endpoints default to unsupported so a
+    forbidden control is never shipped."""
     supported = set(OPTIONAL_ENDPOINTS)
     action_eps = {ep for _name, _icon, ep in ACTION_BUTTONS.values()}
     try:
@@ -400,8 +350,7 @@ def _precondition_temp():
     return float(cfg("A290_PRECONDITION_TEMPERATURE", "20") or "20")
 
 
-# Command name (topic suffix) -> coroutine taking the logged-in vehicle. Names match the
-# ACTION_BUTTONS object_ids minus the "a290_" prefix.
+# Command suffix (ACTION_BUTTONS object_id minus "a290_") -> action on the vehicle.
 COMMAND_ACTIONS = {
     "charge_start":     lambda v: v.set_charge_start(),
     "horn":             lambda v: v.start_horn(),
@@ -495,11 +444,8 @@ async def resolve_account(client):
     raise RuntimeError("No MYRENAULT account found and A290_ACCOUNT_ID not set")
 
 
-# --- Debug API dump (set debug_dump: true on the Configuration page) ----------------
-# Read-only endpoints tried when dumping everything the API exposes for this car. This is
-# the *safe* diagnostic path: the renault-api library's own DEBUG logging leaks bearer
-# tokens (which setup_logging() deliberately clamps), whereas this dumps the decoded data
-# with identifiers/secrets redacted.
+# Debug API dump (debug_dump: true) — read-only endpoints to dump, IDs/secrets redacted.
+# The safe diagnostic path: library DEBUG logging would leak tokens; this doesn't.
 _DEBUG_METHODS = [
     "get_details", "get_battery_status", "get_battery_soc", "get_cockpit",
     "get_hvac_status", "get_hvac_settings", "get_location", "get_charge_schedule",
@@ -516,9 +462,7 @@ def debug_enabled():
 
 
 def _debug_redact(obj, secrets):
-    """Recursively scrub identifiers + configured VIN/account/username from a payload.
-    Telemetry (battery, GPS, etc.) is kept — only IDs/contact fields and secret values
-    are masked, so the dump shows the data without leaking who/which car it is."""
+    """Mask ID/contact keys and secret values; keep telemetry. Recurses dicts/lists."""
     if isinstance(obj, dict):
         return {k: ("***" if k.lower() in _DEBUG_REDACT_KEYS else _debug_redact(v, secrets))
                 for k, v in obj.items()}
@@ -564,8 +508,7 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
         "available_energy": _num(getattr(battery, "batteryAvailableEnergy", None)),
         "plug_status": _enum_label(plug, PLUG_STATUS_LABELS, getattr(battery, "plugStatus", None)),
         "charging_flap": "Open: Plugged In" if plug == PlugState.PLUGGED else "Closed",
-        # Headline matches the Charging binary sensor: when actively charging (incl.
-        # the power-based fallback) show "Charging"; otherwise the precise ChargeState.
+        # Headline matches the Charging binary sensor; else show the precise ChargeState.
         "charging_status": "Charging" if charging else charging_status_label(battery),
         "last_updated": getattr(battery, "timestamp", None) or iso(now_ts()),
         "drive_side": "RHD" if locale.lower() in RHD_LOCALES else "LHD",
@@ -633,9 +576,7 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
 
     data.update(update_charge_session(state, battery, capacity_kwh, charging))
     data["charging"] = "on" if charging else "off"
-    # Derive the int plug code from the already-decoded enum (single source of truth, and
-    # JSON-safe for the persisted baseline) rather than re-reading the raw plugStatus attr.
-    plug_code = plug.value if plug is not None else None
+    plug_code = plug.value if plug is not None else None   # int, JSON-safe for the baseline
     data["plug_suspect"] = detect_plug_suspect(state, plug_code, mileage,
                                                 battery.batteryLevel, charging)
     if debug_enabled():
@@ -647,9 +588,8 @@ HEALTH_PORT = 8099
 
 
 async def start_health_server():
-    """Tiny HTTP /healthz on the poll loop's own event loop. It always returns 200 — its
-    purpose is the Supervisor watchdog (config.yaml): if the loop ever deadlocks, this
-    server can't answer either, so the watchdog restarts the container."""
+    """/healthz on the poll loop — backs the Supervisor watchdog: a deadlocked loop can't
+    answer, so the container gets restarted."""
     app = web.Application()
     app.router.add_get("/healthz", lambda _req: web.Response(text="ok"))
     runner = web.AppRunner(app)
@@ -692,8 +632,7 @@ async def main():
     max_backoff = max(interval, 1800)   # cap the inter-poll wait during sustained outages
     while not stop.is_set():
         try:
-            # Hard ceiling on a poll: with API_TIMEOUT per request a single hang is bounded,
-            # but wait_for also caps the whole cycle so it can never outlast the interval.
+            # Cap the whole cycle so a hung poll can't outlast the interval.
             data, location_attrs = await asyncio.wait_for(
                 poll_once(vsession, state, capacity, supported, dist_unit),
                 timeout=max(30, interval - 10))
@@ -716,10 +655,8 @@ async def main():
             last_ok = state.get("last_success", 0)
             stale = (now_ts() - last_ok) > stale_secs if last_ok else True
             auth = any(s in str(err).lower() for s in ("login", "password", "credential", "401", "403"))
-            # Re-login when the token looks bad, or if the session seems wedged after a few
-            # failures — but NOT on every transient error. A Renault 5xx or a timeout doesn't
-            # mean our token expired, so blindly re-authing each cycle would hammer Gigya
-            # during an outage (the very throttling the cached login was added to avoid).
+            # Re-login only on an auth error or a wedged session — not on every transient
+            # failure, else an outage would hammer Gigya every cycle.
             if auth or fails % 3 == 0:
                 await vsession.invalidate()
             client.publish(STATE_TOPIC, json.dumps({
@@ -727,9 +664,8 @@ async def main():
                 "data_stale": "on" if stale else "off",
             }), retain=True)
             client.publish(AVAIL_TOPIC, "online", retain=True)
-            save_state(state)   # persist plug baselines / session progress mutated this cycle
-        # Exponential backoff while failing, so a sustained outage doesn't poll/re-login at
-        # full cadence; normal interval once a poll succeeds (fails reset to 0).
+            save_state(state)
+        # Back off while failing; normal interval once a poll succeeds.
         wait = interval if fails == 0 else min(interval * 2 ** (fails - 1), max_backoff)
         try:
             await asyncio.wait_for(stop.wait(), timeout=wait)

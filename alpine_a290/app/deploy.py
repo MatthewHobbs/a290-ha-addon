@@ -1,14 +1,8 @@
 """Optional dashboard auto-deploy.
 
-When `deploy_dashboard` is `standard` or `bubble`, this reads the chosen dashboard
-YAML bundled in the add-on image, rewrites its `/local/...` image references to
-jsDelivr CDN URLs served from this same repo (so nothing has to be copied into
-`/config/www`), registers a Zen Dots Google-Font CSS resource, and creates the
-dashboard via Home Assistant's WebSocket API and pushes its config.
-
-It is **create-once**: if the dashboard url_path already exists it is left alone
-(so user edits are never clobbered) unless `redeploy_dashboard` is true. Every
-failure here is non-fatal — the data poller runs regardless.
+Reads the bundled dashboard YAML, rewrites its /local image refs to jsDelivr CDN URLs
+(served from this repo), registers the Zen Dots font, and creates + pushes the dashboard
+via HA's WebSocket API. Create-once (left alone unless redeploy_dashboard); never fatal.
 """
 import logging
 import os
@@ -19,19 +13,14 @@ import yaml
 
 LOG = logging.getLogger("alpine_a290.deploy")
 
-# The dashboard now ships inside the add-on. The two front-end YAMLs are bundled into the
-# image (read from DASHBOARD_DIR); their images load from this same repo via jsDelivr. @main
-# is fine here — it's the add-on's *own* repo (same trust domain as the image HA already
-# pulls), not a separate third-party source, so there's no cross-repo supply-chain gap.
+# Images load from the add-on's own repo via jsDelivr (@main is fine — same trust domain).
 REPO = "MatthewHobbs/a290-ha-addon"
 CDN = f"https://cdn.jsdelivr.net/gh/{REPO}@main/alpine_a290/dashboards"
 FONT_URL = "https://fonts.googleapis.com/css2?family=Zen+Dots&display=swap"
 DASHBOARDS = {"standard": "front-end.txt", "bubble": "front-end-bubble.txt"}
-# The front-end YAMLs are COPYed here by the Dockerfile; overridable for tests/local runs.
-DASHBOARD_DIR = os.environ.get("A290_DASHBOARD_DIR", "/app/dashboards")
+DASHBOARD_DIR = os.environ.get("A290_DASHBOARD_DIR", "/app/dashboards")   # Dockerfile COPYs here
 
-# /local/backgrounds/<file> -> repo path (the dashboards flatten everything under
-# /local/backgrounds/, but the repo keeps them in typed subfolders).
+# /local/backgrounds/<file> -> repo path (dashboards flatten these; repo keeps subfolders).
 IMG_MAP = {
     "alpine_a290_background.png": "Images/Background/alpine_a290_background.png",
     "alpine_a290_side.png": "Images/Background/alpine_a290_side.png",
