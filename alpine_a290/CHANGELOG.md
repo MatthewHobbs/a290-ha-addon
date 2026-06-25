@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.0
+
+- Remove the dead **Start Charging** tile from the standard dashboard — charge-start is
+  forbidden on the A290, so the tile pointed at an entity that's never published.
+- Add README badges (CI, version, license, Home Assistant add-on, architectures, and a
+  one-click "add repository" button).
+- Raise unit-test coverage from ~54% to **96%** (`poll_once`, command dispatch, endpoint
+  detection, MQTT wiring, the health server, account resolution, the `main()` loop, and the
+  deploy WebSocket client) and bump the CI coverage gate to **90%**.
+
 ## 1.2.3
 
 - Complete the CI fix: the HA add-on linter flags the `watchdog` config option as obsolete,

@@ -49,8 +49,8 @@ current SoC against the Min/Target SoC limits. Below it:
 - **Remote Control** — native MQTT buttons published by the add-on (no official integration):
   - `button.alpine_a290_sound_horn`, `…_flash_lights`, `…_start_climate`, `…_stop_climate`,
     and `…_refresh_location`.
-  - **No charge buttons:** Renault forbids remote charge-start/stop on the A290. The standard
-    dashboard still shows a Start Charging tile, but there's no entity behind it — it's inert.
+  - **No charge buttons:** Renault forbids remote charge-start/stop on the A290, so neither
+    dashboard includes a charge tile.
   - **Start Climate** preconditions to the add-on's `precondition_temperature` (default 20 °C);
     HVAC can lag if the car is asleep, and stop may be unreliable — both are Renault-side limits.
 - **Last Charge** — captured by the add-on at the end of a session:

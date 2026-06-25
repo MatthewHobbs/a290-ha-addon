@@ -824,24 +824,6 @@
         columns: 3
         cards:
         - type: custom:button-card
-          name: Start Charging
-          icon: mdi:play
-          tap_action:
-            action: call-service
-            service: button.press
-            target:
-              entity_id: button.alpine_a290_start_charging
-          styles:
-            icon:
-            - color: grey
-            - opacity: 0.2
-            - width: 28px
-            - height: 28px
-            name:
-            - font-weight: 400
-          card_mod:
-            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
-        - type: custom:button-card
           name: HVAC Start
           icon: mdi:fan
           tap_action:

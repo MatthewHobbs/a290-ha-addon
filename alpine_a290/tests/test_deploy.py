@@ -135,3 +135,81 @@ def test_run_deploy_both_installs_standard_and_bubble(monkeypatch):
     fake = _run_deploy_with(monkeypatch, existing=[], redeploy=False, style="both")
     assert fake.created == ["alpine-a290", "alpine-a290-bubble"]
     assert fake.saved == ["alpine-a290", "alpine-a290-bubble"]
+
+
+# --------------------------------------------------------------------------- #
+# run_deploy early-exit branches
+# --------------------------------------------------------------------------- #
+def test_run_deploy_noop_when_disabled(monkeypatch):
+    monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "none")
+    asyncio.run(deploy.run_deploy())   # returns immediately
+
+
+def test_run_deploy_warns_on_unknown_style(monkeypatch):
+    monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "fancy")
+    asyncio.run(deploy.run_deploy())
+
+
+def test_run_deploy_skips_without_supervisor_token(monkeypatch):
+    monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "standard")
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    asyncio.run(deploy.run_deploy())
+
+
+# --------------------------------------------------------------------------- #
+# _WS WebSocket client (auth + every command + failure)
+# --------------------------------------------------------------------------- #
+class _FakeOKWS:
+    """Replies to every command with a matching successful result."""
+
+    def __init__(self):
+        self.sent, self.n = [], 0
+
+    async def send_json(self, payload):
+        self.sent.append(payload)
+
+    async def receive_json(self):
+        self.n += 1
+        return {"id": self.n, "type": "result", "success": True, "result": None}
+
+
+def test_ws_auth_then_commands():
+    class WS(_FakeOKWS):
+        async def receive_json(self):
+            # auth() consumes two frames before any command id-matching
+            if self.n == 0 and not getattr(self, "_authed", False):
+                self._authed = True
+                return {"type": "auth_required"}
+            if getattr(self, "_authed", False) and not getattr(self, "_ok", False):
+                self._ok = True
+                return {"type": "auth_ok"}
+            return await super().receive_json()
+
+    async def scenario():
+        api = deploy._WS(None, WS(), "token")
+        await api.auth()
+        await api.dashboards()
+        await api.create_dashboard("p", "T")
+        await api.save_config("p", {"views": []})
+        await api.resources()
+        await api.create_resource("https://font")
+
+    asyncio.run(scenario())
+
+
+def test_ws_raises_on_failed_result():
+    import pytest
+
+    class WS:
+        async def send_json(self, payload):
+            pass
+
+        async def receive_json(self):
+            return {"id": 1, "type": "result", "success": False, "error": "denied"}
+
+    async def scenario():
+        api = deploy._WS(None, WS(), "token")
+        with pytest.raises(RuntimeError):
+            await api.dashboards()
+
+    asyncio.run(scenario())
