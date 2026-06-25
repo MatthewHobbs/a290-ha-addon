@@ -68,16 +68,20 @@ key needed.
 
 ## Install
 
-1. **Add the add-on repo:** Settings → Add-ons → Add-on Store → ⋮ → **Repositories**, add
-   `https://github.com/MatthewHobbs/a290-ha-addon`. Install **Mosquitto broker** (if needed)
-   and the **Alpine A290** add-on.
-2. **Configure + start:** on the add-on's **Configuration** tab set your My Alpine
+1. **Install the dependencies first** — so a deployed dashboard renders immediately instead
+   of as "custom element doesn't exist":
+   - **Mosquitto broker** (Settings → Add-ons → Add-on Store) — the add-on auto-discovers it.
+   - **[HACS](https://hacs.xyz)** and the frontend cards from [Requirements](#requirements)
+     above (card-mod, Mushroom, Button Card, Browser Mod, plus Bubble Card for the bubble
+     dashboard).
+2. **Add the add-on repo + install it:** Settings → Add-ons → Add-on Store → ⋮ →
+   **Repositories**, add `https://github.com/MatthewHobbs/a290-ha-addon`, then install the
+   **Alpine A290** add-on.
+3. **Configure + start:** on the **Configuration** tab set your My Alpine
    `username`/`password`, `vin`, `locale`, `battery_capacity_kwh` (and `account_id` only if
    you have multiple accounts — it's auto-discovered otherwise), then **Start**. The
-   `sensor.alpine_a290_*` / `binary_sensor.alpine_a290_*` entities and
-   `button.alpine_a290_*` controls appear under an **Alpine A290** device within a minute.
-3. **Install the HACS cards** above — do this *before* deploying a dashboard, or it renders
-   as "custom element doesn't exist".
+   `sensor.alpine_a290_*` / `binary_sensor.alpine_a290_*` entities and `button.alpine_a290_*`
+   controls appear under an **Alpine A290** device within a minute.
 4. **Get a dashboard:** set `deploy_dashboard` to `standard`, `bubble`, or `both` and
    restart the add-on (it installs the dashboard + assets via CDN, nothing to copy), **or**
    copy `alpine_a290/dashboards/front-end*.txt` into a new dashboard's raw config manually.
