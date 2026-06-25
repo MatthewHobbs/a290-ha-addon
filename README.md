@@ -24,13 +24,13 @@ on the add-on's **Configuration** page.
 
 Your Alpine A290 entities (`sensor.alpine_a290_*`) will appear automatically via MQTT.
 
-> This add-on provides the **data layer**. The dashboards live in the companion
-> repo: [a290-dashboard-view](https://github.com/MatthewHobbs/a290-dashboard-view).
+> This add-on bundles both the **data layer** and the **dashboards** — enable
+> `deploy_dashboard` to have it install a ready-made dashboard for you. The dashboard
+> sources live under [`alpine_a290/dashboards/`](alpine_a290/dashboards).
 
 ## Credits
 
-Part of the standalone **Alpine A290** project (the
-[dashboards](https://github.com/MatthewHobbs/a290-dashboard-view)), which originally
+Part of the standalone **Alpine A290** project, whose dashboards originally
 started from [renault-5-dashboard-view](https://github.com/Topolino65/renault-5-dashboard-view)
 by [Topolino65](https://github.com/Topolino65) — credit retained. Developed
 independently; no changes are submitted upstream. MIT licensed.

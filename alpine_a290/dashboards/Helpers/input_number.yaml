@@ -1,0 +1,45 @@
+# Test-mode simulation helpers (used by Packages/a290_test.yaml).
+# Car data comes from the Alpine A290 add-on, not these.
+
+
+test_last_charge_start_soc:
+  name: Test Last Charge Start SoC
+  min: 0
+  max: 100
+  step: 1
+  
+test_last_charge_end_soc:
+  name: Test Last Charge End SoC
+  min: 0
+  max: 100
+  step: 1
+  
+test_last_charge_start_power_kw:
+  name: Test Last Charge Start Power (kW)
+  min: 0
+  max: 25
+  step: 0.1
+  
+test_last_charge_average_power_kw:
+  name: Test Last Charge Average Power (kW)
+  min: 0
+  max: 25
+  step: 0.1
+  
+test_charge_start_energy_kwh:
+  name: Test Charge Start Energy (kWh)
+  min: 0
+  max: 100
+  step: 0.1
+  
+test_charge_end_energy_kwh:
+  name: Test Charge End Energy (kWh)
+  min: 0
+  max: 100
+  step: 0.1
+  
+test_charge_energy_stored_kwh:
+  name: Test Charge Energy Stored (kWh)
+  min: 0
+  max: 100
+  step: 0.1

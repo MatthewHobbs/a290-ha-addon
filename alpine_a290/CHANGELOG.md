@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0
+
+- **The dashboard now ships inside the add-on** — the separate `a290-dashboard-view` repo is
+  no longer a dependency. The two front-end YAMLs are bundled into the image and read
+  locally at deploy time (no network fetch for the layout); their images load via jsDelivr
+  CDN from this same repo. One project, one place to maintain. Deploy behaviour is otherwise
+  unchanged (still create-once, still optional via `deploy_dashboard`). The old dashboard
+  repo is archived.
+
 ## 1.0.0
 
 First stable release. Functionally identical to 0.25.0 — the commit history was reset at

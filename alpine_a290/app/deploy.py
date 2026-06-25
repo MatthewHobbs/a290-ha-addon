@@ -1,8 +1,8 @@
 """Optional dashboard auto-deploy.
 
-When `deploy_dashboard` is `standard` or `bubble`, this fetches the chosen
-dashboard from the public a290-dashboard-view repo, rewrites its `/local/...`
-image references to jsDelivr CDN URLs (so nothing has to be copied into
+When `deploy_dashboard` is `standard` or `bubble`, this reads the chosen dashboard
+YAML bundled in the add-on image, rewrites its `/local/...` image references to
+jsDelivr CDN URLs served from this same repo (so nothing has to be copied into
 `/config/www`), registers a Zen Dots Google-Font CSS resource, and creates the
 dashboard via Home Assistant's WebSocket API and pushes its config.
 
@@ -19,16 +19,16 @@ import yaml
 
 LOG = logging.getLogger("alpine_a290.deploy")
 
-REPO = "MatthewHobbs/a290-dashboard-view"
-# Pin to an immutable commit, not @main: the fetched YAML is pushed into HA as Lovelace
-# config with a privileged Supervisor token, so a compromised repo or a poisoned CDN cache
-# must not be able to change what we deploy. Bump this deliberately when the dashboard repo
-# updates (and re-verify the deploy).
-DASHBOARD_REF = "f89887ef702b604ce096e25fdcb8e3596e2fc9ef"
-RAW = f"https://raw.githubusercontent.com/{REPO}/{DASHBOARD_REF}/YAML"
-CDN = f"https://cdn.jsdelivr.net/gh/{REPO}@{DASHBOARD_REF}"
+# The dashboard now ships inside the add-on. The two front-end YAMLs are bundled into the
+# image (read from DASHBOARD_DIR); their images load from this same repo via jsDelivr. @main
+# is fine here — it's the add-on's *own* repo (same trust domain as the image HA already
+# pulls), not a separate third-party source, so there's no cross-repo supply-chain gap.
+REPO = "MatthewHobbs/a290-ha-addon"
+CDN = f"https://cdn.jsdelivr.net/gh/{REPO}@main/alpine_a290/dashboards"
 FONT_URL = "https://fonts.googleapis.com/css2?family=Zen+Dots&display=swap"
 DASHBOARDS = {"standard": "front-end.txt", "bubble": "front-end-bubble.txt"}
+# The front-end YAMLs are COPYed here by the Dockerfile; overridable for tests/local runs.
+DASHBOARD_DIR = os.environ.get("A290_DASHBOARD_DIR", "/app/dashboards")
 
 # /local/backgrounds/<file> -> repo path (the dashboards flatten everything under
 # /local/backgrounds/, but the repo keeps them in typed subfolders).
@@ -59,13 +59,15 @@ def _cdnify(text):
     return re.sub(r"/local/backgrounds/([\w.\-]+)", repl, text)
 
 
+def _read_dashboard(style):
+    """Read a bundled dashboard YAML from the image (DASHBOARD_DIR)."""
+    with open(os.path.join(DASHBOARD_DIR, DASHBOARDS[style]), encoding="utf-8") as fh:
+        return fh.read()
+
+
 async def _fetch_dashboard(style):
-    url = f"{RAW}/{DASHBOARDS[style]}"
-    async with aiohttp.ClientSession() as s:
-        async with s.get(url, timeout=aiohttp.ClientTimeout(total=30)) as r:
-            r.raise_for_status()
-            raw = await r.text()
-    views = yaml.safe_load(_cdnify(raw))
+    # Bundled in the image now — no network fetch for the YAML; images load via CDN.
+    views = yaml.safe_load(_cdnify(_read_dashboard(style)))
     if not isinstance(views, list):
         raise ValueError("dashboard YAML did not parse to a list of views")
     return {"title": "Alpine A290", "views": views}

@@ -1,0 +1,9 @@
+# Dashboard assets are served via jsDelivr CDN, not bundled — keep the ~5 MB of images,
+# fonts and docs out of the build context. Only the deployable *.txt YAMLs are COPYed in.
+dashboards/*
+!dashboards/*.txt
+
+# Not needed in the image
+tests/
+**/__pycache__/
+*.pyc

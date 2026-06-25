@@ -28,9 +28,8 @@ Set `deploy_dashboard` to `standard` or `bubble` and the add-on will install tha
 dashboard for you — **no raw-editor paste, no `configuration.yaml` edits, and nothing
 to copy into `/config/www`**. On start it:
 
-1. Fetches the chosen dashboard from the
-   [a290-dashboard-view](https://github.com/MatthewHobbs/a290-dashboard-view) repo and
-   rewrites its images to the **jsDelivr CDN**.
+1. Reads the chosen dashboard YAML **bundled in the add-on** and rewrites its image
+   references to the **jsDelivr CDN** (served from this add-on's own repo).
 2. Registers the **Zen Dots** Google font as a Lovelace resource.
 3. Creates the dashboard (at `dashboard_url_path`) via the Home Assistant API and pushes
    its config.

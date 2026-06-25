@@ -1,0 +1,9 @@
+input_boolean:
+  a290_test_mode:
+    name: A290 Test Mode
+    icon: mdi:flask
+
+input_button:
+  a290_test_charge_run:
+    name: A290 Test Charge Run
+    icon: mdi:flask-outline

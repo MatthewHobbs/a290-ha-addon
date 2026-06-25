@@ -1,0 +1,24 @@
+##### Alpine A290 Pretty Location #####
+#
+# Human-readable location string for the dashboard "LOCATION" tile
+# (sensor.alpine_pretty_location).
+#
+# It works primarily from the RAW MQTT device_tracker that this card already
+# provides (device_tracker.alpine_a290_location):
+#   * If the car is within zone.driveway  -> "Driveway"
+#   * If the car is within zone.home      -> "Home"
+#   * Otherwise -> the town/area name from the OPTIONAL `places` integration
+#     sensor (sensor.a290). If you do not run the `places` integration, or it is
+#     unavailable, it simply shows "Away".
+#
+# OPTIONAL dependencies (the sensor degrades gracefully without them):
+#   * zone.driveway  - create this zone if you want a separate "Driveway" state;
+#                      without it the driveway branch is skipped.
+#   * sensor.a290    - the `places` (HACS) integration reverse-geocoding
+#                      device_tracker.alpine_a290_location. Rename to match your
+#                      own places sensor, or remove for coords-only setups.
+
+- sensor:
+    - name: "Alpine Pretty Location"
+      unique_id: alpine_pretty_location
+      state: "{% set lat = state_attr('device_tracker.alpine_a290_location','latitude') %}{% set lon = state_attr('device_tracker.alpine_a290_location','longitude') %}{% if lat is none or lon is none %}Unknown{% else %}{% set dd = distance(lat, lon, state_attr('zone.driveway','latitude'), state_attr('zone.driveway','longitude')) %}{% set hd = distance(lat, lon, state_attr('zone.home','latitude'), state_attr('zone.home','longitude')) %}{% if dd is not none and dd <= (state_attr('zone.driveway','radius') | float(0)) %}Driveway{% elif hd is not none and hd <= (state_attr('zone.home','radius') | float(0)) %}Home{% else %}{{ state_attr('sensor.a290','postal_town') or state_attr('sensor.a290','neighbourhood') or state_attr('sensor.a290','city') or (states('sensor.a290') if states('sensor.a290') not in ['unknown','unavailable',''] else 'Away') }}{% endif %}{% endif %}"

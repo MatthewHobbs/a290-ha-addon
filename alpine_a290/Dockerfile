@@ -13,6 +13,9 @@ COPY app/requirements.txt /app/requirements.txt
 RUN pip3 install --no-cache-dir --break-system-packages -r /app/requirements.txt
 
 COPY app/ /app/
+# Bundle just the deployable dashboard YAMLs; their images load via CDN, so the ~5 MB of
+# image assets stay in the repo and out of the container.
+COPY dashboards/*.txt /app/dashboards/
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
 
