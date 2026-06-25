@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: yamllint
+        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3
+        with:
+          file_or_dir: alpine_a290 repository.yaml
+          config_file: .yamllint
+
+      - name: Hadolint (Dockerfile)
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf  # v3.1.0
+        with:
+          dockerfile: alpine_a290/Dockerfile
+          config: .hadolint.yaml
+
+      - name: ShellCheck (run.sh)
+        uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38  # 2.0.0
+        with:
+          scandir: alpine_a290
+          additional_files: run.sh
+
+      - name: Ruff (Python)
+        uses: astral-sh/ruff-action@4919ec5cf1f49eff0871dbcea0da843445b837e6  # v3
+        with:
+          src: alpine_a290/app
+
+      - name: Home Assistant add-on linter
+        uses: frenck/action-addon-linter@f995494fd84fae6310d23617e66d0e37de4f14eb  # v2
+        with:
+          path: ./alpine_a290
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: python3 -m pip install --quiet -r alpine_a290/app/requirements.txt pytest pytest-cov
+
+      - name: pytest
+        run: python3 -m pytest alpine_a290/tests -q --cov=alpine_a290/app --cov-report=term-missing --cov-fail-under=50
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Bandit (Python SAST)
+        run: |
+          python3 -m pip install --quiet bandit
+          bandit -r alpine_a290/app -ll
+
+      - name: pip-audit (dependency CVEs)
+        run: |
+          python3 -m pip install --quiet pip-audit
+          pip-audit -r alpine_a290/app/requirements.txt
+
+      - name: Trivy filesystem scan (vulns, misconfig, secrets)
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+          trivy fs --scanners vuln,misconfig,secret \
+            --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed .
+
+  build:
+    name: Build (amd64 sanity)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
+      - name: Build image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8  # v6
+        with:
+          context: ./alpine_a290
+          push: false
+          build-args: BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.19

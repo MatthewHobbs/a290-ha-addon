@@ -1,0 +1,47 @@
+name: Alpine A290
+version: "1.0.0"
+slug: alpine_a290
+description: Polls your Alpine A290 (Renault/Kamereon API) and publishes its data to Home Assistant via MQTT auto-discovery — no scripts, venv or secrets files needed.
+url: https://github.com/MatthewHobbs/a290-ha-addon/tree/main/alpine_a290
+arch:
+  - aarch64
+  - amd64
+init: false
+# Supervisor restarts the add-on if this health endpoint stops responding (e.g. a
+# deadlocked event loop). Served by the poller on the internal network — not exposed.
+watchdog: "http://[HOST]:8099/healthz"
+# Talk to the HA core API (used to auto-deploy the dashboard, when enabled).
+homeassistant_api: true
+# Pull MQTT broker connection from the Mosquitto add-on automatically.
+services:
+  - mqtt:need
+options:
+  username: ""
+  password: ""
+  account_id: ""
+  vin: ""
+  locale: en_GB
+  poll_interval: 300
+  battery_capacity_kwh: "52"
+  stale_hours: 6
+  precondition_temperature: 20
+  log_level: info
+  debug_dump: false
+  deploy_dashboard: none
+  dashboard_url_path: alpine-a290
+  redeploy_dashboard: false
+schema:
+  username: str
+  password: password
+  account_id: str?
+  vin: str
+  locale: list(bg_BG|cs_CZ|da_DK|de_AT|de_CH|de_DE|en_GB|en_IE|es_ES|es_MX|fi_FI|fr_BE|fr_CH|fr_FR|fr_LU|hr_HR|hu_HU|it_CH|it_IT|nl_BE|nl_NL|no_NO|pl_PL|pt_PT|ro_RO|ru_RU|sk_SK|sl_SI|sv_SE)
+  poll_interval: int(60,3600)
+  battery_capacity_kwh: list(52|40)
+  stale_hours: int(1,48)
+  precondition_temperature: float(16,27)
+  log_level: list(trace|debug|info|notice|warning|error|fatal)
+  debug_dump: bool
+  deploy_dashboard: list(none|standard|bubble)
+  dashboard_url_path: str
+  redeploy_dashboard: bool
