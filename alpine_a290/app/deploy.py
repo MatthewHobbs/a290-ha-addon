@@ -13,14 +13,12 @@ import yaml
 
 LOG = logging.getLogger("alpine_a290.deploy")
 
-# Images load from the add-on's own repo via jsDelivr (@main is fine — same trust domain).
 REPO = "MatthewHobbs/a290-ha-addon"
 CDN = f"https://cdn.jsdelivr.net/gh/{REPO}@main/alpine_a290/dashboards"
 FONT_URL = "https://fonts.googleapis.com/css2?family=Zen+Dots&display=swap"
 DASHBOARDS = {"standard": "front-end.txt", "bubble": "front-end-bubble.txt"}
-DASHBOARD_DIR = os.environ.get("A290_DASHBOARD_DIR", "/app/dashboards")   # Dockerfile COPYs here
+DASHBOARD_DIR = os.environ.get("A290_DASHBOARD_DIR", "/app/dashboards")
 
-# /local/backgrounds/<file> -> repo path (dashboards flatten these; repo keeps subfolders).
 IMG_MAP = {
     "alpine_a290_background.png": "Images/Background/alpine_a290_background.png",
     "alpine_a290_side.png": "Images/Background/alpine_a290_side.png",
@@ -55,7 +53,6 @@ def _read_dashboard(style):
 
 
 async def _fetch_dashboard(style):
-    # Bundled in the image now — no network fetch for the YAML; images load via CDN.
     views = yaml.safe_load(_cdnify(_read_dashboard(style)))
     if not isinstance(views, list):
         raise ValueError("dashboard YAML did not parse to a list of views")
@@ -80,7 +77,7 @@ class _WS:
                 return msg.get("result")
 
     async def auth(self):
-        await self._ws.receive_json()  # auth_required
+        await self._ws.receive_json()
         await self._ws.send_json({"type": "auth", "access_token": self._token})
         if (await self._ws.receive_json()).get("type") != "auth_ok":
             raise RuntimeError("HA WebSocket auth failed")
@@ -148,7 +145,6 @@ async def run_deploy():
                                            timeout=aiohttp.ClientTimeout(total=30)) as ws:
                 api = _WS(session, ws, token)
                 await api.auth()
-                # Zen Dots font as a global CSS resource (once, shared by both dashboards).
                 if not any(r.get("url") == FONT_URL for r in (await api.resources() or [])):
                     await api.create_resource(FONT_URL)
                     LOG.info("Registered Zen Dots font resource")

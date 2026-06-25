@@ -317,6 +317,71 @@ def test_resolve_account_autodiscovers(monkeypatch):
     assert asyncio.run(main.resolve_account(Client())) == "acct-2"
 
 
+def test_login_vehicle(monkeypatch):
+    for k, v in {"A290_USERNAME": "u", "A290_PASSWORD": "p", "A290_VIN": "V",
+                 "A290_ACCOUNT_ID": "acct"}.items():
+        monkeypatch.setenv(k, v)
+
+    class Session:
+        async def login(self, u, p):
+            pass
+
+    class Account:
+        async def get_api_vehicle(self, vin):
+            return "VEHICLE"
+
+    class Client:
+        def __init__(self, **k):
+            self.session = Session()
+
+        async def get_api_account(self, aid):
+            return Account()
+
+    monkeypatch.setattr(main, "RenaultClient", lambda **k: Client())
+    assert asyncio.run(main._login_vehicle(object(), "en_GB")) == "VEHICLE"
+
+
+def test_save_state_swallows_oserror(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "STATE_FILE", str(tmp_path / "state.json"))
+
+    def boom(*a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr("builtins.open", boom)
+    main.save_state({"a": 1})   # logged + swallowed
+
+
+def test_vehicle_session_invalidate_swallows_close_error():
+    class BadSession:
+        async def close(self):
+            raise RuntimeError("close failed")
+
+    async def scenario():
+        vs = main.VehicleSession("en_GB")
+        vs._websession = BadSession()
+        await vs.invalidate()
+        assert vs._websession is None
+
+    asyncio.run(scenario())
+
+
+def test_detect_supported_handles_probe_errors():
+    class V:
+        def supports_endpoint(self, ep):
+            raise RuntimeError("probe boom")
+
+    supported = asyncio.run(main.detect_supported(FakeVSession(V())))
+    assert supported == set(main.OPTIONAL_ENDPOINTS)   # data defaults kept, no actions added
+
+
+def test_dump_api_records_per_endpoint_errors():
+    class V:
+        async def get_details(self):
+            raise RuntimeError("forbidden")
+
+    asyncio.run(main.dump_api(V()))   # exercises the per-method except branch
+
+
 def test_resolve_account_raises_without_myrenault(monkeypatch):
     monkeypatch.delenv("A290_ACCOUNT_ID", raising=False)
 
@@ -343,7 +408,7 @@ class _OneShotEvent:
         pass
 
     async def wait(self):
-        return True
+        raise asyncio.TimeoutError   # exercise the inter-poll backoff/timeout branch
 
 
 def _wire_main(monkeypatch, poll):

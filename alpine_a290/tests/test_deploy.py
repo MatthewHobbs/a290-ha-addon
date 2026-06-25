@@ -213,3 +213,53 @@ def test_ws_raises_on_failed_result():
             await api.dashboards()
 
     asyncio.run(scenario())
+
+
+def test_ws_auth_failure_raises():
+    import pytest
+
+    class WS:
+        def __init__(self):
+            self.n = 0
+
+        async def send_json(self, payload):
+            pass
+
+        async def receive_json(self):
+            self.n += 1
+            return {"type": "auth_required"} if self.n == 1 else {"type": "auth_invalid"}
+
+    async def scenario():
+        api = deploy._WS(None, WS(), "token")
+        with pytest.raises(RuntimeError):
+            await api.auth()
+
+    asyncio.run(scenario())
+
+
+def test_fetch_dashboard_rejects_non_list(tmp_path, monkeypatch):
+    import pytest
+    (tmp_path / "front-end.txt").write_text("just_a_string", encoding="utf-8")
+    monkeypatch.setattr(deploy, "DASHBOARD_DIR", str(tmp_path))
+    with pytest.raises(ValueError):
+        asyncio.run(deploy._fetch_dashboard("standard"))
+
+
+def test_run_deploy_swallows_connection_errors(monkeypatch):
+    class BadSession:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        def ws_connect(self, *a, **k):
+            raise RuntimeError("ws connect failed")
+
+    monkeypatch.setattr(deploy.aiohttp, "ClientSession", BadSession)
+    monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "standard")
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "tok")
+    asyncio.run(deploy.run_deploy())   # exception caught + logged, never raised
