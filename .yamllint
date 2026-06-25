@@ -1,4 +1,8 @@
 extends: default
+# Bundled dashboard assets are upstream HA/Lovelace YAML (Topolino-derived), not add-on
+# config we author — don't hold them to the add-on's lint rules.
+ignore: |
+  alpine_a290/dashboards/
 rules:
   line-length: disable
   document-start: disable
