@@ -1,0 +1,916 @@
+  - title: Alpine
+    icon: mdi:car-sports
+    theme: poplars-dark
+    background:
+      image: /local/backgrounds/alpine_a290_background.png
+      size: cover
+      alignment: center
+      repeat: no-repeat
+      attachment: fixed
+      opacity: 100
+    cards:
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#alpine'
+      name: Alpine A290 - Main Menu
+      icon: mdi:car-sports
+      button_type: name
+      bg_color: '#14171b'
+      bg_opacity: '85'
+      bg_blur: '6'
+      shadow_opacity: '0'
+      cards:
+      - type: picture
+        image: /local/backgrounds/alpine_a290_background.png
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: Vehicle Status
+          icon: mdi:heart-pulse
+          button_action:
+            tap_action:
+              action: navigate
+              navigation_path: '#alpine-status'
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: Charge Status
+          icon: mdi:ev-station
+          button_action:
+            tap_action:
+              action: navigate
+              navigation_path: '#alpine-charge'
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: Presets
+          icon: mdi:car-cog
+          button_action:
+            tap_action:
+              action: navigate
+              navigation_path: '#alpine-presets'
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: Commands
+          icon: mdi:bullhorn
+          button_action:
+            tap_action:
+              action: navigate
+              navigation_path: '#alpine-commands'
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: Activity
+          icon: mdi:history
+          button_action:
+            tap_action:
+              action: navigate
+              navigation_path: '#alpine-activity'
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: Location
+          icon: mdi:map-marker
+          button_action:
+            tap_action:
+              action: navigate
+              navigation_path: '#alpine-location'
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: Last Charge
+          icon: mdi:flash
+          button_action:
+            tap_action:
+              action: navigate
+              navigation_path: '#alpine-lastcharge'
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: Diagnostics
+          icon: mdi:flask
+          button_action:
+            tap_action:
+              action: navigate
+              navigation_path: '#alpine-diag'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#alpine-status'
+      name: Vehicle Status
+      icon: mdi:heart-pulse
+      button_type: name
+      bg_color: '#14171b'
+      bg_opacity: '85'
+      bg_blur: '6'
+      shadow_opacity: '0'
+      cards:
+      - type: picture
+        image: /local/backgrounds/alpine_a290_background.png
+      - type: custom:bubble-card
+        card_type: separator
+        name: Batt / Range / Mileage
+        icon: mdi:information
+        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_battery_level
+          name: Level
+          styles: .bubble-icon-container{color:${(()=>{const b=parseFloat(state)||0;return b>30?"green":b>15?"yellow":"red";})()} !important;}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_available_energy
+          name: Energy
+          styles: .bubble-icon-container{color:${(()=>{const e=parseFloat(state)||0;return e>30?"green":e>15?"yellow":"red";})()} !important;}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_range
+          name: Range
+          styles: .bubble-icon-container{color:${(()=>{const a=parseFloat(state)||0;return a>100?"green":a>50?"orange":"red";})()} !important;}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_mileage
+          name: Mileage
+      - type: custom:bubble-card
+        card_type: separator
+        name: HVAC
+        icon: mdi:fan
+        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_hvac_status
+          name: Status
+          styles: .bubble-icon-container{${state==="on"?"color:yellow !important;opacity:1;animation:spin 1s linear infinite;":"color:grey !important;opacity:0.4;animation:none;"}}@keyframes spin{0%{transform:rotate(0);}100%{transform:rotate(360deg);}}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_hvac_soc_threshold
+          name: Threshold
+          styles: .bubble-icon-container{color:${(()=>{const b=parseFloat(hass.states["sensor.alpine_a290_battery_level"]?.state)||0;return b<=15?"red":"green";})()} !important;}
+      - type: custom:bubble-card
+        card_type: separator
+        name: Location
+        icon: mdi:map-marker
+        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
+      - type: custom:mushroom-template-card
+        entity: sensor.a290
+        primary: LOCATION
+        secondary: '{{ states(''sensor.alpine_pretty_location'') }}'
+        icon: mdi:map-marker
+        layout: horizontal
+        fill_container: true
+        tap_action:
+          action: more-info
+        card_mod:
+          style:
+            mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}
+            .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#alpine-charge'
+      name: Charge Status
+      icon: mdi:ev-station
+      button_type: name
+      bg_color: '#14171b'
+      bg_opacity: '85'
+      bg_blur: '6'
+      shadow_opacity: '0'
+      cards:
+      - type: conditional
+        conditions:
+        - condition: or
+          conditions:
+          - entity: sensor.alpine_a290_plug_status
+            state: Connected
+          - entity: sensor.alpine_a290_plug_status
+            state: Test (Connected)
+        card:
+          type: custom:button-card
+          entity: sensor.alpine_a290_battery_level
+          tap_action: none
+          double_tap_action: none
+          hold_action: none
+          triggers_update:
+          - sensor.alpine_a290_battery_level
+          - sensor.alpine_a290_charge_target_soc
+          - sensor.alpine_a290_minimum_soc
+          - binary_sensor.alpine_a290_charging
+          - sensor.alpine_a290_charging_status
+          show_name: false
+          show_state: true
+          show_icon: false
+          aspect_ratio: 2/1
+          custom_fields:
+            car: |
+              <img src="/local/backgrounds/charge-indicator.png"
+                   style="width:100%;height:100%;object-fit:contain;display:block;">
+            overlay: |
+              <div></div>
+            line: |
+              <div></div>
+            min_badge: |
+              [[[
+                const s = states['sensor.alpine_a290_minimum_soc']?.state;
+                const v = (s === undefined || s === null || s === 'unknown' || s === 'unavailable')
+                  ? '—'
+                  : String(s).replace('%','');
+                return `
+                  <div class="minwrap">
+                    <div class="minsmall">Min SOC</div>
+                    <div class="minbig">${v}%</div>
+                    <div class="tri"></div>
+                  </div>`;
+              ]]]
+            min_dash: |
+              <div></div>
+            max_badge: |
+              [[[
+                const s = states['sensor.alpine_a290_charge_target_soc']?.state;
+                const v = (s === undefined || s === null || s === 'unknown' || s === 'unavailable')
+                  ? '—'
+                  : String(s).replace('%','');
+                return `
+                  <div class="maxwrap">
+                    <div class="maxsmall">Target SOC</div>
+                    <div class="maxbig">${v}%</div>
+                    <div class="tri"></div>
+                  </div>`;
+              ]]]
+            max_dash: |
+              <div></div>
+            current_badge: |
+              [[[
+                const raw = String(entity.state ?? '');
+                const cur = (raw === 'unknown' || raw === 'unavailable' || raw === '') ? '—' : raw.replace('%','');
+
+                // label changes kept: "Charging" when session active, else "Current SOC"
+                const isCharging = states['binary_sensor.alpine_a290_charging']?.state === "on";
+                const label = isCharging ? 'Charging' : 'Current SOC';
+
+                return `
+                  <div class="curwrap">
+                    <div class="cursmall">${label}</div>
+                    <div class="curbig">${cur}%</div>
+                  </div>`;
+              ]]]
+          styles:
+            card:
+            - padding: 0
+            - border-radius: 16px
+            - overflow: hidden
+            - position: relative
+            custom_fields:
+              car:
+              - position: absolute
+              - inset: 0
+              - z-index: 2
+              overlay:
+              - position: absolute
+              - inset: 0
+              - z-index: 3
+              - background: rgba(51, 190, 250, 0.50)
+              - -webkit-mask-image: url("/local/backgrounds/charge-indicator.png")
+              - -webkit-mask-repeat: no-repeat
+              - -webkit-mask-position: center
+              - -webkit-mask-size: contain
+              - mask-image: url("/local/backgrounds/charge-indicator.png")
+              - mask-repeat: no-repeat
+              - mask-position: center
+              - mask-size: contain
+              - --track-left: 8%
+              - --track-right: 90%
+              - --soc-right-inset: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const cur = Math.max(
+                      0,
+                      Math.min(100, parseFloat(String(entity.state).replace('%','')) || 0)
+                    );
+
+                    const pos = TRACK_LEFT + (cur / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    const rightInset = 100 - pos;
+                    return `${rightInset}%`;
+                  ]]]
+              - clip-path: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const cur = Math.max(
+                      0,
+                      Math.min(100, parseFloat(String(entity.state).replace('%','')) || 0)
+                    );
+
+                    const pos = TRACK_LEFT + (cur / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    const leftInset = TRACK_LEFT;
+                    const rightInset = 100 - pos;
+
+                    return `inset(0 ${rightInset}% 0 ${leftInset}%)`;
+                  ]]]
+              - animation: |
+                  [[[
+                    return states['binary_sensor.alpine_a290_charging']?.state === "on"
+                      ? 'socFillToTarget 3s linear infinite'
+                      : 'none';
+                  ]]]
+              line:
+              - position: absolute
+              - top: 23%
+              - bottom: 5%
+              - width: 2px
+              - background-color: '#335ffa'
+              - box-shadow: 0 0 8px rgba(51, 190, 250, 0.50)
+              - z-index: 2
+              - transition: left 350ms ease
+              - left: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const cur = Math.max(
+                      0,
+                      Math.min(100, parseFloat(String(entity.state).replace('%','')) || 0)
+                    );
+
+                    const pos = TRACK_LEFT + (cur / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    return `calc(${pos}% - 1px)`;
+                  ]]]
+              min_badge:
+              - position: absolute
+              - top: -1.32%
+              - z-index: 2
+              - color: rgba(255,255,255,0.9)
+              - text-align: center
+              - pointer-events: none
+              - transition: left 350ms ease
+              - left: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const s = states['sensor.alpine_a290_minimum_soc']?.state;
+                    const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
+                    const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    return `${pos}%`;
+                  ]]]
+              - transform: translateX(-50%)
+              max_badge:
+              - position: absolute
+              - top: -2%
+              - z-index: 2
+              - color: rgba(255,255,255,0.9)
+              - text-align: center
+              - pointer-events: none
+              - transition: left 350ms ease
+              - left: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const s = states['sensor.alpine_a290_charge_target_soc']?.state;
+                    const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
+                    const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    return `${pos}%`;
+                  ]]]
+              - transform: translateX(-50%)
+              min_dash:
+              - position: absolute
+              - top: 20%
+              - height: 35.3%
+              - width: 0
+              - border-left: 2px dashed rgba(255,255,255,0.35)
+              - z-index: 2
+              - pointer-events: none
+              - transition: left 350ms ease
+              - left: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const s = states['sensor.alpine_a290_minimum_soc']?.state;
+                    const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
+                    const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    return `${pos}%`;
+                  ]]]
+              - transform: translateX(-50%)
+              max_dash:
+              - position: absolute
+              - top: 20%
+              - height: 34%
+              - width: 0
+              - border-left: 2px dashed rgba(255,255,255,0.35)
+              - z-index: 2
+              - pointer-events: none
+              - transition: left 350ms ease
+              - left: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const s = states['sensor.alpine_a290_charge_target_soc']?.state;
+                    const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
+                    const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    return `${pos}%`;
+                  ]]]
+              - transform: translateX(-50%)
+              current_badge:
+              - position: absolute
+              - left: 50%
+              - bottom: 32%
+              - transform: translateX(-50%)
+              - z-index: 2
+              - pointer-events: none
+            icon:
+            - width: 28px
+            - height: 28px
+          card_mod:
+            style: |
+              ha-card {
+                background: none !important;
+                box-shadow: none !important;
+                border: none !important;
+              }
+              /* Track-aware animation: fills within track-left -> current SOC boundary */ @keyframes socFillToTarget {
+                from { clip-path: inset(0 100% 0 var(--track-left)); }
+                to   { clip-path: inset(0 var(--soc-right-inset) 0 var(--track-left)); }
+              }
+              .minwrap, .maxwrap, .curwrap {
+                display: inline-flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2px;
+                line-height: 1.05;
+                text-shadow: 0 0 6px rgba(0,0,0,0.55);
+              }
+              .minsmall, .maxsmall, .cursmall {
+                font-size: 14px;
+                opacity: 0.85;
+                letter-spacing: 0.2px;
+              }
+              .minbig, .maxbig, .curbig {
+                font-size: 14px;
+                font-weight: 700;
+                color: orange;
+              }
+              .tri {
+                width: 0;
+                height: 0;
+                margin-top: 2px;
+                border-left: 6px solid transparent;
+                border-right: 6px solid transparent;
+                border-top: 8px solid rgba(255,255,255,0.35);
+              }
+      - type: conditional
+        conditions:
+        - condition: state
+          entity: sensor.alpine_a290_plug_status
+          state: Disconnected
+        card:
+          type: picture
+          image: /local/backgrounds/alpine_a290_side.png
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_plug_status
+          name: Charger Plug
+          styles: .bubble-icon-container{${(()=>{const test=hass.states["input_boolean.a290_test_mode"]?.state==="on";if(test)return "color:red !important;animation:pulse 1s linear infinite;";if(state==="Connected")return "color:yellow !important;animation:none;";return "color:grey !important;opacity:0.35;animation:none;";})()}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_charging_status
+          name: Status
+          styles: .bubble-icon-container{${(()=>{const test=hass.states["input_boolean.a290_test_mode"]?.state==="on";if(test)return "color:red !important;animation:pulse 1s linear infinite;";if(hass.states["binary_sensor.alpine_a290_charging"]?.state==="on")return "color:orange !important;animation:pulse 1s linear infinite;";if(["Waiting to Charge","Waiting (Planned)"].includes(state))return "color:yellow !important;animation:pulse 1s linear infinite;";return "color:grey !important;opacity:0.35;animation:none;";})()}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_charging_power
+          name: Charge Rate
+          styles: .bubble-icon-container{${(()=>{const test=hass.states["input_boolean.a290_test_mode"]?.state==="on";const active=hass.states["binary_sensor.alpine_a290_charging"]?.state === "on";const kw=parseFloat(hass.states["sensor.alpine_a290_charging_power"]?.state)||0;if(test)return "color:red !important;opacity:1;animation:pulse 1s linear infinite;";if(active){return kw>0.2?"color:orange !important;opacity:1;animation:pulse 1s linear infinite;":"color:grey !important;opacity:0.35;animation:none;";}return "color:grey !important;opacity:0.35;animation:none;";})()}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_charging_time_remaining
+          name: Time Left
+          styles: .bubble-icon-container{${(()=>{const test=hass.states["input_boolean.a290_test_mode"]?.state==="on";const active=hass.states["binary_sensor.alpine_a290_charging"]?.state === "on";if(test)return "color:red !important;opacity:1;animation:pulse 1s linear infinite;";if(active){const t=parseInt(hass.states["sensor.alpine_a290_charging_time_remaining"]?.state)||0;let c=t>60?"red":t>30?"orange":t>15?"yellow":t>5?"green":"grey";let o=t>5?"1":"0.35";return "color:"+c+" !important;opacity:"+o+";animation:none;";}return "color:grey !important;opacity:0.35;animation:none;";})()}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+      - type: custom:bubble-card
+        card_type: button
+        button_type: state
+        entity: sensor.alpine_a290_charging_flap
+        name: Charge Flap
+        styles: '.bubble-icon-container{${(()=>{const test=hass.states["input_boolean.a290_test_mode"]?.state==="on";if(test)return "color:red !important;animation:pulse 1s linear infinite;";if(state==="Open: No Plug!")return "color:red !important;animation:flap-wiggle 0.6s ease-in-out infinite;";if(state==="Open: Plugged In")return "color:yellow !important;animation:none;";if(state==="Closed")return "color:green !important;animation:none;";return "color:grey !important;opacity:0.5;animation:none;";})()}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}@keyframes flap-wiggle{0%,100%{transform:rotate(0deg);}25%{transform:rotate(-10deg);}50%{transform:rotate(10deg);}75%{transform:rotate(-6deg);}}'
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#alpine-presets'
+      name: Presets
+      icon: mdi:car-cog
+      button_type: name
+      bg_color: '#14171b'
+      bg_opacity: '85'
+      bg_blur: '6'
+      shadow_opacity: '0'
+      cards:
+      - type: custom:bubble-card
+        card_type: separator
+        name: Heating
+        icon: mdi:radiator
+        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_preconditioning_temperature
+          name: Desired Temp
+          styles: .bubble-icon-container{color:${(()=>{const p=parseFloat(state)||0;return p>30?"red":p>20?"orange":"yellow";})()} !important;}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: binary_sensor.alpine_a290_heated_steering_wheel
+          name: Steering Wheel
+          icon: mdi:steering
+          styles: .bubble-icon-container{${state==="on"?"color:red !important;":"color:grey !important;opacity:0.4;"}}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: binary_sensor.alpine_a290_heated_seat_passenger
+          icon: mdi:car-seat-heater
+          name: Pax Seat
+          styles: .bubble-icon-container{${state==="on"?"color:red !important;":"color:grey !important;opacity:0.4;"}}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: binary_sensor.alpine_a290_heated_seat_driver
+          icon: mdi:car-seat-heater
+          name: Driver Seat
+          styles: .bubble-icon-container{${state==="on"?"color:red !important;":"color:grey !important;opacity:0.4;"}}
+      - type: custom:bubble-card
+        card_type: separator
+        name: SOC Levels
+        icon: mdi:battery-charging-medium
+        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_minimum_soc
+          name: Min SOC
+          styles: .bubble-icon-container{color:red !important;}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_charge_target_soc
+          name: Max SOC
+          styles: .bubble-icon-container{color:green !important;}
+      - type: custom:bubble-card
+        card_type: separator
+        name: Charging Schedule
+        icon: mdi:calendar-clock
+        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#alpine-commands'
+      name: Commands
+      icon: mdi:bullhorn
+      button_type: name
+      bg_color: '#14171b'
+      bg_opacity: '85'
+      bg_blur: '6'
+      shadow_opacity: '0'
+      cards:
+      - type: custom:bubble-card
+        card_type: separator
+        name: Horn / Lights
+        icon: mdi:bugle
+        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: Beep Horn
+          icon: mdi:bugle
+          button_action:
+            tap_action:
+              action: call-service
+              service: button.press
+              target:
+                entity_id: button.alpine_a290_sound_horn
+          styles: .bubble-icon-container{color:orange !important;}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: Flash Lights
+          icon: mdi:car-light-high
+          button_action:
+            tap_action:
+              action: call-service
+              service: button.press
+              target:
+                entity_id: button.alpine_a290_flash_lights
+          styles: .bubble-icon-container{color:yellow !important;}
+      - type: custom:bubble-card
+        card_type: separator
+        name: HVAC
+        icon: mdi:fan
+        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: HVAC Start
+          icon: mdi:fan
+          button_action:
+            tap_action:
+              action: call-service
+              service: button.press
+              target:
+                entity_id: button.alpine_a290_start_climate
+          styles: .bubble-icon-container{color:green !important;}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: HVAC Stop
+          icon: mdi:fan-off
+          button_action:
+            tap_action:
+              action: call-service
+              service: button.press
+              target:
+                entity_id: button.alpine_a290_stop_climate
+          styles: .bubble-icon-container{color:red !important;}
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#alpine-activity'
+      name: Activity
+      icon: mdi:history
+      button_type: name
+      bg_color: '#14171b'
+      bg_opacity: '85'
+      bg_blur: '6'
+      shadow_opacity: '0'
+      cards:
+      - type: custom:bubble-card
+        card_type: separator
+        name: Last Update
+        icon: mdi:calendar-arrow-right
+        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_hvac_last_activity
+          name: HVAC
+          icon: mdi:fan
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_updated
+          name: Battery
+          icon: mdi:car-battery
+      - type: custom:bubble-card
+        card_type: button
+        button_type: state
+        entity: sensor.alpine_a290_gps_last_activity
+        name: GPS
+        icon: mdi:map-marker
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#alpine-location'
+      name: Location
+      icon: mdi:map-marker
+      button_type: name
+      bg_color: '#14171b'
+      bg_opacity: '85'
+      bg_blur: '6'
+      shadow_opacity: '0'
+      cards:
+      - type: custom:mushroom-template-card
+        entity: sensor.a290
+        primary: LOCATION
+        secondary: '{{ states(''sensor.alpine_pretty_location'') }}'
+        icon: mdi:map-marker
+        layout: horizontal
+        fill_container: true
+        tap_action:
+          action: more-info
+        card_mod:
+          style:
+            mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}
+            .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+      - type: map
+        entities:
+          - device_tracker.alpine_a290_location
+        default_zoom: 16
+        aspect_ratio: '1:1'
+        dark_mode: false
+        card_mod:
+          style: |
+            ha-card { background: none !important; box-shadow: none !important; border: none !important; }
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#alpine-lastcharge'
+      name: Last Charge
+      icon: mdi:flash
+      button_type: name
+      bg_color: '#14171b'
+      bg_opacity: '85'
+      bg_blur: '6'
+      shadow_opacity: '0'
+      cards:
+      - type: custom:bubble-card
+        card_type: separator
+        name: Captured Data
+        icon: mdi:clipboard-list
+        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_start
+          name: Start
+          icon: mdi:clock-start
+          styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:green !important;opacity:1;"}}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_end
+          name: End
+          icon: mdi:clock-end
+          styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:red !important;opacity:1;"}}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_duration
+          name: Total
+          icon: mdi:timer
+          styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":""}}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_start_soc
+          name: Start
+          icon: mdi:battery-20
+          styles: .bubble-icon-container{color:green !important;}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_end_soc
+          name: End
+          icon: mdi:battery-80
+          styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:red !important;opacity:1;"}}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_soc_recovered
+          name: Gain
+          icon: mdi:battery-plus
+          styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:green !important;opacity:1;"}}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_start_energy
+          name: Start
+          icon: mdi:flash
+          styles: .bubble-icon-container{color:green !important;}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_end_energy
+          name: End
+          icon: mdi:flash
+          styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:red !important;opacity:1;"}}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_energy_recovered
+          name: Gain
+          icon: mdi:flash-outline
+          styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:green !important;opacity:1;"}}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_average_power
+          name: Initial
+          icon: mdi:speedometer
+          styles: .bubble-icon-container{color:orange !important;}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_average_power
+          name: Avg.
+          icon: mdi:speedometer-medium
+          styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":""}}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_energy_recovered
+          name: Uplift
+          icon: mdi:battery-charging
+          styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:green !important;opacity:1;"}}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_type
+          name: Type
+          icon: mdi:ev-plug-type2
+          styles: .bubble-icon-container{${(()=>{const active=hass.states["binary_sensor.alpine_a290_charging"]?.state==="on";if(active)return "color:grey !important;opacity:0.35;";const t=(state||"").toLowerCase().trim();if(t==="not rated")return "color:red !important;";if(t==="rapid dc")return "color:green !important;";if(t==="fast dc")return "color:orange !important;";if(t==="fast ac")return "color:blue !important;";if(t==="slow ac")return "color:red !important;";return "";})()}}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: state
+          entity: sensor.alpine_a290_last_charge_start
+          name: Date
+          icon: mdi:calendar
+          styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":""}}
+    - type: custom:bubble-card
+      card_type: pop-up
+      hash: '#alpine-diag'
+      name: Diagnostics
+      icon: mdi:flask
+      button_type: name
+      bg_color: '#14171b'
+      bg_opacity: '85'
+      bg_blur: '6'
+      shadow_opacity: '0'
+      cards:
+      - type: custom:bubble-card
+        card_type: separator
+        name: Update / Test / Errors
+        icon: mdi:wrench
+        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: Last Updated
+          icon: mdi:refresh
+          button_action:
+            tap_action:
+              action: none
+          styles: .bubble-icon-container{color:green !important;}
+        - type: custom:bubble-card
+          card_type: button
+          button_type: name
+          name: Run Test Charge
+          icon: mdi:run
+          button_action:
+            tap_action:
+              action: perform-action
+              perform_action: input_button.press
+              target:
+                entity_id: input_button.a290_test_charge_run
+          styles: .bubble-icon-container{${(()=>{const test=hass.states["input_boolean.a290_test_mode"]?.state==="on";const active=hass.states["binary_sensor.alpine_a290_charging"]?.state==="on";if(test)return "color:red !important;animation:pulse 1s linear infinite;";if(active)return "color:grey !important;opacity:0.35;";return "color:green !important;";})()}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+    - type: custom:bubble-card
+      card_type: horizontal-buttons-stack
+      highlight_current_view: true
+      1_name: Home
+      1_icon: mdi:home
+      1_link: /home-dashboard
+      2_name: Car
+      2_icon: mdi:car-sports
+      2_link: '#alpine'
+      3_name: Test
+      3_icon: mdi:flask
+      3_link: '#alpine-diag'
+      styles: ${(() => { if (!window.__alpineAutoOpen) { window.__alpineAutoOpen = true; if (!location.hash) { setTimeout(() => { location.hash = "#alpine"; }, 60); } } return ""; })()}

@@ -1,0 +1,18 @@
+# Test-mode simulation helpers (used by Packages/a290_test.yaml).
+# Car data comes from the Alpine A290 add-on, not these.
+
+
+test_last_charge_start:
+  name: Test Last Charge Start
+  has_date: true
+  has_time: true
+  
+test_last_charge_end:
+  name: Test Last Charge End
+  has_date: true
+  has_time: true
+
+test_last_finished:
+  name: Test Last Finished
+  has_date: true
+  has_time: true

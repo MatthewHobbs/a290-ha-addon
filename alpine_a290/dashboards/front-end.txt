@@ -1,0 +1,1187 @@
+  - type: sections
+    max_columns: 3
+    path: car-alpine
+    title: Alpine A290
+    icon: mdi:car
+    theme: poplars-dark
+    sections:
+    - type: grid
+      card_mod:
+        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;}
+      cards:
+      - type: heading
+        heading: Vehicle Status
+        heading_style: title
+        card_mod:
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+      - type: picture-elements
+        image: /local/backgrounds/alpine_a290_background.png
+        visibility:
+        - condition: state
+          entity: sensor.alpine_a290_plug_status
+          state: Disconnected
+        elements: []
+        card_mod:
+          style: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+      - type: conditional
+        conditions:
+        - condition: or
+          conditions:
+          - entity: sensor.alpine_a290_plug_status
+            state: Connected
+          - entity: sensor.alpine_a290_plug_status
+            state: Test (Connected)
+        card:
+          type: custom:button-card
+          entity: sensor.alpine_a290_battery_level
+          tap_action: none
+          double_tap_action: none
+          hold_action: none
+          triggers_update:
+          - sensor.alpine_a290_battery_level
+          - sensor.alpine_a290_charge_target_soc
+          - sensor.alpine_a290_minimum_soc
+          - binary_sensor.alpine_a290_charging
+          show_name: false
+          show_state: true
+          show_icon: false
+          aspect_ratio: 2/1
+          custom_fields:
+            car: |
+              <img src="/local/backgrounds/charge-indicator.png"
+                   style="width:100%;height:100%;object-fit:contain;display:block;">
+            overlay: |
+              <div></div>
+            line: |
+              <div></div>
+            min_badge: |
+              [[[
+                const s = states['sensor.alpine_a290_minimum_soc']?.state;
+                const v = (s === undefined || s === null || s === 'unknown' || s === 'unavailable')
+                  ? '—'
+                  : String(s).replace('%','');
+                return `
+                  <div class="minwrap">
+                    <div class="minsmall">Min SOC</div>
+                    <div class="minbig">${v}%</div>
+                    <div class="tri"></div>
+                  </div>`;
+              ]]]
+            min_dash: |
+              <div></div>
+            max_badge: |
+              [[[
+                const s = states['sensor.alpine_a290_charge_target_soc']?.state;
+                const v = (s === undefined || s === null || s === 'unknown' || s === 'unavailable')
+                  ? '—'
+                  : String(s).replace('%','');
+                return `
+                  <div class="maxwrap">
+                    <div class="maxsmall">Target SOC</div>
+                    <div class="maxbig">${v}%</div>
+                    <div class="tri"></div>
+                  </div>`;
+              ]]]
+            max_dash: |
+              <div></div>
+            current_badge: |
+              [[[
+                const raw = String(entity.state ?? '');
+                const cur = (raw === 'unknown' || raw === 'unavailable' || raw === '') ? '—' : raw.replace('%','');
+
+                // label changes kept: "Charging" when session active, else "Current SOC"
+                const stateObj = states['binary_sensor.alpine_a290_charging'];
+                const currentState = stateObj ? stateObj.state.toLowerCase() : 'off';
+                const isCharging = (currentState === 'on');
+                const label = isCharging ? 'Charging' : 'Current SOC';
+
+                return `
+                  <div class="curwrap">
+                    <div class="cursmall">${label}</div>
+                    <div class="curbig">${cur}%</div>
+                  </div>`;
+              ]]]
+          styles:
+            card:
+            - padding: 0
+            - border-radius: 16px
+            - overflow: hidden
+            - position: relative
+            custom_fields:
+              car:
+              - position: absolute
+              - inset: 0
+              - z-index: 2
+              overlay:
+              - position: absolute
+              - inset: 0
+              - z-index: 3
+              - background: rgba(51, 190, 250, 0.50)
+              - -webkit-mask-image: url("/local/backgrounds/charge-indicator.png")
+              - -webkit-mask-repeat: no-repeat
+              - -webkit-mask-position: center
+              - -webkit-mask-size: contain
+              - mask-image: url("/local/backgrounds/charge-indicator.png")
+              - mask-repeat: no-repeat
+              - mask-position: center
+              - mask-size: contain
+              - --track-left: 8%
+              - --track-right: 90%
+              - --soc-right-inset: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const cur = Math.max(
+                      0,
+                      Math.min(100, parseFloat(String(entity.state).replace('%','')) || 0)
+                    );
+
+                    const pos = TRACK_LEFT + (cur / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    const rightInset = 100 - pos;
+                    return `${rightInset}%`;
+                  ]]]
+              - clip-path: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const cur = Math.max(
+                      0,
+                      Math.min(100, parseFloat(String(entity.state).replace('%','')) || 0)
+                    );
+
+                    const pos = TRACK_LEFT + (cur / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    const leftInset = TRACK_LEFT;
+                    const rightInset = 100 - pos;
+
+                    return `inset(0 ${rightInset}% 0 ${leftInset}%)`;
+                  ]]]
+              - animation: |
+                  [[[
+                    return states['binary_sensor.alpine_a290_charging']?.state === 'on'
+                      ? 'socFillToTarget 3s linear infinite'
+                      : 'none';
+                  ]]]
+              line:
+              - position: absolute
+              - top: 23%
+              - bottom: 5%
+              - width: 2px
+              - background-color: '#335ffa'
+              - box-shadow: 0 0 8px rgba(51, 190, 250, 0.50)
+              - z-index: 2
+              - transition: left 350ms ease
+              - left: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const cur = Math.max(
+                      0,
+                      Math.min(100, parseFloat(String(entity.state).replace('%','')) || 0)
+                    );
+
+                    const pos = TRACK_LEFT + (cur / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    return `calc(${pos}% - 1px)`;
+                  ]]]
+              min_badge:
+              - position: absolute
+              - top: -1.32%
+              - z-index: 2
+              - color: rgba(255,255,255,0.9)
+              - text-align: center
+              - pointer-events: none
+              - transition: left 350ms ease
+              - left: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const s = states['sensor.alpine_a290_minimum_soc']?.state;
+                    const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
+                    const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    return `${pos}%`;
+                  ]]]
+              - transform: translateX(-50%)
+              max_badge:
+              - position: absolute
+              - top: -2%
+              - z-index: 2
+              - color: rgba(255,255,255,0.9)
+              - text-align: center
+              - pointer-events: none
+              - transition: left 350ms ease
+              - left: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const s = states['sensor.alpine_a290_charge_target_soc']?.state;
+                    const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
+                    const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    return `${pos}%`;
+                  ]]]
+              - transform: translateX(-50%)
+              min_dash:
+              - position: absolute
+              - top: 20%
+              - height: 35.3%
+              - width: 0
+              - border-left: 2px dashed rgba(255,255,255,0.35)
+              - z-index: 2
+              - pointer-events: none
+              - transition: left 350ms ease
+              - left: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const s = states['sensor.alpine_a290_minimum_soc']?.state;
+                    const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
+                    const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    return `${pos}%`;
+                  ]]]
+              - transform: translateX(-50%)
+              max_dash:
+              - position: absolute
+              - top: 20%
+              - height: 34%
+              - width: 0
+              - border-left: 2px dashed rgba(255,255,255,0.35)
+              - z-index: 2
+              - pointer-events: none
+              - transition: left 350ms ease
+              - left: |
+                  [[[
+                    const TRACK_LEFT = 8;
+                    const TRACK_RIGHT = 90;
+
+                    const s = states['sensor.alpine_a290_charge_target_soc']?.state;
+                    const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
+                    const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
+                    return `${pos}%`;
+                  ]]]
+              - transform: translateX(-50%)
+              current_badge:
+              - position: absolute
+              - left: 50%
+              - bottom: 32%
+              - transform: translateX(-50%)
+              - z-index: 2
+              - pointer-events: none
+            icon:
+            - width: 28px
+            - height: 28px
+          card_mod:
+            style: |
+              ha-card {
+                background: none !important;
+                box-shadow: none !important;
+                border: none !important;
+              }
+              /* Track-aware animation: fills within track-left -> current SOC boundary */ @keyframes socFillToTarget {
+                from { clip-path: inset(0 100% 0 var(--track-left)); }
+                to   { clip-path: inset(0 var(--soc-right-inset) 0 var(--track-left)); }
+              }
+              .minwrap, .maxwrap, .curwrap {
+                display: inline-flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2px;
+                line-height: 1.05;
+                text-shadow: 0 0 6px rgba(0,0,0,0.55);
+              }
+              .minsmall, .maxsmall, .cursmall {
+                font-size: 14px;
+                opacity: 0.85;
+                letter-spacing: 0.2px;
+              }
+              .minbig, .maxbig, .curbig {
+                font-size: 14px;
+                font-weight: 700;
+                color: orange;
+              }
+              .tri {
+                width: 0;
+                height: 0;
+                margin-top: 2px;
+                border-left: 6px solid transparent;
+                border-right: 6px solid transparent;
+                border-top: 8px solid rgba(255,255,255,0.35);
+              }
+      - type: vertical-stack
+        cards:
+        - type: grid
+          square: false
+          columns: 2
+          cards:
+          - type: custom:mushroom-entity-card
+            entity: sensor.alpine_a290_battery_level
+            name: Battery Level
+            card_mod:
+              style:
+                mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                .: ha-state-icon{ {% set v = states('sensor.alpine_a290_battery_level') %}{% set b = (v|float(0)) if v not in ['unknown','unavailable','none',''] else 0 %}{% if b > 30 %}color:green;{% elif b > 15 %}color:yellow;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+          - type: custom:mushroom-entity-card
+            entity: sensor.alpine_a290_available_energy
+            name: Battery Energy
+            card_mod:
+              style:
+                mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                .: ha-state-icon{ {% set v = states('sensor.alpine_a290_available_energy') %}{% set e = (v|float(0)) if v not in ['unknown','unavailable','none',''] else 0 %}{% if e > 30 %}color:green;{% elif e > 15 %}color:yellow;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+            fill_container: false
+          - type: custom:mushroom-entity-card
+            entity: sensor.alpine_a290_range
+            name: Estimated Range
+            card_mod:
+              style:
+                mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                .: ha-state-icon{ {% set raw = states('sensor.alpine_a290_range') %}{% set s = (raw|string).split(' ')[0] %}{% set a = s|float(0) %}{% if a > 100 %}color:green;{% elif a > 50 %}color:orange;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+          - type: custom:mushroom-entity-card
+            entity: sensor.alpine_a290_mileage
+            name: Mileage
+            card_mod:
+              style:
+                mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+          - type: custom:mushroom-entity-card
+            entity: sensor.alpine_a290_plug_status
+            name: Charger Plug
+            card_mod:
+              style:
+                mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:red;animation:pulse 1s linear infinite;{% else %}{% if states('sensor.alpine_a290_plug_status')=='Connected' %}color:yellow;{% elif states('sensor.alpine_a290_plug_status')=='Disconnected' %}color:grey;opacity:0.35;{% elif states('sensor.alpine_a290_plug_status')=='Disconnected (D)' %}color:grey;opacity:0.35;{% endif %}{% endif %}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+          - type: custom:mushroom-entity-card
+            entity: sensor.alpine_a290_charging_status
+            name: Charging Status
+            card_mod:
+              style:
+                mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:red;animation:pulse 1s linear infinite;{% elif is_state('binary_sensor.alpine_a290_charging','on') %}color:orange;animation:pulse 1s linear infinite;{% elif states('sensor.alpine_a290_charging_status') in ['Waiting to Charge','Waiting (Planned)'] %}color:yellow;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+          - type: custom:mushroom-entity-card
+            entity: sensor.alpine_a290_charging_power
+            name: Charging Rate
+            card_mod:
+              style:
+                mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}:host{ {% if is_state('input_boolean.a290_test_mode','on') %}--card-mod-icon:mdi:flask-outline;{% elif is_state('binary_sensor.alpine_a290_charging','on') %}--card-mod-icon:mdi:flash;{% else %}--card-mod-icon:mdi:flash-off;{% endif %}}ha-state-icon{ {% set test = is_state('input_boolean.a290_test_mode','on') %}{% set active = is_state('binary_sensor.alpine_a290_charging','on') %}{% set v = states('sensor.alpine_a290_charging_power') %}{% set kw = (v|float(0)) if v not in ['unknown','unavailable','none',''] else 0 %}{% if test %}color:red;opacity:1;animation:pulse 1s linear infinite;{% elif active %}opacity:1;{% if kw > 0.2 %}color:orange;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.35;animation:none;{% endif %}{% else %}color:grey;opacity:0.35;animation:none;{% endif %}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+          - type: custom:mushroom-entity-card
+            entity: sensor.alpine_a290_charging_time_remaining
+            name: Time Left
+            card_mod:
+              style:
+                mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:red;opacity:1;animation:pulse 1s linear infinite;{% elif is_state('binary_sensor.alpine_a290_charging','on') %}{% set v = states('sensor.alpine_a290_charging_time_remaining') %}{% set t = (v|int(0)) if v not in ['unknown','unavailable','none',''] else 0 %}opacity:1;animation:none;{% if t > 60 %}color:red;{% elif t > 30 %}color:orange;{% elif t > 15 %}color:yellow;{% elif t > 5 %}color:green;{% else %}color:grey;opacity:0.35;{% endif %}{% else %}color:grey;opacity:0.35;animation:none;{% endif %}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+          - type: custom:mushroom-entity-card
+            entity: sensor.alpine_a290_charging_flap
+            name: Charging Flap
+            card_mod:
+              style:
+                mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                .: 'ha-state-icon{ {% if is_state(''input_boolean.a290_test_mode'',''on'') %}color:red;animation:pulse 1s linear infinite;{% elif is_state(''sensor.alpine_a290_charging_flap'',''Open: No Plug!'') %}color:red;animation:flap-wiggle 0.6s ease-in-out infinite;{% elif is_state(''sensor.alpine_a290_charging_flap'',''Open: Plugged In'') %}color:yellow;animation:none;{% elif is_state(''sensor.alpine_a290_charging_flap'',''Closed'') %}color:green;animation:none;{% else %}color:grey;opacity:0.5;animation:none;{% endif %}}@keyframes flap-wiggle{0%,100%{transform:rotate(0deg);}25%{transform:rotate(-10deg);}50%{transform:rotate(10deg);}75%{transform:rotate(-6deg);}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+            secondary_info: state
+            layout: horizontal
+          - type: custom:mushroom-entity-card
+            entity: sensor.alpine_a290_hvac_status
+            name: HVAC Status
+            card_mod:
+              style:
+                mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}ha-state-icon{ {% if is_state('sensor.alpine_a290_hvac_status','on') %}color:yellow;animation:spin 1s linear infinite;opacity:1;{% else %}color:grey;opacity:0.4;animation:none;{% endif %}}@keyframes spin{0%{transform:rotate(0);}100%{transform:rotate(360deg);}}
+            secondary_info: state
+            layout: horizontal
+          - type: custom:mushroom-entity-card
+            entity: sensor.alpine_a290_hvac_soc_threshold
+            name: HVAC Threshold
+            card_mod:
+              style:
+                mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}ha-state-icon{ {% set v = states('sensor.alpine_a290_battery_level') %}{% set b = (v|float(0)) if v not in ['unknown','unavailable','none',''] else 0 %}{% if b <= 15 %}color:red;{% else %}color:green;{% endif %}}
+    - type: grid
+      card_mod:
+        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;}
+      cards:
+      - type: heading
+        heading: Climate/Charging Presets
+        heading_style: title
+        card_mod:
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+      - type: custom:mushroom-entity-card
+        entity: sensor.alpine_a290_preconditioning_temperature
+        name: Desired Temp
+        card_mod:
+          style:
+            mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+            .: ha-state-icon{ {% set v = states('sensor.alpine_a290_preconditioning_temperature') %}{% set pctemp = (v|float(0)) if v not in ['unknown','unavailable','none',''] else 0 %}{% if pctemp > 30 %}color:red;{% elif pctemp > 20 %}color:orange;{% else %}color:yellow;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.alpine_a290_heated_steering_wheel
+        name: Steering Wheel
+        icon: mdi:steering
+        card_mod:
+          style:
+            mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+            .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_heated_steering_wheel') =='on' %}color:red;{% else %}color:grey;opacity:0.4;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.alpine_a290_heated_seat_passenger
+        icon: mdi:car-seat-heater
+        name: Passenger Seat
+        card_mod:
+          style:
+            mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+            .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_heated_seat_passenger') =='on' %}color:red;{% else %}color:grey;opacity:0.4;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.alpine_a290_heated_seat_driver
+        icon: mdi:car-seat-heater
+        name: Driver's Seat
+        card_mod:
+          style:
+            mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+            .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_heated_seat_driver') =='on' %}color:red;{% else %}color:grey;opacity:0.4;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+      - type: custom:mushroom-entity-card
+        entity: sensor.alpine_a290_minimum_soc
+        name: Min SOC
+        icon: ''
+        card_mod:
+          style:
+            mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+            .: ha-state-icon{color:red;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+      - type: custom:mushroom-entity-card
+        entity: sensor.alpine_a290_charge_target_soc
+        name: Max SOC
+        icon: ''
+        card_mod:
+          style:
+            mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+            .: ha-state-icon{color:green;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+      - type: heading
+        heading: Last Charge
+        heading_style: title
+        card_mod:
+          style: :host{margin-top:40px;display:block;}.content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+        visibility:
+        - condition: state
+          entity: binary_sensor.a290_test_show_panel
+          state: 'off'
+      - type: grid
+        square: false
+        columns: 3
+        cards:
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_start
+          name: Start
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:green;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_end
+          name: End
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:red;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_duration
+          name: Total
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_start_soc
+          name: Start
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{color:green;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+          icon: mdi:car-battery
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_end_soc
+          name: End
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:red;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_soc_recovered
+          name: Gain
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:green;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_start_energy
+          name: Start
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{color:green;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_end_energy
+          name: End
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:red;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_energy_recovered
+          name: Gain
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey !important;opacity:0.35;{% else %}color:green;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_average_power
+          name: Initial
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{color:orange;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_average_power
+          name: Avg.
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey !important;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_energy_recovered
+          name: Uplift
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:green;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_type
+          name: Type
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}opacity:0.35;color:grey !important;{% else %}opacity:1;{% set s = states('sensor.alpine_a290_last_charge_type')|string|lower|trim %}{% if s == 'not rated' %}color:red !important;{% endif %}{% set t = (states('sensor.alpine_a290_last_charge_type') or '')|lower|trim %}{% if t == 'rapid dc' %}color:green !important;{% elif t == 'fast dc' %}color:orange !important;{% elif t == 'fast ac' %}color:blue !important;{% elif t == 'slow ac' %}color:red !important;{% endif %}{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+          icon_type: icon
+          fill_container: false
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_charge_start
+          name: Date
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        visibility:
+        - condition: state
+          entity: binary_sensor.a290_test_show_panel
+          state: 'off'
+      - type: heading
+        heading: Test Charge
+        heading_style: title
+        card_mod:
+          style: :host{margin-top:40px;display:block;}.content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+        visibility:
+        - condition: state
+          entity: binary_sensor.a290_test_show_panel
+          state: 'on'
+      - type: grid
+        square: false
+        columns: 3
+        cards:
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_last_charge_start_time
+          name: Start
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_last_charge_end_time
+          name: End
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_last_charge_duration
+          name: Total
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_last_charge_start_soc
+          name: Start
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_last_charge_end_soc
+          name: End
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_last_charge_soc_recovered
+          name: Gain
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_last_charge_start_energy
+          name: Start
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_last_charge_end_energy
+          name: End
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_last_charge_energy_delta
+          name: Gain
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_charge_start_power
+          name: Initial
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:orange;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_charge_average_power
+          name: Avg.
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_last_charge_energy_stored
+          name: Uplift
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_charge_type
+          name: Type
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% set s = states('sensor.test_charge_type')|string|lower|trim %}{% if s == 'not rated' %}color:red !important;{% endif %}{% if is_state('input_boolean.a290_test_mode','on') %}color:grey !important;opacity:0.35;{% else %}{% set t = (states('sensor.test_charge_type') or '')|lower|trim %}{% if t == 'rapid dc' %}color:green !important;{% elif t == 'fast dc' %}color:orange !important;{% elif t == 'fast ac' %}color:blue !important;{% elif t == 'slow ac' %}color:red !important;{% endif %}{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+          icon_type: icon
+          fill_container: false
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_charge_end_status
+          name: Status
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.test_last_charge_date
+          name: Date
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        visibility:
+        - condition: state
+          entity: binary_sensor.a290_test_show_panel
+          state: 'on'
+    - type: grid
+      card_mod:
+        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;}
+      cards:
+      - type: heading
+        heading: Last Activity
+        heading_style: title
+        card_mod:
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+      - type: horizontal-stack
+        cards:
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_hvac_last_activity
+          icon: mdi:fan
+          name: HVAC
+          secondary_info: state
+          layout: horizontal
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_updated
+          icon: mdi:car-battery
+          name: Battery
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_gps_last_activity
+          icon: mdi:map-marker
+          name: GPS
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+      - type: heading
+        heading: Current Location
+        heading_style: title
+        card_mod:
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+      - type: custom:mushroom-template-card
+        entity: sensor.a290
+        primary: LOCATION
+        secondary: '{{ states(''sensor.alpine_pretty_location'') }}'
+        icon: mdi:map-marker
+        layout: horizontal
+        fill_container: true
+        tap_action:
+          action: more-info
+        card_mod:
+          style:
+            mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}
+            .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+      - type: map
+        entities:
+          - device_tracker.alpine_a290_location
+        default_zoom: 16
+        aspect_ratio: '1:1'
+        dark_mode: false
+        card_mod:
+          style: |
+            ha-card { background: none !important; box-shadow: none !important; border: none !important; }
+    - type: grid
+      card_mod:
+        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;}
+      cards:
+      - type: heading
+        heading: Remote Control
+        heading_style: title
+        card_mod:
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+      - type: grid
+        square: false
+        columns: 3
+        cards:
+        - type: custom:button-card
+          name: Start Charging
+          icon: mdi:play
+          tap_action:
+            action: call-service
+            service: button.press
+            target:
+              entity_id: button.alpine_a290_start_charging
+          styles:
+            icon:
+            - color: grey
+            - opacity: 0.2
+            - width: 28px
+            - height: 28px
+            name:
+            - font-weight: 400
+          card_mod:
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+        - type: custom:button-card
+          name: HVAC Start
+          icon: mdi:fan
+          tap_action:
+            action: call-service
+            service: button.press
+            target:
+              entity_id: button.alpine_a290_start_climate
+          styles:
+            icon:
+            - color: green
+            - width: 28px
+            - height: 28px
+            name:
+            - font-weight: 400
+          card_mod:
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+        - type: custom:button-card
+          name: Flash Lights
+          icon: mdi:car-light-high
+          tap_action:
+            action: call-service
+            service: button.press
+            target:
+              entity_id: button.alpine_a290_flash_lights
+          styles:
+            icon:
+            - color: yellow
+            - width: 28px
+            - height: 28px
+            name:
+            - font-weight: 400
+          card_mod:
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+        - type: custom:button-card
+          name: Stop Charging
+          icon: mdi:stop-circle
+          tap_action:
+            action: none
+          styles:
+            icon:
+            - color: grey
+            - opacity: 0.2
+            - width: 28px
+            - height: 28px
+            name:
+            - font-weight: 400
+          card_mod:
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+        - type: custom:button-card
+          name: HVAC Stop
+          icon: mdi:fan-off
+          tap_action:
+            action: call-service
+            service: button.press
+            target:
+              entity_id: button.alpine_a290_stop_climate
+          styles:
+            icon:
+            - color: red
+            - width: 28px
+            - height: 28px
+            name:
+            - font-weight: 400
+          card_mod:
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+        - type: custom:button-card
+          name: Beep Horn
+          icon: mdi:bugle
+          tap_action:
+            action: call-service
+            service: button.press
+            target:
+              entity_id: button.alpine_a290_sound_horn
+          styles:
+            icon:
+            - color: orange
+            - width: 28px
+            - height: 28px
+            name:
+            - font-weight: 400
+          card_mod:
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+    - type: grid
+      card_mod:
+        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;}
+      cards:
+      - type: heading
+        heading: Update / Test / Errors
+        heading_style: title
+        card_mod:
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+      - type: grid
+        columns: 2
+        square: false
+        cards:
+        - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_last_updated
+          icon: mdi:information-variant
+          name: Last Updated
+          secondary_info: state
+          tap_action:
+            action: call-service
+            service: browser_mod.popup
+            data:
+              title: Soft Update - Refresh API Data
+              content:
+                type: vertical-stack
+                cards:
+                - type: markdown
+                  content: |-
+                    **Last Updated**
+
+                    The Alpine A290 add-on polls the Renault/Kamereon API automatically on its configured interval (Settings → Add-ons → Alpine A290 → Configuration → `poll_interval`).
+
+                    The timestamp above is the last successful poll. There is nothing to refresh by hand — data updates in the background.
+
+                    To poll more or less often, change `poll_interval` and restart the add-on.
+                - type: custom:mushroom-entity-card
+                  entity: sensor.alpine_a290_last_updated
+                  icon: mdi:refresh
+                  name: Auto-Polls in Background
+                  secondary_info: none
+                  tap_action:
+                    action: none
+                  hold_action:
+                    action: none
+                  double_tap_action:
+                    action: none
+                  card_mod:
+                    style:
+                      mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                      mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                      .: ha-state-icon{color:green;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+          double_tap_action:
+            action: none
+          hold_action:
+            action: none
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
+          entity: sensor.a290_test_charge
+          name: Run Test Charge
+          icon: mdi:run
+          secondary_info: state
+          tap_action:
+            action: call-service
+            service: input_button.press
+            data:
+              entity_id: input_button.a290_test_charge_run
+          hold_action:
+            action: none
+          double_tap_action:
+            action: none
+          visibility:
+          - condition: state
+            entity: binary_sensor.a290_test_show_panel
+            state: 'off'
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:red;animation:pulse 1s linear infinite;{% elif is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{ {% if is_state('binary_sensor.alpine_a290_charging','on') or is_state('input_boolean.a290_test_mode','on') %}pointer-events:none;{% endif %}background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+        - type: custom:mushroom-entity-card
+          entity: sensor.a290_test_ends_countdown
+          icon: mdi:timer-sand
+          secondary_info: state
+          name: 'Ends In:'
+          tap_action:
+            action: none
+          hold_action:
+            action: none
+          double_tap_action:
+            action: none
+          visibility:
+          - condition: state
+            entity: input_boolean.a290_test_mode
+            state: 'on'
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-state-icon{color:green;{% if is_state('input_boolean.a290_test_mode','on') %}animation:flip180 2.8s ease-in-out infinite;transform-origin:50% 50%;{% endif %}}ha-card{ {% if is_state('input_boolean.a290_test_mode','on') %}pointer-events:none;{% endif %}background:none !important;box-shadow:none !important;border:none !important;}@keyframes flip180{0%{transform:rotate(0deg);}25%{transform:rotate(180deg);}60%{transform:rotate(180deg);}85%{transform:rotate(360deg);}100%{transform:rotate(360deg);}}
+        - type: custom:mushroom-entity-card
+          entity: sensor.a290_test_panel_hide_countdown
+          name: Auto Reset
+          icon: mdi:timer
+          secondary_info: state
+          tap_action:
+            action: none
+          hold_action:
+            action: none
+          double_tap_action:
+            action: none
+          visibility:
+          - condition: state
+            entity: input_boolean.a290_test_mode
+            state: 'off'
+          - condition: state
+            entity: binary_sensor.a290_test_show_panel
+            state: 'on'
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              .: ha-card{pointer-events:none;background:none !important;box-shadow:none !important;border:none !important;}
+        - type: vertical-stack
+          view_layout:
+            grid-column: 1 / -1
+          cards:
+          - type: conditional
+            conditions:
+            - entity: binary_sensor.alpine_a290_api_auth_failure
+              state: 'on'
+            card:
+              type: custom:mushroom-entity-card
+              entity: binary_sensor.alpine_a290_api_auth_failure
+              name: CLI Prompt
+              icon: mdi:console
+              secondary_info: state
+              tap_action:
+                action: call-service
+                service: browser_mod.popup
+                data:
+                  title: CLI Prompted On Script Call
+                  content:
+                    type: vertical-stack
+                    cards:
+                    - type: markdown
+                      content: |-
+                        **What happened?**
+
+                        One or more Alpine RAW scripts tried to call the Alpine CLI and it attempted to prompt for interactive input.
+
+                        **Why you still see data**
+
+                        Your scripts can fall back to cached JSON, so values may still look valid, but `ok: false` means the latest live call did **not** succeed.
+
+                        **What to do?**
+
+                        - Run your Auto-Reauth (8) automation or your login script.
+                        - If it persists, check `/config/renault/renault_api_login.log` and `/config/renault_cli.log`.
+              hold_action:
+                action: none
+              double_tap_action:
+                action: none
+              card_mod:
+                style:
+                  mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                  mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                  .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_api_auth_failure') =='on' %}color:red;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.4;animation:none{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+          - type: conditional
+            conditions:
+            - entity: binary_sensor.alpine_a290_api_auth_failure
+              state: 'on'
+            card:
+              type: custom:mushroom-entity-card
+              entity: binary_sensor.alpine_a290_api_auth_failure
+              name: Auth Failure
+              icon: mdi:account-alert
+              secondary_info: state
+              tap_action:
+                action: call-service
+                service: browser_mod.popup
+                data:
+                  title: Authentication Failure
+                  content:
+                    type: vertical-stack
+                    cards:
+                    - type: markdown
+                      content: |-
+                        **What happened?**
+
+                        A Alpine API request failed due to an authentication issue (expired token / invalid session / unauthorized/forbidden response).
+
+                        **Why you might still see data**
+
+                        Entities keep their last value until the next successful poll, so the dashboard can still show previous values even though the latest live call did **not** succeed.
+
+                        **What to do?**
+
+                        - Check the **Alpine A290 add-on** log (Settings → Add-ons → Alpine A290 → Log).
+                        - Re-check the username / password / locale on the add-on's Configuration page, then restart it. A `403` usually means a credential or locale mismatch.
+              hold_action:
+                action: none
+              double_tap_action:
+                action: none
+              card_mod:
+                style:
+                  mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                  mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                  .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_api_auth_failure') =='on' %}color:red;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.4;animation:none{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+          - type: conditional
+            conditions:
+            - entity: binary_sensor.alpine_a290_data_stale
+              state: 'on'
+            card:
+              type: custom:mushroom-entity-card
+              entity: binary_sensor.alpine_a290_data_stale
+              name: Stale Data
+              icon: mdi:database-alert
+              secondary_info: state
+              tap_action:
+                action: call-service
+                service: browser_mod.popup
+                data:
+                  title: RAW Data Stale
+                  content:
+                    type: vertical-stack
+                    cards:
+                    - type: markdown
+                      content: |-
+                        **What happened?**
+
+                        One or more Alpine RAW sensors have not refreshed within the expected time window (stale threshold is 6 hours).
+
+                        **What this means**
+
+                        Values may still be shown, but they may be old (stale). The system will typically recover after the next successful login + refresh.
+
+                        **What to do?**
+
+                        - Run your Auto-Reauth (8) automation or trigger a manual refresh.
+                        - Check `/config/renault_cli.log` for errors if it keeps happening.
+              hold_action:
+                action: none
+              double_tap_action:
+                action: none
+              card_mod:
+                style:
+                  mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+                  mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                  .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_data_stale') =='on' %}color:red;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.4;animation:none{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+    background:
+      opacity: 100
+      alignment: center
+      size: cover
+      repeat: repeat
+      attachment: scroll
+      image: /local/backgrounds/alpine_a290_background.png
+    dense_section_placement: true

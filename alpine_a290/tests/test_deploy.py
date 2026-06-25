@@ -22,6 +22,29 @@ def test_cdnify_leaves_unmapped_image_untouched():
     assert deploy._cdnify(s) == s   # unmapped -> left as-is (logged a warning)
 
 
+def test_cdnify_points_at_the_addon_repo():
+    out = deploy._cdnify("image: /local/backgrounds/alpine_a290_background.png")
+    assert "a290-ha-addon" in out and "alpine_a290/dashboards" in out
+
+
+def test_fetch_dashboard_reads_bundled_yaml_and_cdnifies(tmp_path, monkeypatch):
+    import asyncio
+
+    (tmp_path / "front-end.txt").write_text(
+        "- title: Home\n"
+        "  cards:\n"
+        "    - type: picture\n"
+        "      image: /local/backgrounds/alpine_a290_background.png\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(deploy, "DASHBOARD_DIR", str(tmp_path))   # read the bundled file
+    cfg = asyncio.run(deploy._fetch_dashboard("standard"))
+    assert cfg["title"] == "Alpine A290"
+    assert isinstance(cfg["views"], list)
+    img = cfg["views"][0]["cards"][0]["image"]
+    assert "cdn.jsdelivr.net" in img and "/local/backgrounds/" not in img
+
+
 # --------------------------------------------------------------------------- #
 # run_deploy — create-once vs redeploy
 # --------------------------------------------------------------------------- #
