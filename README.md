@@ -55,7 +55,7 @@ key needed.
 - **Test-mode preview** — the charge-simulation panels. A small HA helper/template package
   (`alpine_a290/dashboards/Packages/`, `Templates/`, `Helpers/`); without it those tiles
   read *unavailable*.
-- **Pretty location** — `sensor.a290_pretty_location` ("Driveway / Home / town"), a
+- **Pretty location** — `sensor.alpine_pretty_location` ("Driveway / Home / town"), a
   template sensor (`alpine_a290/dashboards/Templates/`) with an optional
   [`places`](https://github.com/custom-components/places) integration. Without it the
   location card shows the raw tracker.
