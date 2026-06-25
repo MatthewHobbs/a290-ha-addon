@@ -85,8 +85,8 @@ key needed.
 4. **Get a dashboard:** set `deploy_dashboard` to `standard`, `bubble`, or `both` and
    restart the add-on (it installs the dashboard + assets via CDN, nothing to copy), **or**
    copy `alpine_a290/dashboards/front-end*.txt` into a new dashboard's raw config manually.
-   With `both`, the standard dashboard lands at `dashboard_url_path` and the bubble one at
-   `<dashboard_url_path>-bubble`.
+   With `both`, the standard dashboard lands at your `dashboard_url_path` and the bubble one
+   gets a `-bubble` suffix (e.g. `alpine-a290` and `alpine-a290-bubble`).
 
 ## What it provides
 
