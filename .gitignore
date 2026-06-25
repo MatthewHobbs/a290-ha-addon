@@ -1,0 +1,20 @@
+# macOS / tooling
+.DS_Store
+._*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ruff_cache/
+
+# Test / coverage artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Secrets / local env (the add-on takes credentials via its config page)
+secrets.yaml
+.env
+*.local

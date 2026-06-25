@@ -1,0 +1,6 @@
+# Home Assistant add-ons run as root under the Supervisor by design — the
+# Supervisor manages isolation, and bashio/s6 need root. Not a real finding here.
+AVD-DS-0002
+# No HEALTHCHECK in the Dockerfile — the Supervisor watchdog handles add-on
+# liveness (startup: application / boot: auto), so a container HEALTHCHECK is moot.
+AVD-DS-0026
