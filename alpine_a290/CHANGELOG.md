@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0
+
+- **`deploy_dashboard: both`** — deploy *both* dashboards in one go. The standard dashboard
+  lands at `dashboard_url_path` and the bubble one at `<dashboard_url_path>-bubble`, each
+  create-once. `none`/`standard`/`bubble` behave exactly as before.
+- README rewritten for the merged repo: a proper **Requirements** section listing the
+  add-ons and the exact HACS frontend cards to install **first** (card-mod + Mushroom on
+  both, Button Card + Browser Mod for the standard dashboard's tiles/pop-ups, Bubble Card
+  for the bubble dashboard), plus install steps and what the add-on provides.
+
 ## 1.1.0
 
 - **The dashboard now ships inside the add-on** — the separate `a290-dashboard-view` repo is

@@ -96,7 +96,7 @@ class _FakeSession:
         return _FakeWSConn()
 
 
-def _run_deploy_with(monkeypatch, *, existing, redeploy):
+def _run_deploy_with(monkeypatch, *, existing, redeploy, style="standard"):
     fake = FakeWS(existing)
 
     async def fake_fetch(style):
@@ -105,7 +105,7 @@ def _run_deploy_with(monkeypatch, *, existing, redeploy):
     monkeypatch.setattr(deploy, "_fetch_dashboard", fake_fetch)
     monkeypatch.setattr(deploy, "_WS", lambda session, ws, token: fake)
     monkeypatch.setattr(deploy.aiohttp, "ClientSession", _FakeSession)
-    monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "standard")
+    monkeypatch.setenv("A290_DEPLOY_DASHBOARD", style)
     monkeypatch.setenv("SUPERVISOR_TOKEN", "tok")
     monkeypatch.setenv("A290_DASHBOARD_URL_PATH", "alpine-a290")
     monkeypatch.setenv("A290_REDEPLOY_DASHBOARD", "true" if redeploy else "false")
@@ -129,3 +129,9 @@ def test_run_deploy_overwrites_existing_when_redeploy_true(monkeypatch):
     fake = _run_deploy_with(monkeypatch, existing=["alpine-a290"], redeploy=True)
     assert fake.created == []          # already exists -> not re-created
     assert fake.saved == ["alpine-a290"]   # ...but config is pushed
+
+
+def test_run_deploy_both_installs_standard_and_bubble(monkeypatch):
+    fake = _run_deploy_with(monkeypatch, existing=[], redeploy=False, style="both")
+    assert fake.created == ["alpine-a290", "alpine-a290-bubble"]
+    assert fake.saved == ["alpine-a290", "alpine-a290-bubble"]

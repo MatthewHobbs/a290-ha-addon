@@ -18,8 +18,8 @@ Home Assistant via MQTT auto-discovery.
 | `precondition_temperature` | Target cabin temperature (°C, 16–27, default 20) used by the **Start Climate** button. |
 | `log_level` | `info` normally; `debug` for troubleshooting. |
 | `debug_dump` | `false` by default. When `true`, every poll logs the decoded data from all readable API endpoints — with your VIN, account id, username and contact/identifier fields redacted — to help diagnose what your car does/doesn't expose. Turn off again once captured (it's verbose). Prefer this over `log_level: debug` for API diagnostics: the library's own debug logging would expose access tokens. |
-| `deploy_dashboard` | `none` (default), `standard`, or `bubble`. Auto-installs that dashboard — see below. |
-| `dashboard_url_path` | URL slug for the deployed dashboard (default `alpine-a290`). |
+| `deploy_dashboard` | `none` (default), `standard`, `bubble`, or `both`. Auto-installs that dashboard — see below. `both` installs the standard dashboard at `dashboard_url_path` and the bubble one at `<dashboard_url_path>-bubble`. |
+| `dashboard_url_path` | URL slug for the deployed dashboard (default `alpine-a290`; with `both`, the bubble one is suffixed `-bubble`). |
 | `redeploy_dashboard` | `true` re-pushes the dashboard config on next start (to pick up an update). Default `false` so your edits are never overwritten. |
 
 ## Dashboard auto-deploy (optional)
