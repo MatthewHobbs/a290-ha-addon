@@ -1,36 +1,102 @@
-# Alpine A290 Home Assistant Add-on
+# Alpine A290 — Home Assistant add-on + dashboards
 
 [![CI](https://github.com/MatthewHobbs/a290-ha-addon/actions/workflows/ci.yaml/badge.svg)](https://github.com/MatthewHobbs/a290-ha-addon/actions/workflows/ci.yaml)
 
-A custom Home Assistant **add-on repository** that polls your Alpine A290 (via the
-Renault/Kamereon API) and publishes its data into Home Assistant using **MQTT
-auto-discovery** — so the entities just appear, with no shell scripts, no Python
-`venv`, and no `secrets.yaml` editing.
+A maintained Home Assistant integration for the **Alpine A290**. It polls the
+Renault/Kamereon API and publishes `sensor.alpine_a290_*` entities over **MQTT
+auto-discovery** — no shell scripts, no Python `venv`, no `secrets.yaml`; credentials are
+entered once on the add-on's **Configuration** page.
 
-All configuration (credentials, account id, VIN, locale, poll interval) is entered
-on the add-on's **Configuration** page.
+The **dashboards now ship inside the add-on** (previously a separate `a290-dashboard-view`
+repo — since merged in and archived): enable `deploy_dashboard` and the add-on installs a
+ready-made dashboard for you. Controls (lights, horn, climate, refresh location) are sent
+**natively** by the add-on — **you do not need the official Renault integration**. (Remote
+charge-start is forbidden by Renault on the A290, so no Start Charging button is offered —
+that's a platform limit, not a missing feature.)
 
-## Installation
+## What's here
 
-1. In Home Assistant: **Settings → Add-ons → Add-on Store → ⋮ (top-right) → Repositories**.
-2. Add this repository URL:
-   ```
-   https://github.com/MatthewHobbs/a290-ha-addon
-   ```
-3. Install the **Alpine A290** add-on, open its **Configuration** tab, fill in your
-   My Alpine username/password, Kamereon account id, VIN and locale, then **Start** it.
-4. Requires the **Mosquitto broker** add-on (the connection is picked up
-   automatically).
+- **The add-on:** [`alpine_a290/`](alpine_a290/) — the MQTT data layer + control buttons.
+  See [`alpine_a290/DOCS.md`](alpine_a290/DOCS.md) for the full entity/option list.
+- **The dashboards:** [`alpine_a290/dashboards/`](alpine_a290/dashboards/) — a **standard**
+  dashboard (`front-end.txt`) and a **Bubble Card** dashboard (`front-end-bubble.txt`),
+  both fed by the add-on. The add-on can install either — or **both** — for you
+  (`deploy_dashboard: standard|bubble|both`), or you can copy them in manually. Assets
+  (A290 renders, map markers, Zen Dots font) live under `alpine_a290/dashboards/`.
 
-Your Alpine A290 entities (`sensor.alpine_a290_*`) will appear automatically via MQTT.
+## Requirements
 
-> This add-on bundles both the **data layer** and the **dashboards** — enable
-> `deploy_dashboard` to have it install a ready-made dashboard for you. The dashboard
-> sources live under [`alpine_a290/dashboards/`](alpine_a290/dashboards).
+Install these **before** the dashboards will render correctly.
+
+### Add-ons (Settings → Add-ons)
+
+| Dependency | Why | Required? |
+| --- | --- | --- |
+| **Mosquitto broker** | The MQTT broker the add-on publishes to (auto-discovered). | ✅ Required |
+| **Alpine A290** (this repo) | The data layer + control buttons. | ✅ Required |
+
+### Frontend cards (via [HACS](https://hacs.xyz) → Frontend)
+
+The dashboards are built from custom Lovelace cards. Install **HACS** first, then:
+
+| Card (HACS name) | Used by | Required? |
+| --- | --- | --- |
+| **card-mod** (`thomasloven/lovelace-card-mod`) | styling/fonts on **both** dashboards | ✅ Required (both) |
+| **Mushroom** (`piitaya/lovelace-mushroom`) | most tiles on the **standard** dashboard | ✅ Required (both) |
+| **Button Card** (`custom-cards/button-card`) | tiles on the **standard** dashboard | ✅ Standard |
+| **Browser Mod** (`nielsfaber/browser_mod`) | the tap-to-open pop-ups on the **standard** dashboard | ✅ Standard (pop-ups) |
+| **Bubble Card** (`Clooos/Bubble-Card`) | the **Bubble** dashboard only | ◻️ Bubble only |
+
+The car's location uses Home Assistant's **built-in `map` card** — no map plugin or API
+key needed.
+
+### Optional (not required to run)
+
+- **Test-mode preview** — the charge-simulation panels. A small HA helper/template package
+  (`alpine_a290/dashboards/Packages/`, `Templates/`, `Helpers/`); without it those tiles
+  read *unavailable*.
+- **Pretty location** — `sensor.a290_pretty_location` ("Driveway / Home / town"), a
+  template sensor (`alpine_a290/dashboards/Templates/`) with an optional
+  [`places`](https://github.com/custom-components/places) integration. Without it the
+  location card shows the raw tracker.
+
+## Install
+
+1. **Add the add-on repo:** Settings → Add-ons → Add-on Store → ⋮ → **Repositories**, add
+   `https://github.com/MatthewHobbs/a290-ha-addon`. Install **Mosquitto broker** (if needed)
+   and the **Alpine A290** add-on.
+2. **Configure + start:** on the add-on's **Configuration** tab set your My Alpine
+   `username`/`password`, `vin`, `locale`, `battery_capacity_kwh` (and `account_id` only if
+   you have multiple accounts — it's auto-discovered otherwise), then **Start**. The
+   `sensor.alpine_a290_*` / `binary_sensor.alpine_a290_*` entities and
+   `button.alpine_a290_*` controls appear under an **Alpine A290** device within a minute.
+3. **Install the HACS cards** above — do this *before* deploying a dashboard, or it renders
+   as "custom element doesn't exist".
+4. **Get a dashboard:** set `deploy_dashboard` to `standard`, `bubble`, or `both` and
+   restart the add-on (it installs the dashboard + assets via CDN, nothing to copy), **or**
+   copy `alpine_a290/dashboards/front-end*.txt` into a new dashboard's raw config manually.
+   With `both`, the standard dashboard lands at `dashboard_url_path` and the bubble one at
+   `<dashboard_url_path>-bubble`.
+
+## What it provides
+
+- **Sensors:** battery level/range/temperature, charging power/remaining/flap/plug/status,
+  available energy, outside temperature, HVAC status/threshold, preconditioning, charge
+  target/min SoC, mileage, last-charge stats, GPS/HVAC last-activity, optional tyre
+  pressure + charge mode, and health (`api_auth_failure`, `data_stale`, `plug_suspect`).
+- **Location:** `device_tracker.alpine_a290_location`.
+- **Native controls (no official Renault integration):**
+  `button.alpine_a290_sound_horn`, `…_flash_lights`, `…_start_climate`, `…_stop_climate`,
+  `…_refresh_location` — each gated on what the platform supports (charge-start is
+  forbidden on the A290, so it isn't shipped).
+- **Debug:** set `debug_dump: true` to log every readable API endpoint (secrets redacted)
+  to the add-on Log — the safe way to diagnose the API (unlike `log_level: debug`, which
+  the library would use to print access tokens).
 
 ## Credits
 
-Part of the standalone **Alpine A290** project, whose dashboards originally
-started from [renault-5-dashboard-view](https://github.com/Topolino65/renault-5-dashboard-view)
-by [Topolino65](https://github.com/Topolino65) — credit retained. Developed
-independently; no changes are submitted upstream. MIT licensed.
+The dashboards originally started from
+[**renault-5-dashboard-view**](https://github.com/Topolino65/renault-5-dashboard-view) by
+[**Topolino65**](https://github.com/Topolino65) — full credit for the original dashboards,
+assets and design. Adapted for the Alpine A290 and maintained independently; no changes are
+submitted upstream. MIT licensed.
