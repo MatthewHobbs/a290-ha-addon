@@ -1,5 +1,5 @@
 name: Alpine A290
-version: "1.2.0"
+version: "1.2.1"
 slug: alpine_a290
 description: Polls your Alpine A290 (Renault/Kamereon API) and publishes its data to Home Assistant via MQTT auto-discovery — no scripts, venv or secrets files needed.
 url: https://github.com/MatthewHobbs/a290-ha-addon/tree/main/alpine_a290

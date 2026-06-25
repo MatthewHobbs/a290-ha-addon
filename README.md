@@ -93,6 +93,34 @@ key needed.
   to the add-on Log — the safe way to diagnose the API (unlike `log_level: debug`, which
   the library would use to print access tokens).
 
+## Alpine A290 API support
+
+What the Alpine A290 (model `A5E1AE`) exposes through the Renault/Kamereon API. Renault
+forbids some endpoints on this model — those features aren't shipped (a platform limit, not
+a bug); the add-on probes `supports_endpoint()` at startup and only publishes what's
+available.
+
+| Feature | Endpoint | A290 |
+| --- | --- | --- |
+| Battery / charge / plug status | `battery-status` | ✅ |
+| Mileage | `cockpit` | ✅ |
+| HVAC + outside temperature | `hvac-status` | ✅ |
+| Charge target / min SoC | `soc-levels` | ✅ |
+| Preconditioning + heated seats | `ev/settings` | ✅ |
+| GPS location | `location` | ✅ |
+| Sound horn | `actions/horn-start` | ✅ |
+| Flash lights | `actions/lights-start` | ✅ |
+| Start / stop climate | `actions/hvac-start` · `hvac-stop` | ✅ |
+| Refresh location | `actions/refresh-location` | ⚠️ best-effort (may 403) |
+| Tyre pressure (TPMS) | `pressure` | ❌ forbidden |
+| Charge mode | `charge-mode` | ❌ forbidden |
+| Start / stop charging | `actions/charge-start` · `charge-stop` | ❌ forbidden |
+
+✅ supported · ⚠️ library default, untested (may return forbidden) · ❌ Renault forbids it on the A290
+
+> Set `debug_dump: true` to log the decoded response of every readable endpoint (secrets
+> redacted) — useful if Renault changes what the platform exposes.
+
 ## Credits
 
 The dashboards originally started from

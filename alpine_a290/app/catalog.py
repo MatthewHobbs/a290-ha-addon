@@ -1,10 +1,6 @@
-"""Entity catalog for the Alpine A290 — the declarative "what this model ships" tables.
-
-Kept dependency-free and separate from main.py so the per-model surface (sensors, binary
-sensors, icons, optional endpoints, control buttons) is legible at a glance and is the
-natural unit to share/diff if the A290 and R5 add-ons are ever merged behind one engine.
-Object_ids are prefixed "a290_"; the discovery value_template strips that prefix.
-"""
+"""Entity catalog for the Alpine A290 — the declarative per-model tables (sensors, binary
+sensors, icons, optional endpoints, control buttons). Object_ids are prefixed "a290_"; the
+discovery value_template strips that prefix."""
 
 # object_id -> (name, device_class, unit, state_class)
 SENSORS = {
@@ -56,9 +52,7 @@ BINARY_SENSORS = {
     "a290_data_stale":            ("Data Stale", "problem"),
 }
 
-# Icons for entities that would otherwise fall back to HA's generic sensor icon
-# (mdi:eye) — i.e. text/status sensors with no device_class. Cards without an
-# explicit icon: inherit these.
+# Icons for text/status sensors with no device_class (else HA shows mdi:eye).
 ICONS = {
     "a290_plug_status":           "mdi:power-plug",
     "a290_charging_status":       "mdi:battery-charging",
@@ -72,22 +66,17 @@ ICONS = {
     "a290_heated_seat_passenger": "mdi:car-seat-heater",
 }
 
-# Optional endpoints that some models (e.g. A5E1AE / A290) don't expose. Their
-# discovery + polling is gated on vehicle.supports_endpoint() so we never ship
-# perpetually-empty entities.
+# Endpoint -> object_ids gated on supports_endpoint() (the A290 forbids these), so the
+# sensors are only shipped when the car exposes them.
 OPTIONAL_ENDPOINTS = {
     "charge-mode": ["a290_charge_mode"],
     "pressure": ["a290_tyre_pressure_fl", "a290_tyre_pressure_fr",
                  "a290_tyre_pressure_rl", "a290_tyre_pressure_rr"],
 }
 
-# Command buttons -> (friendly name, icon, the renault-api action endpoint that backs it).
-# Each button is published only when vehicle.supports_endpoint(<endpoint>) is true, and
-# its command topic is alpine_a290/cmd/<object_id without the "a290_" prefix>. Unlike the
-# read-only sensors above, a control button defaults to *unsupported* on a detection error
-# — we'd rather hide a control than ship one the platform 403s. On the A290 (A5E1AE):
-#   charge-start is forbidden (cleared, never shipped); horn/lights/climate are supported;
-#   refresh-location falls back to the default endpoint (untested — may 403 on press).
+# object_id -> (name, icon, action endpoint). Published only when supports_endpoint() is
+# true; command topic is alpine_a290/cmd/<object_id minus "a290_">. On the A290, charge-start
+# is forbidden (cleared) and refresh-location is a best-effort fallback.
 ACTION_BUTTONS = {
     "a290_charge_start":     ("Start Charging",   "mdi:ev-station",      "actions/charge-start"),
     "a290_horn":             ("Sound Horn",       "mdi:bullhorn",        "actions/horn-start"),
@@ -97,7 +86,6 @@ ACTION_BUTTONS = {
     "a290_refresh_location": ("Refresh Location", "mdi:crosshairs-gps",  "actions/refresh-location"),
 }
 
-# Sensor object_ids a previous version published but no longer ships. Their retained
-# discovery config is cleared on startup so upgraded installs don't keep a dead entity.
-# a290_cabin_temperature: the A290 never returns internalTemperature (cabin temp).
+# Retired object_ids — retained discovery cleared on startup. cabin_temperature: the A290
+# never returns internalTemperature.
 RETIRED_SENSORS = ["a290_cabin_temperature"]

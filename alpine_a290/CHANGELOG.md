@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.1
+
+- README: add an **Alpine A290 API support** table (which Renault endpoints work / are
+  forbidden on the A290) and document the latest functionality.
+- Trim verbose code comments/docstrings across `main.py`, `deploy.py`, `catalog.py`. No
+  behaviour change.
+
 ## 1.2.0
 
 - **`deploy_dashboard: both`** — deploy *both* dashboards in one go. The standard dashboard
