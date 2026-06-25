@@ -20,14 +20,26 @@ raw-editor paste. The [manual install](#manual-install-advanced) is kept as a fa
 
 ## Recommended install (add-on auto-deploy)
 
-### 1. Install + configure the add-on (the data layer)
+### 1. Install the dependencies first
+
+Install these **before** the add-on, so a deployed dashboard renders straight away (a
+dashboard deployed before its cards exist shows a wall of "custom element doesn't exist"):
+
+- **Mosquitto broker** — Settings → Add-ons → Add-on Store. The add-on auto-discovers it.
+- **[HACS](https://hacs.xyz)** → Frontend, then these cards:
+  - **card-mod**, **Mushroom Cards**, **Button Card**, **Browser Mod**
+  - **Bubble Card** — only if you want the Bubble dashboard
+
+The location map uses Home Assistant's built-in `map` card, so there's no map plugin or
+API key to install.
+
+### 2. Install + configure the add-on (the data layer)
 
 1. **Settings → Add-ons → Add-on Store → ⋮ (top-right) → Repositories**, and add:
    ```
    https://github.com/MatthewHobbs/a290-ha-addon
    ```
-2. Install **Mosquitto broker** (if you haven't already) — the add-on auto-discovers it.
-3. Install the **Alpine A290** add-on. Open its **Configuration** tab and set:
+2. Install the **Alpine A290** add-on. Open its **Configuration** tab and set:
    | Option | Value |
    | --- | --- |
    | `username` / `password` | Your **My Alpine** app login. |
@@ -36,23 +48,12 @@ raw-editor paste. The [manual install](#manual-install-advanced) is kept as a fa
    | `locale` | e.g. `en_GB`. Sets the API region, drive side (RHD for `en_GB`/`en_IE`) and units (**miles for `en_GB`**, km otherwise). |
    | `battery_capacity_kwh` | `52` or `40`. |
    | `poll_interval` | Seconds between polls (default 300). |
-4. **Start** the add-on. Within a minute you should see `sensor.alpine_a290_battery_level`,
+3. **Start** the add-on. Within a minute you should see `sensor.alpine_a290_battery_level`,
    `…_range`, `…_plug_status`, `device_tracker.alpine_a290_location`, etc.
    (Settings → Devices & Services → Entities, filter "alpine".)
 
 See the add-on's [DOCS](https://github.com/MatthewHobbs/a290-ha-addon/blob/main/alpine_a290/DOCS.md)
 for the full entity list.
-
-### 2. Install the frontend cards (HACS)
-
-**Do this before enabling auto-deploy** — a dashboard deployed before its cards exist
-renders as a wall of "custom element doesn't exist" errors. Install via HACS → Frontend:
-
-- **card-mod**, **Mushroom Cards**, **Button Card**, **Browser Mod**
-- **Bubble Card** — only if you want the Bubble dashboard
-
-The location map uses Home Assistant's built-in `map` card, so there's no map plugin or
-API key to install.
 
 ### 3. Turn on dashboard auto-deploy
 
