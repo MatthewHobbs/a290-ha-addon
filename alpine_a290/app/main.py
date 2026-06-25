@@ -588,8 +588,8 @@ HEALTH_PORT = 8099
 
 
 async def start_health_server():
-    """/healthz on the poll loop — backs the Supervisor watchdog: a deadlocked loop can't
-    answer, so the container gets restarted."""
+    """/healthz on the poll loop — backs the Dockerfile HEALTHCHECK: a deadlocked loop
+    can't answer, so the container is marked unhealthy and restarted."""
     app = web.Application()
     app.router.add_get("/healthz", lambda _req: web.Response(text="ok"))
     runner = web.AppRunner(app)
@@ -617,7 +617,7 @@ async def main():
     stale_secs = int(cfg("A290_STALE_HOURS", "6") or "6") * 3600
 
     _LOOP = asyncio.get_running_loop()
-    health = await start_health_server()   # backs the Supervisor watchdog
+    health = await start_health_server()   # backs the Dockerfile HEALTHCHECK
     state = load_state()
     vsession = VehicleSession(locale)
     supported = await detect_supported(vsession)

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.3
+
+- Complete the CI fix: the HA add-on linter flags the `watchdog` config option as obsolete,
+  so liveness is now a native Dockerfile **HEALTHCHECK** hitting the same `/healthz` endpoint
+  (the Supervisor marks the container unhealthy and restarts it if a deadlocked event loop
+  stops answering). Same behaviour, modern mechanism.
+
 ## 1.2.2
 
 - Fix CI (was red since the dashboard bundle / health-server changes): yamllint now ignores
