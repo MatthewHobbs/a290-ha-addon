@@ -4,8 +4,7 @@
 > steps add a dashboard (and, for the manual route, packages and helpers) to your config.
 >
 > **Charging control:** Renault **forbids remote charge start and stop on the A290**, so
-> the add-on ships no charging buttons; any Start/Stop-Charging tile on the dashboard is
-> inert (no entity behind it).
+> the add-on ships no charging buttons and the dashboards include no charge tile.
 
 This dashboard is the **frontend only**. All car data is provided by the
 **[Alpine A290 add-on](https://github.com/MatthewHobbs/a290-ha-addon)** — a proper
@@ -78,8 +77,7 @@ safe). To pull in a later layout update, set `redeploy_dashboard: true` and rest
   Renault integration needed: `button.alpine_a290_sound_horn`, `…_flash_lights`,
   `…_start_climate`, `…_stop_climate`, `…_refresh_location`. Each is gated on what the
   platform supports; Renault **forbids remote charge-start/stop on the A290**, so no
-  charging buttons are shipped (the standard dashboard still shows a Start Charging tile,
-  but there is no entity behind it and it's inert).
+  charging buttons are shipped and the dashboards include no charge tile.
 - **Pretty location** and **test mode** are not auto-deployed — they're a small package
   you merge manually. See [Optional extras](#optional-extras).
 
