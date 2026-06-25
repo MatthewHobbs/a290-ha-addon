@@ -594,7 +594,9 @@ async def start_health_server():
     app.router.add_get("/healthz", lambda _req: web.Response(text="ok"))
     runner = web.AppRunner(app)
     await runner.setup()
-    await web.TCPSite(runner, "0.0.0.0", HEALTH_PORT).start()
+    # Bind all interfaces so the Supervisor watchdog can reach it on the container network;
+    # the port isn't exposed (no `ports:` mapping), so it stays on HA's internal network.
+    await web.TCPSite(runner, "0.0.0.0", HEALTH_PORT).start()  # nosec B104
     LOG.info("Health endpoint listening on :%d/healthz", HEALTH_PORT)
     return runner
 

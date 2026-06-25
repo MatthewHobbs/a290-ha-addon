@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.2
+
+- Fix CI (was red since the dashboard bundle / health-server changes): yamllint now ignores
+  the bundled upstream dashboard YAML under `dashboards/`, and the watchdog health server's
+  `0.0.0.0` bind is marked `# nosec B104` (intentional — it's on HA's internal network only,
+  no exposed port). No runtime change.
+
 ## 1.2.1
 
 - README: add an **Alpine A290 API support** table (which Renault endpoints work / are
