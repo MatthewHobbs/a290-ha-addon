@@ -19,4 +19,8 @@ COPY dashboards/*.txt /app/dashboards/
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
 
+# Supervisor monitors this; a deadlocked event loop can't answer /healthz -> unhealthy.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
+    CMD wget -qO- http://127.0.0.1:8099/healthz || exit 1
+
 CMD [ "/run.sh" ]

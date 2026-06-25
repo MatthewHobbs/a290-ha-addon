@@ -1,5 +1,5 @@
 name: Alpine A290
-version: "1.2.2"
+version: "1.2.3"
 slug: alpine_a290
 description: Polls your Alpine A290 (Renault/Kamereon API) and publishes its data to Home Assistant via MQTT auto-discovery — no scripts, venv or secrets files needed.
 url: https://github.com/MatthewHobbs/a290-ha-addon/tree/main/alpine_a290
@@ -7,9 +7,6 @@ arch:
   - aarch64
   - amd64
 init: false
-# Supervisor restarts the add-on if this health endpoint stops responding (e.g. a
-# deadlocked event loop). Served by the poller on the internal network — not exposed.
-watchdog: "http://[HOST]:8099/healthz"
 # Talk to the HA core API (used to auto-deploy the dashboard, when enabled).
 homeassistant_api: true
 # Pull MQTT broker connection from the Mosquitto add-on automatically.
