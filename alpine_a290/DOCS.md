@@ -24,8 +24,8 @@ Home Assistant via MQTT auto-discovery.
 
 ## Dashboard auto-deploy (optional)
 
-Set `deploy_dashboard` to `standard` or `bubble` and the add-on will install that
-dashboard for you — **no raw-editor paste, no `configuration.yaml` edits, and nothing
+Set `deploy_dashboard` to `standard`, `bubble`, or `both` and the add-on will install the
+dashboard(s) for you — **no raw-editor paste, no `configuration.yaml` edits, and nothing
 to copy into `/config/www`**. On start it:
 
 1. Reads the chosen dashboard YAML **bundled in the add-on** and rewrites its image
@@ -37,10 +37,11 @@ to copy into `/config/www`**. On start it:
 It is **create-once** — if the dashboard already exists it is left untouched (your edits
 are safe). To pull in an updated layout, set `redeploy_dashboard: true` and restart once.
 
-**Still required (these can't be automated):** install the frontend cards via HACS
-(**card-mod**, **Mushroom**, **Button Card**, and **Bubble Card** for the bubble style).
-The optional **pretty-location** and **test-mode** features remain a small package — see
-the dashboard repo.
+**Still required (these can't be automated):** install the frontend cards via HACS —
+**card-mod** and **Mushroom** (both dashboards), **Button Card** and **Browser Mod**
+(the standard dashboard's tiles and pop-ups), and **Bubble Card** (the bubble dashboard).
+The optional **pretty-location** and **test-mode** features are a small manual package
+under [`dashboards/`](dashboards/) (`Packages/`, `Templates/`, `Helpers/`).
 
 ### Kamereon account id
 

@@ -3,8 +3,9 @@
 > **Back up Home Assistant before you start** (Settings → System → Backups). These
 > steps add a dashboard (and, for the manual route, packages and helpers) to your config.
 >
-> **Start/Stop charging:** charge **start** works via the add-on; charge **stop** is
-> not exposed by the Renault API, so the Stop-Charging tile is inert.
+> **Charging control:** Renault **forbids remote charge start and stop on the A290**, so
+> the add-on ships no charging buttons; any Start/Stop-Charging tile on the dashboard is
+> inert (no entity behind it).
 
 This dashboard is the **frontend only**. All car data is provided by the
 **[Alpine A290 add-on](https://github.com/MatthewHobbs/a290-ha-addon)** — a proper
@@ -60,23 +61,25 @@ Back in the add-on's **Configuration** tab, set:
 
 | Option | Value |
 | --- | --- |
-| `deploy_dashboard` | `standard` (closest to the original) or `bubble`. |
-| `dashboard_url_path` | URL slug for the dashboard (default `alpine-a290`). |
+| `deploy_dashboard` | `standard` (closest to the original), `bubble`, or `both`. |
+| `dashboard_url_path` | URL slug for the dashboard (default `alpine-a290`; with `both`, the bubble one is suffixed `-bubble`). |
 
-**Restart** the add-on. On start it fetches the chosen dashboard from this repo, rewrites
-its images to the **jsDelivr CDN**, registers the **Zen Dots** Google font as a Lovelace
-resource, and creates the dashboard via the HA API — then it appears in your sidebar.
+**Restart** the add-on. On start it reads the dashboard YAML **bundled in the add-on**,
+rewrites its images to the **jsDelivr CDN** (served from this repo), registers the **Zen
+Dots** Google font as a Lovelace resource, and creates the dashboard via the HA API — then
+it appears in your sidebar.
 
 It is **create-once**: if the dashboard already exists it's left untouched (your edits are
 safe). To pull in a later layout update, set `redeploy_dashboard: true` and restart once.
 
 ### 4. Control buttons + optional extras
 
-- **Control buttons (flash lights / horn / HVAC / charge):** the dashboards drive the
-  official **Renault integration**'s button entities (`button.*_flash_lights`,
-  `*_sound_horn`, `*_start_charging`, `*_start_air_conditioner`) — install/enable that
-  integration for those tiles to work. (Charge **stop** and HVAC **stop** aren't exposed
-  by the API, so those tiles are inert.)
+- **Control buttons:** the add-on publishes these **natively over MQTT** — no official
+  Renault integration needed: `button.alpine_a290_sound_horn`, `…_flash_lights`,
+  `…_start_climate`, `…_stop_climate`, `…_refresh_location`. Each is gated on what the
+  platform supports; Renault **forbids remote charge-start/stop on the A290**, so no
+  charging buttons are shipped (the standard dashboard still shows a Start Charging tile,
+  but there is no entity behind it and it's inert).
 - **Pretty location** and **test mode** are not auto-deployed — they're a small package
   you merge manually. See [Optional extras](#optional-extras).
 
@@ -98,8 +101,8 @@ Using the **File Editor** add-on or **Samba**:
 
 ### 4. Wire up resources (and any extras)
 
-This repo's [`YAML/config-entries.yaml`](YAML/config-entries.yaml) shows the blocks to
-merge into your `configuration.yaml` (adjust paths to where you place the files):
+The [`config-entries.yaml`](config-entries.yaml) here shows the blocks to merge into your
+`configuration.yaml` (adjust paths to where you place the files):
 
 ```yaml
 lovelace:
@@ -128,8 +131,8 @@ Check **Developer Tools → YAML → Check Configuration**, then **Restart**.
 
 1. **Settings → Dashboards → + Add Dashboard → New dashboard from scratch.**
 2. Open it, then **⋮ → Edit Dashboard → ⋮ → Raw configuration editor**.
-3. Paste the entire contents of [`YAML/front-end.txt`](YAML/front-end.txt) (standard)
-   or [`YAML/front-end-bubble.txt`](YAML/front-end-bubble.txt) (Bubble), and **Save**.
+3. Paste the entire contents of [`front-end.txt`](front-end.txt) (standard)
+   or [`front-end-bubble.txt`](front-end-bubble.txt) (Bubble), and **Save**.
 
 ---
 
