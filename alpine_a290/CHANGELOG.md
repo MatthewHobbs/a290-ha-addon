@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.2
+
+- Tidy the standard dashboard's **Last Charge** popup: remove the duplicate **Initial** and
+  **Uplift** tiles (they pointed at the same entities as **Avg.** and **Gain**), and fix the
+  **Type** tile's colour logic to match the add-on's real values — `Home` (green) /
+  `Rapid/Public` (orange) — instead of the old `Rapid DC / Fast DC / Fast AC / Slow AC` that
+  never matched. (The optional test-mode popup is unchanged.)
+
 ## 1.3.1
 
 - Fix **Range/Mileage showing in km even with `locale: en_GB`**. Those sensors carried
