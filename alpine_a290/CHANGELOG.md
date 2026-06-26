@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.3
+
+- Refine the Range/Mileage units fix from 1.3.1: only drop the `distance` device_class when
+  the unit is **miles** (`locale: en_GB`). For km it's kept, so those sensors retain proper
+  distance semantics and statistics — the double-conversion only ever affected the miles case.
+
 ## 1.3.2
 
 - Tidy the standard dashboard's **Last Charge** popup: remove the duplicate **Initial** and

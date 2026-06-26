@@ -157,6 +157,8 @@ def publish_discovery(client, supported_eps, dist_unit):
         published += 1
         if obj in ("a290_range", "a290_mileage"):
             unit = dist_unit
+            if dist_unit == "mi":
+                dev_class = None  # else HA (metric) re-converts our miles back to km
         conf = {"name": name, "object_id": obj, "unique_id": obj,
                 "state_topic": STATE_TOPIC, "value_template": "{{ value_json.%s }}" % obj[5:],
                 "availability_topic": AVAIL_TOPIC, "device": DEVICE}
