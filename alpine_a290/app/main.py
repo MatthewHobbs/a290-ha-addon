@@ -14,7 +14,7 @@ import os
 import signal
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import aiohttp
 import deploy
@@ -487,12 +487,18 @@ async def resolve_account(client):
     raise RuntimeError("No MYRENAULT account found and A290_ACCOUNT_ID not set")
 
 
+# No-arg readable endpoints. Includes ones the A290 forbids (charge-mode, pressure,
+# lock-status, res-state, hvac-history, hvac-sessions) so the dump documents the full
+# supported/forbidden picture. Date-ranged endpoints (charges, charge-history) are probed
+# separately below — they can't be called arg-less.
 _DEBUG_METHODS = [
-    "get_details", "get_battery_status", "get_battery_soc", "get_cockpit",
-    "get_hvac_status", "get_hvac_settings", "get_location", "get_charge_schedule",
-    "get_charge_mode", "get_charging_settings", "get_tyre_pressure", "get_lock_status",
-    "get_res_state", "get_contracts", "get_notification_settings",
+    "get_details", "get_car_adapter", "get_battery_status", "get_battery_soc", "get_cockpit",
+    "get_hvac_status", "get_hvac_settings", "get_hvac_history", "get_hvac_sessions",
+    "get_location", "get_charge_schedule", "get_charge_mode", "get_charging_settings",
+    "get_tyre_pressure", "get_lock_status", "get_res_state", "get_contracts",
+    "get_notification_settings",
 ]
+_DEBUG_RANGE_DAYS = 30
 _DEBUG_REDACT_KEYS = {"registrationnumber", "vin", "tcucode", "radiocode", "siret",
                       "msisdn", "phonenumber", "phone", "email", "firstname", "lastname"}
 
@@ -515,20 +521,31 @@ def _debug_redact(obj, secrets):
     return obj
 
 
+async def _dump_one(out, name, call, vehicle, secrets):
+    """Run one debug probe, redact its raw payload, store the result; never fatal."""
+    try:
+        res = await call(vehicle)
+        raw = res if isinstance(res, dict) else getattr(res, "raw_data", None)
+        out[name] = _debug_redact(raw if raw is not None else str(res), secrets)
+    except Exception as err:  # noqa: BLE001
+        out[name] = {"_error": f"{type(err).__name__}: {err}"}
+
+
 async def dump_api(vehicle):
     """DEBUG: fetch every readable endpoint, redact IDs/secrets, log the lot. Never fatal."""
     secrets = [v for v in (cfg("A290_VIN"), cfg("A290_ACCOUNT_ID"), cfg("A290_USERNAME")) if v]
     out = {}
     for meth in _DEBUG_METHODS:
         fn = getattr(vehicle, meth, None)
-        if fn is None:
-            continue
-        try:
-            res = await fn()
-            raw = res if isinstance(res, dict) else getattr(res, "raw_data", None)
-            out[meth] = _debug_redact(raw if raw is not None else str(res), secrets)
-        except Exception as err:  # noqa: BLE001
-            out[meth] = {"_error": f"{type(err).__name__}: {err}"}
+        if fn is not None:
+            await _dump_one(out, meth, lambda v, _f=fn: _f(), vehicle, secrets)
+    # Date-ranged endpoints can't be called arg-less; probe the last N days.
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=_DEBUG_RANGE_DAYS)
+    for meth, call in (("get_charges", lambda v: v.get_charges(start, end)),
+                       ("get_charge_history", lambda v: v.get_charge_history(start, end, "month"))):
+        if getattr(vehicle, meth, None) is not None:
+            await _dump_one(out, meth, call, vehicle, secrets)
     LOG.info("API DEBUG DUMP (secrets/IDs redacted):\n%s",
              json.dumps(out, indent=2, default=str, ensure_ascii=False))
 

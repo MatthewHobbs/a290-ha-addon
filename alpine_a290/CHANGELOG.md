@@ -12,6 +12,12 @@
   This brings the **last remaining capability the official Renault integration had over the
   add-on** in-house, so the add-on can now fully replace it. The bundled dashboards point at
   the new `number.*` entities automatically.
+- **`debug_dump` now covers the full endpoint set.** Added the previously-missing readable
+  endpoints — `charges` (real charge-session history) and `car-adapter` (vehicle spec, incl.
+  battery capacity), plus `charge-history` / `hvac-history` / `hvac-sessions` so the dump
+  documents what the A290 forbids too. The date-ranged ones (`charges`, `charge-history`) are
+  probed over the last 30 days. Use it to see what `charges` returns before deciding whether to
+  build a proper charge-history feature on it.
 
 ## 1.3.3
 

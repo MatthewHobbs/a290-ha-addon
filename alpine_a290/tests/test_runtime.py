@@ -178,6 +178,26 @@ def test_dump_api_runs_and_redacts(monkeypatch):
     asyncio.run(main.dump_api(FakeVehicle()))   # exercises the loop, raw_data + str fallbacks
 
 
+def test_dump_api_probes_ranged_endpoints(monkeypatch):
+    monkeypatch.setenv("A290_VIN", "SECRET")
+    captured = {}
+
+    class V(FakeVehicle):
+        async def get_car_adapter(self):
+            return ns(raw_data={"vin": "SECRET", "battery": {"capacity": 52}})
+
+        async def get_charges(self, start, end):
+            captured["window"] = (start, end)
+            return ns(raw_data={"charges": [{"chargeEnergyRecovered": 10}]})
+
+        async def get_charge_history(self, start, end, period):
+            raise RuntimeError("forbidden")          # exercises the error branch
+
+    asyncio.run(main.dump_api(V()))
+    start, end = captured["window"]                  # charges probed with a ~30-day window
+    assert (end - start).days == main._DEBUG_RANGE_DAYS
+
+
 # --------------------------------------------------------------------------- #
 # command dispatch
 # --------------------------------------------------------------------------- #
