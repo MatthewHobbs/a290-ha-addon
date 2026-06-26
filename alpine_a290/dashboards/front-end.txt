@@ -559,14 +559,6 @@
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey !important;opacity:0.35;{% else %}color:green;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_average_power
-          name: Initial
-          card_mod:
-            style:
-              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
-              .: ha-state-icon{color:orange;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
-        - type: custom:mushroom-entity-card
-          entity: sensor.alpine_a290_last_charge_average_power
           name: Avg.
           card_mod:
             style:
@@ -574,21 +566,13 @@
               mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey !important;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
-          entity: sensor.alpine_a290_last_charge_energy_recovered
-          name: Uplift
-          card_mod:
-            style:
-              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
-              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:green;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
-        - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_type
           name: Type
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
               mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
-              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}opacity:0.35;color:grey !important;{% else %}opacity:1;{% set s = states('sensor.alpine_a290_last_charge_type')|string|lower|trim %}{% if s == 'not rated' %}color:red !important;{% endif %}{% set t = (states('sensor.alpine_a290_last_charge_type') or '')|lower|trim %}{% if t == 'rapid dc' %}color:green !important;{% elif t == 'fast dc' %}color:orange !important;{% elif t == 'fast ac' %}color:blue !important;{% elif t == 'slow ac' %}color:red !important;{% endif %}{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+              .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}opacity:0.35;color:grey !important;{% else %}opacity:1;{% set t = (states('sensor.alpine_a290_last_charge_type') or '')|lower|trim %}{% if t == 'home' %}color:green !important;{% elif t == 'rapid/public' %}color:orange !important;{% endif %}{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
           icon_type: icon
           fill_container: false
         - type: custom:mushroom-entity-card
