@@ -487,20 +487,27 @@ async def resolve_account(client):
     raise RuntimeError("No MYRENAULT account found and A290_ACCOUNT_ID not set")
 
 
-# No-arg readable endpoints. Includes ones the A290 forbids (charge-mode, pressure,
-# lock-status, res-state, hvac-history, hvac-sessions) so the dump documents the full
-# supported/forbidden picture. Date-ranged endpoints (charges, charge-history) are probed
-# separately below — they can't be called arg-less.
+# No-arg readable telemetry endpoints. Deliberately excludes get_location (GPS),
+# get_contracts and get_notification_settings — those carry location / contact / account PII
+# with no sensor-mapping diagnostic value. Includes ones the A290 forbids (charge-mode,
+# pressure, lock-status, res-state, hvac-history, hvac-sessions) so the dump documents the
+# full supported/forbidden picture. Date-ranged endpoints (charges, charge-history) are
+# probed separately below — they can't be called arg-less.
 _DEBUG_METHODS = [
     "get_details", "get_car_adapter", "get_battery_status", "get_battery_soc", "get_cockpit",
     "get_hvac_status", "get_hvac_settings", "get_hvac_history", "get_hvac_sessions",
-    "get_location", "get_charge_schedule", "get_charge_mode", "get_charging_settings",
-    "get_tyre_pressure", "get_lock_status", "get_res_state", "get_contracts",
-    "get_notification_settings",
+    "get_charge_schedule", "get_charge_mode", "get_charging_settings",
+    "get_tyre_pressure", "get_lock_status", "get_res_state",
 ]
 _DEBUG_RANGE_DAYS = 30
-_DEBUG_REDACT_KEYS = {"registrationnumber", "vin", "tcucode", "radiocode", "siret",
-                      "msisdn", "phonenumber", "phone", "email", "firstname", "lastname"}
+# Keys masked regardless of value type — identifiers / contact / location fields.
+_DEBUG_REDACT_KEYS = {
+    "registrationnumber", "vin", "tcucode", "radiocode", "siret", "msisdn", "phonenumber",
+    "phone", "mobile", "email", "firstname", "lastname", "gigyaid", "personid", "accountid",
+    "iccid", "imei", "contractid", "address", "postcode", "zipcode", "city", "country",
+    "gpslatitude", "gpslongitude", "latitude", "longitude",
+}
+_DEBUG_STATE = {"dumped": False}
 
 
 def debug_enabled():
@@ -508,7 +515,7 @@ def debug_enabled():
 
 
 def _debug_redact(obj, secrets):
-    """Mask ID/contact keys and secret values; keep telemetry. Recurses dicts/lists."""
+    """Mask identifiers (by key, any value type) + configured secret values; keep telemetry."""
     if isinstance(obj, dict):
         return {k: ("***" if k.lower() in _DEBUG_REDACT_KEYS else _debug_redact(v, secrets))
                 for k, v in obj.items()}
@@ -518,6 +525,9 @@ def _debug_redact(obj, secrets):
         for s in secrets:
             if s and s in obj:
                 obj = obj.replace(s, "***")
+        return obj
+    if any(s and s == str(obj) for s in secrets):   # secret value held as a number (e.g. id)
+        return "***"
     return obj
 
 
@@ -546,8 +556,16 @@ async def dump_api(vehicle):
                        ("get_charge_history", lambda v: v.get_charge_history(start, end, "month"))):
         if getattr(vehicle, meth, None) is not None:
             await _dump_one(out, meth, call, vehicle, secrets)
-    LOG.info("API DEBUG DUMP (secrets/IDs redacted):\n%s",
-             json.dumps(out, indent=2, default=str, ensure_ascii=False))
+    LOG.warning("API DEBUG DUMP — may contain personal data; redaction is best-effort, do NOT "
+                "paste publicly. One-shot per restart; turn debug_dump off when done.\n%s",
+                json.dumps(out, indent=2, default=str, ensure_ascii=False))
+
+
+async def maybe_dump_api(vehicle):
+    """Run the debug dump once per restart when debug_dump is on (not every poll)."""
+    if debug_enabled() and not _DEBUG_STATE["dumped"]:
+        _DEBUG_STATE["dumped"] = True
+        await dump_api(vehicle)
 
 
 async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
@@ -633,8 +651,7 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
     plug_code = plug.value if plug is not None else None
     data["plug_suspect"] = detect_plug_suspect(state, plug_code, mileage,
                                                 battery.batteryLevel, charging)
-    if debug_enabled():
-        await dump_api(vehicle)
+    await maybe_dump_api(vehicle)
     return data, location_attrs
 
 

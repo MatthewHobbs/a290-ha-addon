@@ -18,6 +18,12 @@
   documents what the A290 forbids too. The date-ranged ones (`charges`, `charge-history`) are
   probed over the last 30 days. Use it to see what `charges` returns before deciding whether to
   build a proper charge-history feature on it.
+- **`debug_dump` privacy hardened to match the R5 add-on.** The dump now **masks GPS and
+  identifier keys** (lat/lon, gigyaId/personId/accountId, ICCID/IMEI, address/postcode/…) and
+  numeric-id values; **drops the `location` / `contracts` / `notification-settings` endpoints**
+  (location/contact/account PII with no telemetry value); runs **once per restart** instead of
+  every poll; and the log line now **warns it may contain personal data** rather than claiming
+  full redaction. (Previously it logged unmasked GPS under a "secrets redacted" label.)
 
 ## 1.3.3
 

@@ -165,9 +165,34 @@ def test_setup_logging_clamps_library_loggers(monkeypatch):
 
 
 def test_poll_once_debug_dump_branch(monkeypatch):
+    main._DEBUG_STATE["dumped"] = False
     monkeypatch.setenv("A290_DEBUG_DUMP", "true")
     monkeypatch.setattr(main, "now_ts", lambda: 0.0)
     asyncio.run(main.poll_once(FakeVSession(FakeVehicle()), {}, 52.0, set(), "km"))
+
+
+def test_maybe_dump_api_runs_once_per_restart(monkeypatch):
+    main._DEBUG_STATE["dumped"] = False
+    monkeypatch.setenv("A290_DEBUG_DUMP", "true")
+    calls = {"n": 0}
+
+    async def fake_dump(v):
+        calls["n"] += 1
+
+    monkeypatch.setattr(main, "dump_api", fake_dump)
+    asyncio.run(main.maybe_dump_api(object()))
+    asyncio.run(main.maybe_dump_api(object()))   # already dumped -> skipped
+    assert calls["n"] == 1
+
+
+def test_debug_redact_masks_gps_and_numeric_secrets():
+    out = main._debug_redact(
+        {"gpsLatitude": 51.5, "gpsLongitude": -0.1, "accountId": "abc", "batteryLevel": 80},
+        ["12345"])
+    assert out["gpsLatitude"] == "***" and out["gpsLongitude"] == "***"   # masked by key
+    assert out["accountId"] == "***"            # masked by key
+    assert out["batteryLevel"] == 80            # telemetry kept
+    assert main._debug_redact({"ref": 12345}, ["12345"])["ref"] == "***"  # numeric secret value
 
 
 # --------------------------------------------------------------------------- #
