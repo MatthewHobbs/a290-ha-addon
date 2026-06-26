@@ -24,9 +24,11 @@ from catalog import (
     ACTION_BUTTONS,
     BINARY_SENSORS,
     ICONS,
+    NUMBERS,
     OPTIONAL_ENDPOINTS,
     RETIRED_SENSORS,
     SENSORS,
+    SOC_ENDPOINT,
 )
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.renault_client import RenaultClient
@@ -117,8 +119,9 @@ def save_state(state):
 def _on_message(client, userdata, msg):
     if _LOOP is not None and msg.topic.startswith(CMD_PREFIX):
         cmd = msg.topic[len(CMD_PREFIX):]
-        LOG.info("Received command: %s", cmd)
-        asyncio.run_coroutine_threadsafe(run_command(cmd), _LOOP)
+        payload = msg.payload.decode(errors="replace") if msg.payload else ""
+        LOG.info("Received command: %s %s", cmd, payload)
+        asyncio.run_coroutine_threadsafe(run_command(cmd, payload), _LOOP)
 
 
 _MQTT_CTX = {"supported": None, "dist_unit": None}
@@ -197,8 +200,25 @@ def publish_discovery(client, supported_eps, dist_unit):
             buttons.append(short)
         else:
             client.publish(topic, "", retain=True)
-    LOG.info("Published discovery: %d sensors (%d unsupported cleared), %d binary_sensors, device_tracker, buttons=%s",
-             published, len(skip), len(BINARY_SENSORS), buttons or "none")
+    numbers = []
+    soc_ok = SOC_ENDPOINT in supported_eps
+    for obj, (name, icon, mn, mx, step) in NUMBERS.items():
+        short = obj[5:]
+        topic = f"{DISCOVERY_PREFIX}/number/{NODE}/{short}/config"
+        if soc_ok:
+            conf = {"name": name, "object_id": obj, "unique_id": obj,
+                    "state_topic": STATE_TOPIC, "value_template": "{{ value_json.%s }}" % short,
+                    "command_topic": f"{CMD_PREFIX}{short}", "availability_topic": AVAIL_TOPIC,
+                    "min": mn, "max": mx, "step": step, "mode": "slider",
+                    "unit_of_measurement": "%", "device_class": "battery",
+                    "optimistic": True, "icon": icon, "device": DEVICE}
+            client.publish(topic, json.dumps(conf), retain=True)
+            numbers.append(short)
+        else:
+            client.publish(topic, "", retain=True)
+    LOG.info("Published discovery: %d sensors (%d unsupported cleared), %d binary_sensors, "
+             "device_tracker, buttons=%s, numbers=%s",
+             published, len(skip), len(BINARY_SENSORS), buttons or "none", numbers or "none")
 
 
 KM_TO_MI = 0.621371
@@ -323,7 +343,7 @@ async def detect_supported(vsession):
                     supported.discard(ep)
             except Exception as err:  # noqa: BLE001
                 LOG.warning("supports_endpoint(%s) check failed: %s", ep, err)
-        for ep in sorted(action_eps):
+        for ep in sorted(action_eps | {SOC_ENDPOINT}):
             try:
                 if await _supports(vehicle, ep):
                     supported.add(ep)
@@ -350,9 +370,42 @@ COMMAND_ACTIONS = {
     "refresh_location": lambda v: v.refresh_location(),
 }
 
+# Command suffixes (topic tail) that map to writable numbers rather than button actions.
+NUMBER_CMDS = {obj[5:] for obj in NUMBERS}
 
-async def run_command(cmd):
-    """Dispatch an MQTT button press to its renault-api action; never fatal."""
+
+async def set_soc_level(which, payload):
+    """Write a charge limit. set_battery_soc needs both min and target together, so the
+    opposing slider's current value is read back first and re-sent unchanged."""
+    try:
+        value = int(float(payload))
+    except (TypeError, ValueError):
+        LOG.warning("Ignoring non-numeric %s value: %r", which, payload)
+        return
+    locale = cfg("A290_LOCALE", "en_GB")
+    try:
+        async with aiohttp.ClientSession(timeout=API_TIMEOUT) as websession:
+            vehicle = await _login_vehicle(websession, locale)
+            soc = await vehicle.get_battery_soc()
+            cur_min = getattr(soc, "socMin", None)
+            cur_target = getattr(soc, "socTarget", None)
+            new_min, new_target = (value, cur_target) if which == "soc_min" else (cur_min, value)
+            if new_min is None or new_target is None:
+                LOG.error("Cannot set %s: current limits unavailable (min=%s, target=%s)",
+                          which, cur_min, cur_target)
+                return
+            await vehicle.set_battery_soc(min=int(new_min), target=int(new_target))
+        LOG.info("Set charge limits: min=%s%%, target=%s%%", new_min, new_target)
+    except Exception as err:  # noqa: BLE001
+        LOG.error("Failed to set %s=%s: %s", which, value, err)
+
+
+async def run_command(cmd, payload=""):
+    """Dispatch an MQTT command: a button press to its renault-api action, or a number set
+    to set_battery_soc. Never fatal."""
+    if cmd in NUMBER_CMDS:
+        await set_soc_level(cmd, payload)
+        return
     action = COMMAND_ACTIONS.get(cmd)
     if action is None:
         LOG.warning("Ignoring unknown command: %s", cmd)

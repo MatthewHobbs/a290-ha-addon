@@ -219,6 +219,80 @@ def test_run_command_error_is_swallowed(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
+# charge-limit numbers (set_battery_soc)
+# --------------------------------------------------------------------------- #
+class SocVehicle(FakeVehicle):
+    def __init__(self):
+        self.soc_set = None
+
+    async def get_battery_soc(self):
+        return ns(socTarget=80, socMin=20)
+
+    async def set_battery_soc(self, *, min, target):
+        self.soc_set = (min, target)
+
+
+def _login_as(monkeypatch, vehicle):
+    _fake_client_session(monkeypatch)
+
+    async def fake_login(ws, locale):
+        return vehicle
+
+    monkeypatch.setattr(main, "_login_vehicle", fake_login)
+
+
+def test_set_soc_target_sends_both_limits(monkeypatch):
+    v = SocVehicle()
+    _login_as(monkeypatch, v)
+    asyncio.run(main.run_command("soc_target", "90"))
+    assert v.soc_set == (20, 90)         # min unchanged, target updated
+
+
+def test_set_soc_min_sends_both_limits(monkeypatch):
+    v = SocVehicle()
+    _login_as(monkeypatch, v)
+    asyncio.run(main.run_command("soc_min", "30"))
+    assert v.soc_set == (30, 80)         # target unchanged, min updated
+
+
+def test_set_soc_ignores_non_numeric(monkeypatch):
+    v = SocVehicle()
+    _login_as(monkeypatch, v)
+    asyncio.run(main.run_command("soc_target", "not-a-number"))
+    assert v.soc_set is None             # never written
+
+
+def test_set_soc_bails_when_opposing_limit_missing(monkeypatch):
+    class NoLimits(SocVehicle):
+        async def get_battery_soc(self):
+            return ns(socTarget=None, socMin=None)
+
+    v = NoLimits()
+    _login_as(monkeypatch, v)
+    asyncio.run(main.run_command("soc_target", "90"))
+    assert v.soc_set is None             # bailed: current limits unavailable
+
+
+def test_set_soc_error_is_swallowed(monkeypatch):
+    _fake_client_session(monkeypatch)
+
+    async def boom(ws, locale):
+        raise RuntimeError("login failed")
+
+    monkeypatch.setattr(main, "_login_vehicle", boom)
+    asyncio.run(main.run_command("soc_target", "90"))   # no raise
+
+
+def test_detect_supported_adds_soc_levels(monkeypatch):
+    class V:
+        def supports_endpoint(self, ep):
+            return ep == main.SOC_ENDPOINT
+
+    supported = asyncio.run(main.detect_supported(FakeVSession(V())))
+    assert main.SOC_ENDPOINT in supported
+
+
+# --------------------------------------------------------------------------- #
 # detect_supported (success path)
 # --------------------------------------------------------------------------- #
 def test_detect_supported_success(monkeypatch):

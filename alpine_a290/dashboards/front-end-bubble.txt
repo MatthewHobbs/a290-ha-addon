@@ -212,8 +212,8 @@
           hold_action: none
           triggers_update:
           - sensor.alpine_a290_battery_level
-          - sensor.alpine_a290_charge_target_soc
-          - sensor.alpine_a290_minimum_soc
+          - number.alpine_a290_charge_target_soc
+          - number.alpine_a290_minimum_soc
           - binary_sensor.alpine_a290_charging
           - sensor.alpine_a290_charging_status
           show_name: false
@@ -230,7 +230,7 @@
               <div></div>
             min_badge: |
               [[[
-                const s = states['sensor.alpine_a290_minimum_soc']?.state;
+                const s = states['number.alpine_a290_minimum_soc']?.state;
                 const v = (s === undefined || s === null || s === 'unknown' || s === 'unavailable')
                   ? '—'
                   : String(s).replace('%','');
@@ -245,7 +245,7 @@
               <div></div>
             max_badge: |
               [[[
-                const s = states['sensor.alpine_a290_charge_target_soc']?.state;
+                const s = states['number.alpine_a290_charge_target_soc']?.state;
                 const v = (s === undefined || s === null || s === 'unknown' || s === 'unavailable')
                   ? '—'
                   : String(s).replace('%','');
@@ -370,7 +370,7 @@
                     const TRACK_LEFT = 8;
                     const TRACK_RIGHT = 90;
 
-                    const s = states['sensor.alpine_a290_minimum_soc']?.state;
+                    const s = states['number.alpine_a290_minimum_soc']?.state;
                     const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
                     const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
                     return `${pos}%`;
@@ -389,7 +389,7 @@
                     const TRACK_LEFT = 8;
                     const TRACK_RIGHT = 90;
 
-                    const s = states['sensor.alpine_a290_charge_target_soc']?.state;
+                    const s = states['number.alpine_a290_charge_target_soc']?.state;
                     const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
                     const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
                     return `${pos}%`;
@@ -409,7 +409,7 @@
                     const TRACK_LEFT = 8;
                     const TRACK_RIGHT = 90;
 
-                    const s = states['sensor.alpine_a290_minimum_soc']?.state;
+                    const s = states['number.alpine_a290_minimum_soc']?.state;
                     const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
                     const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
                     return `${pos}%`;
@@ -429,7 +429,7 @@
                     const TRACK_LEFT = 8;
                     const TRACK_RIGHT = 90;
 
-                    const s = states['sensor.alpine_a290_charge_target_soc']?.state;
+                    const s = states['number.alpine_a290_charge_target_soc']?.state;
                     const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
                     const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
                     return `${pos}%`;
@@ -581,13 +581,13 @@
         - type: custom:bubble-card
           card_type: button
           button_type: state
-          entity: sensor.alpine_a290_minimum_soc
+          entity: number.alpine_a290_minimum_soc
           name: Min SOC
           styles: .bubble-icon-container{color:red !important;}
         - type: custom:bubble-card
           card_type: button
           button_type: state
-          entity: sensor.alpine_a290_charge_target_soc
+          entity: number.alpine_a290_charge_target_soc
           name: Max SOC
           styles: .bubble-icon-container{color:green !important;}
       - type: custom:bubble-card

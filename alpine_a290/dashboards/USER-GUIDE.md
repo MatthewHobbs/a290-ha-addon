@@ -39,10 +39,9 @@ current SoC against the Min/Target SoC limits. Below it:
   `…_gps_last_activity`, `…_last_updated`. Any lag is down to how often Renault polls the car.
 - **Location** — Home Assistant's built-in `map` card, driven by
   `device_tracker.alpine_a290_location`. Updates around key-off / next drive.
-- **Climate / Charging presets** (read from My Alpine / the car): Preconditioning
-  Temperature (`…_preconditioning_temperature`), Heated Steering Wheel and Driver/Passenger
-  Seats (`binary_sensor.alpine_a290_heated_*`), Charge Target SoC (`…_charge_target_soc`) and
-  Minimum SoC (`…_minimum_soc`).
+- **Climate presets** (read from My Alpine / the car): Preconditioning Temperature
+  (`…_preconditioning_temperature`), Heated Steering Wheel and Driver/Passenger Seats
+  (`binary_sensor.alpine_a290_heated_*`).
 
 ### Remote Control · Last Charge
 
@@ -53,6 +52,11 @@ current SoC against the Min/Target SoC limits. Below it:
     dashboard includes a charge tile.
   - **Start Climate** preconditions to the add-on's `precondition_temperature` (default 20 °C);
     HVAC can lag if the car is asleep, and stop may be unreliable — both are Renault-side limits.
+- **Charge limits** — writable sliders, set on the car via `set_battery_soc`:
+  `number.alpine_a290_charge_target_soc` (target, 55–100 %) and
+  `number.alpine_a290_minimum_soc` (minimum, 15–45 %). Shown only when the car supports the
+  `soc-levels` endpoint (the A290 does). These replace the official Renault integration's
+  Minimum/Target charge-level numbers.
 - **Last Charge** — captured by the add-on at the end of a session:
   Start/End time, Start/End SoC, Start/End Energy, SoC Recovered (%), Energy Recovered (kWh),
   Duration, Average Power, and **Type** — which is either **Home** or **Rapid/Public**

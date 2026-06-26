@@ -99,6 +99,10 @@ key needed.
   `button.alpine_a290_sound_horn`, `…_flash_lights`, `…_start_climate`, `…_stop_climate`,
   `…_refresh_location` — each gated on what the platform supports (charge-start is
   forbidden on the A290, so it isn't shipped).
+- **Writable charge limits:** `number.alpine_a290_minimum_soc` (15–45 %) and
+  `number.alpine_a290_charge_target_soc` (55–100 %) — sliders that set the car's charge limits
+  via `set_battery_soc` (`soc-levels`). These cover the one capability the official Renault
+  integration had over the add-on, so it's no longer needed.
 - **Debug:** set `debug_dump: true` to log every readable API endpoint (secrets redacted)
   to the add-on Log — the safe way to diagnose the API (unlike `log_level: debug`, which
   the library would use to print access tokens).
@@ -115,7 +119,7 @@ available.
 | Battery / charge / plug status | `battery-status` | ✅ |
 | Mileage | `cockpit` | ✅ |
 | HVAC + outside temperature | `hvac-status` | ✅ |
-| Charge target / min SoC | `soc-levels` | ✅ |
+| Charge target / min SoC (read **and** set) | `soc-levels` | ✅ |
 | Preconditioning + heated seats | `ev/settings` | ✅ |
 | GPS location | `location` | ✅ |
 | Sound horn | `actions/horn-start` | ✅ |

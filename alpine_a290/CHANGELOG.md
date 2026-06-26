@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.4.0
+
+- **Set the charge limits from Home Assistant.** The Minimum SoC and Charge Target SoC are now
+  **writable `number` sliders** (`number.alpine_a290_minimum_soc` 15–45 %,
+  `number.alpine_a290_charge_target_soc` 55–100 %) instead of read-only sensors. Moving a
+  slider writes to the car via `renault-api`'s `set_battery_soc` (the `soc-levels` endpoint,
+  which the A290 supports — distinct from the forbidden charge-*mode* endpoint); both limits
+  are always sent together, with the unchanged one read back first. Published only where the
+  car supports `soc-levels`, and optimistic so the slider reflects the new value immediately.
+  This brings the **last remaining capability the official Renault integration had over the
+  add-on** in-house, so the add-on can now fully replace it. The bundled dashboards point at
+  the new `number.*` entities automatically.
+
 ## 1.3.3
 
 - Refine the Range/Mileage units fix from 1.3.1: only drop the `distance` device_class when
