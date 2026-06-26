@@ -9,7 +9,7 @@
   which the A290 supports — distinct from the forbidden charge-*mode* endpoint); both limits
   are always sent together, with the unchanged one read back first. Published only where the
   car supports `soc-levels`, and optimistic so the slider reflects the new value immediately.
-  This brings the **last remaining capability the official Renault integration had over the
+  This brings the **last remaining capability Home Assistant's `renault` integration had over the
   add-on** in-house, so the add-on can now fully replace it. The bundled dashboards point at
   the new `number.*` entities automatically.
 - **`debug_dump` now covers the full endpoint set.** Added the previously-missing readable

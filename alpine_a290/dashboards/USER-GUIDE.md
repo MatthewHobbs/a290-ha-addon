@@ -2,7 +2,7 @@
 
 This guide explains what the dashboard shows. All data comes from the **Alpine A290 add-on**
 over MQTT (`sensor.alpine_a290_*`) — there are no scripts, automations, RAW/CLI sensors, or
-dependency on the official Renault integration. Two styles ship with the add-on: **standard**
+dependency on Home Assistant's `renault` integration. Two styles ship with the add-on: **standard**
 (`front-end.txt`) and **Bubble** (`front-end-bubble.txt`); they show the same data with
 different cards. See [INSTALLATION.md](INSTALLATION.md) to deploy one (or `both`).
 
@@ -45,7 +45,7 @@ current SoC against the Min/Target SoC limits. Below it:
 
 ### Remote Control · Last Charge
 
-- **Remote Control** — native MQTT buttons published by the add-on (no official integration):
+- **Remote Control** — native MQTT buttons published by the add-on (no Home Assistant `renault` integration):
   - `button.alpine_a290_sound_horn`, `…_flash_lights`, `…_start_climate`, `…_stop_climate`,
     and `…_refresh_location`.
   - **No charge buttons:** Renault forbids remote charge-start/stop on the A290, so neither
@@ -55,8 +55,7 @@ current SoC against the Min/Target SoC limits. Below it:
 - **Charge limits** — writable sliders, set on the car via `set_battery_soc`:
   `number.alpine_a290_charge_target_soc` (target, 55–100 %) and
   `number.alpine_a290_minimum_soc` (minimum, 15–45 %). Shown only when the car supports the
-  `soc-levels` endpoint (the A290 does). These replace the official Renault integration's
-  Minimum/Target charge-level numbers.
+  `soc-levels` endpoint (the A290 does). These replace the Minimum/Target charge-level numbers from Home Assistant's `renault` integration.
 - **Last Charge** — captured by the add-on at the end of a session:
   Start/End time, Start/End SoC, Start/End Energy, SoC Recovered (%), Energy Recovered (kWh),
   Duration, Average Power, and **Type** — which is either **Home** or **Rapid/Public**
