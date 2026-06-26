@@ -185,6 +185,16 @@ def test_maybe_dump_api_runs_once_per_restart(monkeypatch):
     assert calls["n"] == 1
 
 
+def test_dump_one_parses_and_redacts_list_results():
+    out = {}
+
+    async def call(_v):
+        return [ns(raw_data={"latitude": 51.5, "energy": 10})]   # charges -> list of sessions
+
+    asyncio.run(main._dump_one(out, "get_charges", call, object(), ["x"]))
+    assert out["get_charges"] == [{"latitude": "***", "energy": 10}]   # parsed, GPS masked
+
+
 def test_debug_redact_masks_gps_and_numeric_secrets():
     out = main._debug_redact(
         {"gpsLatitude": 51.5, "gpsLongitude": -0.1, "accountId": "abc", "batteryLevel": 80},

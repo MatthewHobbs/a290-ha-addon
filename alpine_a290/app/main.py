@@ -532,11 +532,18 @@ def _debug_redact(obj, secrets):
 
 
 async def _dump_one(out, name, call, vehicle, secrets):
-    """Run one debug probe, redact its raw payload, store the result; never fatal."""
+    """Run one debug probe, redact its raw payload, store the result; never fatal. Handles
+    dict, list (e.g. charges returns a list of sessions), and raw_data-bearing objects — a
+    list must be parsed, not str()'d, or key-based GPS/id redaction is skipped."""
     try:
         res = await call(vehicle)
-        raw = res if isinstance(res, dict) else getattr(res, "raw_data", None)
-        out[name] = _debug_redact(raw if raw is not None else str(res), secrets)
+        if isinstance(res, dict):
+            raw = res
+        elif isinstance(res, list):
+            raw = [getattr(x, "raw_data", x) for x in res]
+        else:
+            raw = getattr(res, "raw_data", None) or {"_repr": str(res)}
+        out[name] = _debug_redact(raw, secrets)
     except Exception as err:  # noqa: BLE001
         out[name] = {"_error": f"{type(err).__name__}: {err}"}
 
