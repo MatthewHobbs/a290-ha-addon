@@ -4,7 +4,7 @@ discovery value_template strips that prefix."""
 
 SENSORS = {
     "a290_battery_level":        ("Battery Level", "battery", "%", "measurement"),
-    "a290_range":                ("Range", "distance", "km", "measurement"),
+    "a290_range":                ("Range", None, "km", "measurement"),  # no distance device_class: HA would re-convert our mi back to km
     "a290_battery_temperature":  ("Battery Temperature", "temperature", "°C", "measurement"),
     "a290_charging_power":       ("Charging Power", "power", "kW", "measurement"),
     "a290_charging_remaining":   ("Charging Time Remaining", "duration", "min", "measurement"),
@@ -13,7 +13,7 @@ SENSORS = {
     "a290_charging_status":      ("Charging Status", None, None, None),
     "a290_charging_flap":        ("Charging Flap", None, None, None),
     "a290_drive_side":           ("Drive Side", None, None, None),
-    "a290_mileage":              ("Mileage", "distance", "km", "total_increasing"),
+    "a290_mileage":              ("Mileage", None, "km", "total_increasing"),
     "a290_preconditioning_temperature": ("Preconditioning Temperature", "temperature", "°C", None),
     "a290_hvac_last_activity":   ("HVAC Last Activity", "timestamp", None, None),
     "a290_gps_last_activity":    ("GPS Last Activity", "timestamp", None, None),

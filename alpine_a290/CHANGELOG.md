@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1
+
+- Fix **Range/Mileage showing in km even with `locale: en_GB`**. Those sensors carried
+  `device_class: distance`, so Home Assistant on a metric unit system converted the add-on's
+  miles straight back to km for display. Dropped the `distance` device_class on Range and
+  Mileage so the locale-derived unit (mi for `en_GB`, km otherwise) is shown as-is.
+
 ## 1.3.0
 
 - Remove the dead **Start Charging** tile from the standard dashboard — charge-start is
