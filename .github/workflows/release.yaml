@@ -49,8 +49,9 @@ jobs:
           INFO_DESCRIPTION: ${{ steps.info.outputs.description }}
           INFO_URL: ${{ steps.info.outputs.url }}
         run: |
-          echo "image_name=${INFO_IMAGE##*/}" >> "$GITHUB_OUTPUT"
-          echo "registry_prefix=${INFO_IMAGE%/*}" >> "$GITHUB_OUTPUT"
+          image="${INFO_IMAGE//\"/}"   # defensively strip any quotes the info helper kept
+          echo "image_name=${image##*/}" >> "$GITHUB_OUTPUT"
+          echo "registry_prefix=${image%/*}" >> "$GITHUB_OUTPUT"
           echo "version=${INFO_VERSION}" >> "$GITHUB_OUTPUT"
           echo "name=${INFO_NAME}" >> "$GITHUB_OUTPUT"
           echo "description=${INFO_DESCRIPTION}" >> "$GITHUB_OUTPUT"

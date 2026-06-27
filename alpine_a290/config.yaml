@@ -6,7 +6,7 @@ url: https://github.com/MatthewHobbs/a290-ha-addon/tree/main/alpine_a290
 # Pre-built multi-arch image published to GHCR by .github/workflows/release.yaml
 # (Cosign-signed). With this set, the Supervisor pulls the image instead of building
 # it on the user's device. The GHCR package must be public.
-image: "ghcr.io/matthewhobbs/alpine_a290"
+image: ghcr.io/matthewhobbs/alpine_a290
 arch:
   - aarch64
   - amd64
