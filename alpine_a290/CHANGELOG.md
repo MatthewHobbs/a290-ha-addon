@@ -11,7 +11,9 @@
   car supports `soc-levels`, and optimistic so the slider reflects the new value immediately.
   This brings the **last remaining capability Home Assistant's `renault` integration had over the
   add-on** in-house, so the add-on can now fully replace it. The bundled dashboards point at
-  the new `number.*` entities automatically.
+  the new `number.*` entities automatically. Charge-limit writes are **serialised** (a lock),
+  so moving both sliders in quick succession can't interleave the read-modify-write and
+  clobber a limit.
 - **`debug_dump` now covers the full endpoint set.** Added the previously-missing readable
   endpoints — `charges` (real charge-session history) and `car-adapter` (vehicle spec, incl.
   battery capacity), plus `charge-history` / `hvac-history` / `hvac-sessions` so the dump

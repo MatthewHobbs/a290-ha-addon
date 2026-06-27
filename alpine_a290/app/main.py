@@ -373,31 +373,47 @@ COMMAND_ACTIONS = {
 # Command suffixes (topic tail) that map to writable numbers rather than button actions.
 NUMBER_CMDS = {obj[5:] for obj in NUMBERS}
 
+_soc_lock = None
+_soc_lock_loop = None
+
+
+def _soc_lock_get():
+    """One lock per event loop, serialising charge-limit writes so two quick slider moves
+    can't interleave a read-modify-write and clobber each other. Re-created if the running
+    loop changes (so per-test event loops don't trip cross-loop binding)."""
+    global _soc_lock, _soc_lock_loop
+    loop = asyncio.get_running_loop()
+    if _soc_lock is None or _soc_lock_loop is not loop:
+        _soc_lock, _soc_lock_loop = asyncio.Lock(), loop
+    return _soc_lock
+
 
 async def set_soc_level(which, payload):
     """Write a charge limit. set_battery_soc needs both min and target together, so the
-    opposing slider's current value is read back first and re-sent unchanged."""
+    opposing slider's current value is read back first and re-sent unchanged. Serialised so
+    adjusting both sliders in quick succession can't interleave and clobber a change."""
     try:
         value = int(float(payload))
     except (TypeError, ValueError):
         LOG.warning("Ignoring non-numeric %s value: %r", which, payload)
         return
     locale = cfg("A290_LOCALE", "en_GB")
-    try:
-        async with aiohttp.ClientSession(timeout=API_TIMEOUT) as websession:
-            vehicle = await _login_vehicle(websession, locale)
-            soc = await vehicle.get_battery_soc()
-            cur_min = getattr(soc, "socMin", None)
-            cur_target = getattr(soc, "socTarget", None)
-            new_min, new_target = (value, cur_target) if which == "soc_min" else (cur_min, value)
-            if new_min is None or new_target is None:
-                LOG.error("Cannot set %s: current limits unavailable (min=%s, target=%s)",
-                          which, cur_min, cur_target)
-                return
-            await vehicle.set_battery_soc(min=int(new_min), target=int(new_target))
-        LOG.info("Set charge limits: min=%s%%, target=%s%%", new_min, new_target)
-    except Exception as err:  # noqa: BLE001
-        LOG.error("Failed to set %s=%s: %s", which, value, err)
+    async with _soc_lock_get():
+        try:
+            async with aiohttp.ClientSession(timeout=API_TIMEOUT) as websession:
+                vehicle = await _login_vehicle(websession, locale)
+                soc = await vehicle.get_battery_soc()
+                cur_min = getattr(soc, "socMin", None)
+                cur_target = getattr(soc, "socTarget", None)
+                new_min, new_target = (value, cur_target) if which == "soc_min" else (cur_min, value)
+                if new_min is None or new_target is None:
+                    LOG.error("Cannot set %s: current limits unavailable (min=%s, target=%s)",
+                              which, cur_min, cur_target)
+                    return
+                await vehicle.set_battery_soc(min=int(new_min), target=int(new_target))
+            LOG.info("Set charge limits: min=%s%%, target=%s%%", new_min, new_target)
+        except Exception as err:  # noqa: BLE001
+            LOG.error("Failed to set %s=%s: %s", which, value, err)
 
 
 async def run_command(cmd, payload=""):
@@ -531,12 +547,12 @@ def _debug_redact(obj, secrets):
     return obj
 
 
-async def _dump_one(out, name, call, vehicle, secrets):
+async def _dump_one(out, name, call, secrets):
     """Run one debug probe, redact its raw payload, store the result; never fatal. Handles
     dict, list (e.g. charges returns a list of sessions), and raw_data-bearing objects — a
     list must be parsed, not str()'d, or key-based GPS/id redaction is skipped."""
     try:
-        res = await call(vehicle)
+        res = await call()
         if isinstance(res, dict):
             raw = res
         elif isinstance(res, list):
@@ -555,14 +571,14 @@ async def dump_api(vehicle):
     for meth in _DEBUG_METHODS:
         fn = getattr(vehicle, meth, None)
         if fn is not None:
-            await _dump_one(out, meth, lambda v, _f=fn: _f(), vehicle, secrets)
+            await _dump_one(out, meth, lambda _f=fn: _f(), secrets)
     # Date-ranged endpoints can't be called arg-less; probe the last N days.
     end = datetime.now(timezone.utc)
     start = end - timedelta(days=_DEBUG_RANGE_DAYS)
-    for meth, call in (("get_charges", lambda v: v.get_charges(start, end)),
-                       ("get_charge_history", lambda v: v.get_charge_history(start, end, "month"))):
+    for meth, call in (("get_charges", lambda: vehicle.get_charges(start, end)),
+                       ("get_charge_history", lambda: vehicle.get_charge_history(start, end, "month"))):
         if getattr(vehicle, meth, None) is not None:
-            await _dump_one(out, meth, call, vehicle, secrets)
+            await _dump_one(out, meth, call, secrets)
     LOG.warning("API DEBUG DUMP — may contain personal data; redaction is best-effort, do NOT "
                 "paste publicly. One-shot per restart; turn debug_dump off when done.\n%s",
                 json.dumps(out, indent=2, default=str, ensure_ascii=False))

@@ -188,10 +188,10 @@ def test_maybe_dump_api_runs_once_per_restart(monkeypatch):
 def test_dump_one_parses_and_redacts_list_results():
     out = {}
 
-    async def call(_v):
+    async def call():
         return [ns(raw_data={"latitude": 51.5, "energy": 10})]   # charges -> list of sessions
 
-    asyncio.run(main._dump_one(out, "get_charges", call, object(), ["x"]))
+    asyncio.run(main._dump_one(out, "get_charges", call, ["x"]))
     assert out["get_charges"] == [{"latitude": "***", "energy": 10}]   # parsed, GPS masked
 
 
@@ -326,6 +326,32 @@ def test_set_soc_bails_when_opposing_limit_missing(monkeypatch):
     _login_as(monkeypatch, v)
     asyncio.run(main.run_command("soc_target", "90"))
     assert v.soc_set is None             # bailed: current limits unavailable
+
+
+def test_concurrent_soc_sets_do_not_clobber(monkeypatch):
+    car = {"min": 20, "target": 80}
+
+    class V:
+        async def get_battery_soc(self):
+            return ns(socMin=car["min"], socTarget=car["target"])
+
+        async def set_battery_soc(self, *, min, target):
+            await asyncio.sleep(0)               # yield — interleaves without the lock
+            car["min"], car["target"] = min, target
+
+    _fake_client_session(monkeypatch)
+
+    async def fake_login(ws, locale):
+        return V()
+
+    monkeypatch.setattr(main, "_login_vehicle", fake_login)
+
+    async def both():
+        await asyncio.gather(main.run_command("soc_min", "30"),
+                             main.run_command("soc_target", "90"))
+
+    asyncio.run(both())
+    assert car == {"min": 30, "target": 90}      # both survived -> writes serialised
 
 
 def test_set_soc_error_is_swallowed(monkeypatch):
