@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.4.3
+## 1.4.4
 
 - **Guard `dashboard_url_path` against overwriting a built-in Home Assistant panel.** Before
   auto-deploying, the add-on now validates the configured path (lowercase slug, must contain
