@@ -44,6 +44,16 @@ jobs:
         with:
           path: ./alpine_a290
 
+      # AppArmor is enforced by the Supervisor, not by a local docker run or the build job —
+      # so a malformed/over-tight profile can break startup without any other job noticing.
+      # Compile it here with the real parser to catch syntax errors before release.
+      - name: AppArmor profile compiles
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apparmor
+          apparmor_parser -Q -K alpine_a290/apparmor.txt
+          echo "apparmor.txt compiled OK"
+
   test:
     name: Tests
     runs-on: ubuntu-latest
