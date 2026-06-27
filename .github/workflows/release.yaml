@@ -40,22 +40,30 @@ jobs:
 
       - name: Normalize add-on information
         id: normalize
+        # Pass info-helper outputs via env (NOT inlined into the script): the description
+        # contains parentheses and would otherwise break the shell parser.
+        env:
+          INFO_IMAGE: ${{ steps.info.outputs.image }}
+          INFO_VERSION: ${{ steps.info.outputs.version }}
+          INFO_NAME: ${{ steps.info.outputs.name }}
+          INFO_DESCRIPTION: ${{ steps.info.outputs.description }}
+          INFO_URL: ${{ steps.info.outputs.url }}
         run: |
-          image="${{ steps.info.outputs.image }}"
-          echo "image_name=${image##*/}" >> "$GITHUB_OUTPUT"
-          echo "registry_prefix=${image%/*}" >> "$GITHUB_OUTPUT"
-          echo "version=${{ steps.info.outputs.version }}" >> "$GITHUB_OUTPUT"
-          echo "name=${{ steps.info.outputs.name }}" >> "$GITHUB_OUTPUT"
-          echo "description=${{ steps.info.outputs.description }}" >> "$GITHUB_OUTPUT"
-          url="${{ steps.info.outputs.url }}"
-          if [[ -n "$url" && "$url" != "null" ]]; then
-            echo "url=${url}" >> "$GITHUB_OUTPUT"
+          echo "image_name=${INFO_IMAGE##*/}" >> "$GITHUB_OUTPUT"
+          echo "registry_prefix=${INFO_IMAGE%/*}" >> "$GITHUB_OUTPUT"
+          echo "version=${INFO_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "name=${INFO_NAME}" >> "$GITHUB_OUTPUT"
+          echo "description=${INFO_DESCRIPTION}" >> "$GITHUB_OUTPUT"
+          if [[ -n "$INFO_URL" && "$INFO_URL" != "null" ]]; then
+            echo "url=${INFO_URL}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Is this version already released?
         id: newcheck
+        env:
+          VERSION: ${{ steps.normalize.outputs.version }}
         run: |
-          tag="v${{ steps.normalize.outputs.version }}"
+          tag="v${VERSION}"
           if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
             echo "is_new=false" >> "$GITHUB_OUTPUT"
             echo "::notice::${tag} already exists — image/tag publish will be skipped (no version bump)."
