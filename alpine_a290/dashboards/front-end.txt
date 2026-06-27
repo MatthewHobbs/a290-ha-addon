@@ -13,7 +13,7 @@
         heading: Vehicle Status
         heading_style: title
         card_mod:
-          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}.content p{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
       - type: picture-elements
         image: /local/backgrounds/alpine_a290_background.png
         visibility:
@@ -322,7 +322,7 @@
             card_mod:
               style:
                 mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                 .: ha-state-icon{ {% set v = states('sensor.alpine_a290_battery_level') %}{% set b = (v|float(0)) if v not in ['unknown','unavailable','none',''] else 0 %}{% if b > 30 %}color:green;{% elif b > 15 %}color:yellow;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
           - type: custom:mushroom-entity-card
             entity: sensor.alpine_a290_available_energy
@@ -330,7 +330,7 @@
             card_mod:
               style:
                 mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                 .: ha-state-icon{ {% set v = states('sensor.alpine_a290_available_energy') %}{% set e = (v|float(0)) if v not in ['unknown','unavailable','none',''] else 0 %}{% if e > 30 %}color:green;{% elif e > 15 %}color:yellow;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
             fill_container: false
           - type: custom:mushroom-entity-card
@@ -339,7 +339,7 @@
             card_mod:
               style:
                 mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                 .: ha-state-icon{ {% set raw = states('sensor.alpine_a290_range') %}{% set s = (raw|string).split(' ')[0] %}{% set a = s|float(0) %}{% if a > 100 %}color:green;{% elif a > 50 %}color:orange;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
           - type: custom:mushroom-entity-card
             entity: sensor.alpine_a290_mileage
@@ -347,7 +347,7 @@
             card_mod:
               style:
                 mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                 .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
           - type: custom:mushroom-entity-card
             entity: sensor.alpine_a290_plug_status
@@ -355,7 +355,7 @@
             card_mod:
               style:
                 mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                 .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:red;animation:pulse 1s linear infinite;{% else %}{% if states('sensor.alpine_a290_plug_status')=='Connected' %}color:yellow;{% elif states('sensor.alpine_a290_plug_status')=='Disconnected' %}color:grey;opacity:0.35;{% elif states('sensor.alpine_a290_plug_status')=='Disconnected (D)' %}color:grey;opacity:0.35;{% endif %}{% endif %}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
           - type: custom:mushroom-entity-card
             entity: sensor.alpine_a290_charging_status
@@ -363,7 +363,7 @@
             card_mod:
               style:
                 mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                 .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:red;animation:pulse 1s linear infinite;{% elif is_state('binary_sensor.alpine_a290_charging','on') %}color:orange;animation:pulse 1s linear infinite;{% elif states('sensor.alpine_a290_charging_status') in ['Waiting to Charge','Waiting (Planned)'] %}color:yellow;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
           - type: custom:mushroom-entity-card
             entity: sensor.alpine_a290_charging_power
@@ -371,7 +371,7 @@
             card_mod:
               style:
                 mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                 .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}:host{ {% if is_state('input_boolean.a290_test_mode','on') %}--card-mod-icon:mdi:flask-outline;{% elif is_state('binary_sensor.alpine_a290_charging','on') %}--card-mod-icon:mdi:flash;{% else %}--card-mod-icon:mdi:flash-off;{% endif %}}ha-state-icon{ {% set test = is_state('input_boolean.a290_test_mode','on') %}{% set active = is_state('binary_sensor.alpine_a290_charging','on') %}{% set v = states('sensor.alpine_a290_charging_power') %}{% set kw = (v|float(0)) if v not in ['unknown','unavailable','none',''] else 0 %}{% if test %}color:red;opacity:1;animation:pulse 1s linear infinite;{% elif active %}opacity:1;{% if kw > 0.2 %}color:orange;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.35;animation:none;{% endif %}{% else %}color:grey;opacity:0.35;animation:none;{% endif %}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
           - type: custom:mushroom-entity-card
             entity: sensor.alpine_a290_charging_time_remaining
@@ -379,7 +379,7 @@
             card_mod:
               style:
                 mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                 .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:red;opacity:1;animation:pulse 1s linear infinite;{% elif is_state('binary_sensor.alpine_a290_charging','on') %}{% set v = states('sensor.alpine_a290_charging_time_remaining') %}{% set t = (v|int(0)) if v not in ['unknown','unavailable','none',''] else 0 %}opacity:1;animation:none;{% if t > 60 %}color:red;{% elif t > 30 %}color:orange;{% elif t > 15 %}color:yellow;{% elif t > 5 %}color:green;{% else %}color:grey;opacity:0.35;{% endif %}{% else %}color:grey;opacity:0.35;animation:none;{% endif %}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
           - type: custom:mushroom-entity-card
             entity: sensor.alpine_a290_charging_flap
@@ -387,7 +387,7 @@
             card_mod:
               style:
                 mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                 .: 'ha-state-icon{ {% if is_state(''input_boolean.a290_test_mode'',''on'') %}color:red;animation:pulse 1s linear infinite;{% elif is_state(''sensor.alpine_a290_charging_flap'',''Open: No Plug!'') %}color:red;animation:flap-wiggle 0.6s ease-in-out infinite;{% elif is_state(''sensor.alpine_a290_charging_flap'',''Open: Plugged In'') %}color:yellow;animation:none;{% elif is_state(''sensor.alpine_a290_charging_flap'',''Closed'') %}color:green;animation:none;{% else %}color:grey;opacity:0.5;animation:none;{% endif %}}@keyframes flap-wiggle{0%,100%{transform:rotate(0deg);}25%{transform:rotate(-10deg);}50%{transform:rotate(10deg);}75%{transform:rotate(-6deg);}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
             secondary_info: state
             layout: horizontal
@@ -397,7 +397,7 @@
             card_mod:
               style:
                 mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                 .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}ha-state-icon{ {% if is_state('sensor.alpine_a290_hvac_status','on') %}color:yellow;animation:spin 1s linear infinite;opacity:1;{% else %}color:grey;opacity:0.4;animation:none;{% endif %}}@keyframes spin{0%{transform:rotate(0);}100%{transform:rotate(360deg);}}
             secondary_info: state
             layout: horizontal
@@ -407,7 +407,7 @@
             card_mod:
               style:
                 mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                 .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}ha-state-icon{ {% set v = states('sensor.alpine_a290_battery_level') %}{% set b = (v|float(0)) if v not in ['unknown','unavailable','none',''] else 0 %}{% if b <= 15 %}color:red;{% else %}color:green;{% endif %}}
     - type: grid
       card_mod:
@@ -417,14 +417,14 @@
         heading: Climate/Charging Presets
         heading_style: title
         card_mod:
-          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}.content p{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
       - type: custom:mushroom-entity-card
         entity: sensor.alpine_a290_preconditioning_temperature
         name: Desired Temp
         card_mod:
           style:
             mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
             .: ha-state-icon{ {% set v = states('sensor.alpine_a290_preconditioning_temperature') %}{% set pctemp = (v|float(0)) if v not in ['unknown','unavailable','none',''] else 0 %}{% if pctemp > 30 %}color:red;{% elif pctemp > 20 %}color:orange;{% else %}color:yellow;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
       - type: custom:mushroom-entity-card
         entity: binary_sensor.alpine_a290_heated_steering_wheel
@@ -433,7 +433,7 @@
         card_mod:
           style:
             mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
             .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_heated_steering_wheel') =='on' %}color:red;{% else %}color:grey;opacity:0.4;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
       - type: custom:mushroom-entity-card
         entity: binary_sensor.alpine_a290_heated_seat_passenger
@@ -442,7 +442,7 @@
         card_mod:
           style:
             mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
             .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_heated_seat_passenger') =='on' %}color:red;{% else %}color:grey;opacity:0.4;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
       - type: custom:mushroom-entity-card
         entity: binary_sensor.alpine_a290_heated_seat_driver
@@ -451,7 +451,7 @@
         card_mod:
           style:
             mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
             .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_heated_seat_driver') =='on' %}color:red;{% else %}color:grey;opacity:0.4;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
       - type: custom:mushroom-entity-card
         entity: sensor.alpine_a290_minimum_soc
@@ -460,7 +460,7 @@
         card_mod:
           style:
             mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
             .: ha-state-icon{color:red;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
       - type: custom:mushroom-entity-card
         entity: sensor.alpine_a290_charge_target_soc
@@ -469,13 +469,13 @@
         card_mod:
           style:
             mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
             .: ha-state-icon{color:green;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
       - type: heading
         heading: Last Charge
         heading_style: title
         card_mod:
-          style: :host{margin-top:40px;display:block;}.content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
+          style: :host{margin-top:40px;display:block;}.content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}.content p{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
         visibility:
         - condition: state
           entity: binary_sensor.a290_test_show_panel
@@ -490,7 +490,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:green;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_end
@@ -498,7 +498,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:red;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_duration
@@ -506,7 +506,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_start_soc
@@ -514,7 +514,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{color:green;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
           icon: mdi:car-battery
         - type: custom:mushroom-entity-card
@@ -523,7 +523,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:red;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_soc_recovered
@@ -531,7 +531,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:green;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_start_energy
@@ -539,7 +539,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{color:green;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_end_energy
@@ -547,7 +547,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:red;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_energy_recovered
@@ -555,7 +555,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey !important;opacity:0.35;{% else %}color:green;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_average_power
@@ -563,7 +563,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey !important;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_type
@@ -571,7 +571,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}opacity:0.35;color:grey !important;{% else %}opacity:1;{% set t = (states('sensor.alpine_a290_last_charge_type') or '')|lower|trim %}{% if t == 'home' %}color:green !important;{% elif t == 'rapid/public' %}color:orange !important;{% endif %}{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
           icon_type: icon
           fill_container: false
@@ -581,7 +581,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         visibility:
         - condition: state
@@ -591,7 +591,7 @@
         heading: Test Charge
         heading_style: title
         card_mod:
-          style: :host{margin-top:40px;display:block;}.content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
+          style: :host{margin-top:40px;display:block;}.content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}.content p{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
         visibility:
         - condition: state
           entity: binary_sensor.a290_test_show_panel
@@ -606,7 +606,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_end_time
@@ -614,7 +614,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_duration
@@ -622,7 +622,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_start_soc
@@ -630,7 +630,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_end_soc
@@ -638,7 +638,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_soc_recovered
@@ -646,7 +646,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_start_energy
@@ -654,7 +654,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_end_energy
@@ -662,7 +662,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_energy_delta
@@ -670,7 +670,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_charge_start_power
@@ -678,7 +678,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:orange;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_charge_average_power
@@ -686,7 +686,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_energy_stored
@@ -694,7 +694,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_charge_type
@@ -702,7 +702,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% set s = states('sensor.test_charge_type')|string|lower|trim %}{% if s == 'not rated' %}color:red !important;{% endif %}{% if is_state('input_boolean.a290_test_mode','on') %}color:grey !important;opacity:0.35;{% else %}{% set t = (states('sensor.test_charge_type') or '')|lower|trim %}{% if t == 'rapid dc' %}color:green !important;{% elif t == 'fast dc' %}color:orange !important;{% elif t == 'fast ac' %}color:blue !important;{% elif t == 'slow ac' %}color:red !important;{% endif %}{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
           icon_type: icon
           fill_container: false
@@ -712,7 +712,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_date
@@ -720,7 +720,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         visibility:
         - condition: state
@@ -734,7 +734,7 @@
         heading: Last Activity
         heading_style: title
         card_mod:
-          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}.content p{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
       - type: horizontal-stack
         cards:
         - type: custom:mushroom-entity-card
@@ -746,7 +746,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_updated
@@ -755,7 +755,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_gps_last_activity
@@ -764,13 +764,13 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
       - type: heading
         heading: Current Location
         heading_style: title
         card_mod:
-          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}.content p{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
       - type: custom:mushroom-template-card
         entity: sensor.a290
         primary: LOCATION
@@ -783,7 +783,7 @@
         card_mod:
           style:
             mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
             .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
       - type: map
         entities:
@@ -802,7 +802,7 @@
         heading: Remote Control
         heading_style: title
         card_mod:
-          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}.content p{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
       - type: grid
         square: false
         columns: 3
@@ -823,7 +823,7 @@
             name:
             - font-weight: 400
           card_mod:
-            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
         - type: custom:button-card
           name: Flash Lights
           icon: mdi:car-light-high
@@ -840,7 +840,7 @@
             name:
             - font-weight: 400
           card_mod:
-            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
         - type: custom:button-card
           name: Stop Charging
           icon: mdi:stop-circle
@@ -855,7 +855,7 @@
             name:
             - font-weight: 400
           card_mod:
-            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
         - type: custom:button-card
           name: HVAC Stop
           icon: mdi:fan-off
@@ -872,7 +872,7 @@
             name:
             - font-weight: 400
           card_mod:
-            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
         - type: custom:button-card
           name: Beep Horn
           icon: mdi:bugle
@@ -889,7 +889,7 @@
             name:
             - font-weight: 400
           card_mod:
-            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
     - type: grid
       card_mod:
         style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;}
@@ -898,7 +898,7 @@
         heading: Update / Test / Errors
         heading_style: title
         card_mod:
-          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}.content p{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
       - type: grid
         columns: 2
         square: false
@@ -939,7 +939,7 @@
                   card_mod:
                     style:
                       mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                      mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                      mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                       .: ha-state-icon{color:green;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
           double_tap_action:
             action: none
@@ -948,7 +948,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.a290_test_charge
@@ -971,7 +971,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:red;animation:pulse 1s linear infinite;{% elif is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{ {% if is_state('binary_sensor.alpine_a290_charging','on') or is_state('input_boolean.a290_test_mode','on') %}pointer-events:none;{% endif %}background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
         - type: custom:mushroom-entity-card
           entity: sensor.a290_test_ends_countdown
@@ -991,7 +991,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-state-icon{color:green;{% if is_state('input_boolean.a290_test_mode','on') %}animation:flip180 2.8s ease-in-out infinite;transform-origin:50% 50%;{% endif %}}ha-card{ {% if is_state('input_boolean.a290_test_mode','on') %}pointer-events:none;{% endif %}background:none !important;box-shadow:none !important;border:none !important;}@keyframes flip180{0%{transform:rotate(0deg);}25%{transform:rotate(180deg);}60%{transform:rotate(180deg);}85%{transform:rotate(360deg);}100%{transform:rotate(360deg);}}
         - type: custom:mushroom-entity-card
           entity: sensor.a290_test_panel_hide_countdown
@@ -1014,7 +1014,7 @@
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-card{pointer-events:none;background:none !important;box-shadow:none !important;border:none !important;}
         - type: vertical-stack
           view_layout:
@@ -1059,7 +1059,7 @@
               card_mod:
                 style:
                   mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                  mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                  mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                   .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_api_auth_failure') =='on' %}color:red;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.4;animation:none{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
           - type: conditional
             conditions:
@@ -1100,7 +1100,7 @@
               card_mod:
                 style:
                   mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                  mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                  mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                   .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_api_auth_failure') =='on' %}color:red;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.4;animation:none{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
           - type: conditional
             conditions:
@@ -1141,7 +1141,7 @@
               card_mod:
                 style:
                   mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                  mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:600px){.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;}}
+                  mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
                   .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_data_stale') =='on' %}color:red;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.4;animation:none{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
     background:
       opacity: 100

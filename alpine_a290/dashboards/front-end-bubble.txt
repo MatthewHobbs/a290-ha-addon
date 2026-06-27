@@ -183,7 +183,7 @@
         card_mod:
           style:
             mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
             .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
     - type: custom:bubble-card
       card_type: pop-up
@@ -727,7 +727,7 @@
         card_mod:
           style:
             mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
+            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
             .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
       - type: map
         entities:
