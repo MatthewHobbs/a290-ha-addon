@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.3
+
+- **Guard `dashboard_url_path` against overwriting a built-in Home Assistant panel.** Before
+  auto-deploying, the add-on now validates the configured path (lowercase slug, must contain
+  a hyphen, and not a reserved HA path such as `energy` / `lovelace` / `developer-tools`) and
+  **skips with a clear log line** instead of pushing a Lovelace config to it. This stops a
+  mistyped or reserved value — especially with `redeploy_dashboard: true` — from clobbering
+  an existing dashboard or a core panel.
+
 ## 1.4.2
 
 - **Fix dashboard pop-up help that referenced the old CLI integration.** Removed a leftover
