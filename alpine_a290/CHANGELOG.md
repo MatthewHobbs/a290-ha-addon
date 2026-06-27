@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.1
+
+- **Fix dashboard text truncation on phones, with consistent typography.** Tile labels and
+  section headers (e.g. "Charging Status", "Climate/Charging Presets") were cut off on an
+  iPhone 15 Pro and narrower (especially 360px Samsungs). Both dashboards now **wrap that text
+  on clean word breaks** instead of clipping, and the **font and sizes are now identical on
+  every screen** — the responsive `@media` rules that swapped fonts / changed sizes between
+  phone and desktop have been removed (that inconsistency was poor UX). See the
+  [mobile preview](docs/dashboards-on-mobile.md).
+- **Automated responsive UI testing in CI.** New `ui-tests/` harness renders the bundled
+  dashboards in a real Home Assistant (custom cards loaded) across the **top mobile device
+  sizes** (iPhone 15 Pro Max/Pro/15/SE, Pixel 8/7a, Galaxy S24/S23/A54, + a 360px narrow
+  bound) and **fails on any text truncation or broken card** — with a screenshot per device
+  saved as a CI artifact. Runs as the **UI Tests** workflow whenever the dashboards change.
+
 ## 1.4.0
 
 - **Set the charge limits from Home Assistant.** The Minimum SoC and Charge Target SoC are now
