@@ -165,9 +165,44 @@ def test_setup_logging_clamps_library_loggers(monkeypatch):
 
 
 def test_poll_once_debug_dump_branch(monkeypatch):
+    main._DEBUG_STATE["dumped"] = False
     monkeypatch.setenv("A290_DEBUG_DUMP", "true")
     monkeypatch.setattr(main, "now_ts", lambda: 0.0)
     asyncio.run(main.poll_once(FakeVSession(FakeVehicle()), {}, 52.0, set(), "km"))
+
+
+def test_maybe_dump_api_runs_once_per_restart(monkeypatch):
+    main._DEBUG_STATE["dumped"] = False
+    monkeypatch.setenv("A290_DEBUG_DUMP", "true")
+    calls = {"n": 0}
+
+    async def fake_dump(v):
+        calls["n"] += 1
+
+    monkeypatch.setattr(main, "dump_api", fake_dump)
+    asyncio.run(main.maybe_dump_api(object()))
+    asyncio.run(main.maybe_dump_api(object()))   # already dumped -> skipped
+    assert calls["n"] == 1
+
+
+def test_dump_one_parses_and_redacts_list_results():
+    out = {}
+
+    async def call():
+        return [ns(raw_data={"latitude": 51.5, "energy": 10})]   # charges -> list of sessions
+
+    asyncio.run(main._dump_one(out, "get_charges", call, ["x"]))
+    assert out["get_charges"] == [{"latitude": "***", "energy": 10}]   # parsed, GPS masked
+
+
+def test_debug_redact_masks_gps_and_numeric_secrets():
+    out = main._debug_redact(
+        {"gpsLatitude": 51.5, "gpsLongitude": -0.1, "accountId": "abc", "batteryLevel": 80},
+        ["12345"])
+    assert out["gpsLatitude"] == "***" and out["gpsLongitude"] == "***"   # masked by key
+    assert out["accountId"] == "***"            # masked by key
+    assert out["batteryLevel"] == 80            # telemetry kept
+    assert main._debug_redact({"ref": 12345}, ["12345"])["ref"] == "***"  # numeric secret value
 
 
 # --------------------------------------------------------------------------- #
@@ -176,6 +211,26 @@ def test_poll_once_debug_dump_branch(monkeypatch):
 def test_dump_api_runs_and_redacts(monkeypatch):
     monkeypatch.setenv("A290_VIN", "SECRET")
     asyncio.run(main.dump_api(FakeVehicle()))   # exercises the loop, raw_data + str fallbacks
+
+
+def test_dump_api_probes_ranged_endpoints(monkeypatch):
+    monkeypatch.setenv("A290_VIN", "SECRET")
+    captured = {}
+
+    class V(FakeVehicle):
+        async def get_car_adapter(self):
+            return ns(raw_data={"vin": "SECRET", "battery": {"capacity": 52}})
+
+        async def get_charges(self, start, end):
+            captured["window"] = (start, end)
+            return ns(raw_data={"charges": [{"chargeEnergyRecovered": 10}]})
+
+        async def get_charge_history(self, start, end, period):
+            raise RuntimeError("forbidden")          # exercises the error branch
+
+    asyncio.run(main.dump_api(V()))
+    start, end = captured["window"]                  # charges probed with a ~30-day window
+    assert (end - start).days == main._DEBUG_RANGE_DAYS
 
 
 # --------------------------------------------------------------------------- #
@@ -216,6 +271,106 @@ def test_run_command_error_is_swallowed(monkeypatch):
 
     monkeypatch.setattr(main, "_login_vehicle", boom)
     asyncio.run(main.run_command("horn"))
+
+
+# --------------------------------------------------------------------------- #
+# charge-limit numbers (set_battery_soc)
+# --------------------------------------------------------------------------- #
+class SocVehicle(FakeVehicle):
+    def __init__(self):
+        self.soc_set = None
+
+    async def get_battery_soc(self):
+        return ns(socTarget=80, socMin=20)
+
+    async def set_battery_soc(self, *, min, target):
+        self.soc_set = (min, target)
+
+
+def _login_as(monkeypatch, vehicle):
+    _fake_client_session(monkeypatch)
+
+    async def fake_login(ws, locale):
+        return vehicle
+
+    monkeypatch.setattr(main, "_login_vehicle", fake_login)
+
+
+def test_set_soc_target_sends_both_limits(monkeypatch):
+    v = SocVehicle()
+    _login_as(monkeypatch, v)
+    asyncio.run(main.run_command("soc_target", "90"))
+    assert v.soc_set == (20, 90)         # min unchanged, target updated
+
+
+def test_set_soc_min_sends_both_limits(monkeypatch):
+    v = SocVehicle()
+    _login_as(monkeypatch, v)
+    asyncio.run(main.run_command("soc_min", "30"))
+    assert v.soc_set == (30, 80)         # target unchanged, min updated
+
+
+def test_set_soc_ignores_non_numeric(monkeypatch):
+    v = SocVehicle()
+    _login_as(monkeypatch, v)
+    asyncio.run(main.run_command("soc_target", "not-a-number"))
+    assert v.soc_set is None             # never written
+
+
+def test_set_soc_bails_when_opposing_limit_missing(monkeypatch):
+    class NoLimits(SocVehicle):
+        async def get_battery_soc(self):
+            return ns(socTarget=None, socMin=None)
+
+    v = NoLimits()
+    _login_as(monkeypatch, v)
+    asyncio.run(main.run_command("soc_target", "90"))
+    assert v.soc_set is None             # bailed: current limits unavailable
+
+
+def test_concurrent_soc_sets_do_not_clobber(monkeypatch):
+    car = {"min": 20, "target": 80}
+
+    class V:
+        async def get_battery_soc(self):
+            return ns(socMin=car["min"], socTarget=car["target"])
+
+        async def set_battery_soc(self, *, min, target):
+            await asyncio.sleep(0)               # yield — interleaves without the lock
+            car["min"], car["target"] = min, target
+
+    _fake_client_session(monkeypatch)
+
+    async def fake_login(ws, locale):
+        return V()
+
+    monkeypatch.setattr(main, "_login_vehicle", fake_login)
+
+    async def both():
+        await asyncio.gather(main.run_command("soc_min", "30"),
+                             main.run_command("soc_target", "90"))
+
+    asyncio.run(both())
+    assert car == {"min": 30, "target": 90}      # both survived -> writes serialised
+
+
+def test_set_soc_error_is_swallowed(monkeypatch):
+    _fake_client_session(monkeypatch)
+
+    async def boom(ws, locale):
+        raise RuntimeError("login failed")
+
+    monkeypatch.setattr(main, "_login_vehicle", boom)
+    asyncio.run(main.run_command("soc_target", "90"))   # no raise
+
+
+def test_detect_supported_adds_soc_levels(monkeypatch):
+    class V:
+        def supports_endpoint(self, ep):
+            return ep == main.SOC_ENDPOINT
+
+    supported = asyncio.run(main.detect_supported(FakeVSession(V())))
+    assert main.SOC_ENDPOINT in supported
 
 
 # --------------------------------------------------------------------------- #

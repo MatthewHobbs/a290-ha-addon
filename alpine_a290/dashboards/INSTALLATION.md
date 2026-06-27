@@ -74,8 +74,7 @@ safe). To pull in a later layout update, set `redeploy_dashboard: true` and rest
 
 ### 4. Control buttons + optional extras
 
-- **Control buttons:** the add-on publishes these **natively over MQTT** — no official
-  Renault integration needed: `button.alpine_a290_sound_horn`, `…_flash_lights`,
+- **Control buttons:** the add-on publishes these **natively over MQTT** — no Home Assistant `renault` integration needed: `button.alpine_a290_sound_horn`, `…_flash_lights`,
   `…_start_climate`, `…_stop_climate`, `…_refresh_location`. Each is gated on what the
   platform supports; Renault **forbids remote charge-start/stop on the A290**, so no
   charging buttons are shipped and the dashboards include no charge tile.

@@ -20,8 +20,6 @@ SENSORS = {
     "a290_external_temperature": ("Outside Temperature", "temperature", "°C", "measurement"),
     "a290_hvac_status":          ("HVAC Status", None, None, None),
     "a290_hvac_soc_threshold":   ("HVAC SoC Threshold", "battery", "%", None),
-    "a290_soc_target":           ("Charge Target SoC", "battery", "%", None),
-    "a290_soc_min":              ("Minimum SoC", "battery", "%", None),
     "a290_charge_mode":          ("Charge Mode", None, None, None),
     "a290_tyre_pressure_fl":     ("Tyre Pressure Front Left", None, None, "measurement"),
     "a290_tyre_pressure_fr":     ("Tyre Pressure Front Right", None, None, "measurement"),
@@ -78,4 +76,15 @@ ACTION_BUTTONS = {
     "a290_refresh_location": ("Refresh Location", "mdi:crosshairs-gps",  "actions/refresh-location"),
 }
 
-RETIRED_SENSORS = ["a290_cabin_temperature"]
+# Writable charge-limit controls. State comes from the poll's soc-levels read (data keys
+# match object_id[5:]); a press writes via set_battery_soc(). Gated on SOC_ENDPOINT support,
+# so a model that rejects the write never ships the control. (name, icon, min, max, step)
+SOC_ENDPOINT = "soc-levels"
+NUMBERS = {
+    "a290_soc_min":    ("Minimum SoC",       "mdi:battery-arrow-down", 15, 45,  5),
+    "a290_soc_target": ("Charge Target SoC", "mdi:battery-arrow-up",   55, 100, 5),
+}
+
+# Cleared on every discovery publish so retired entities don't linger on existing installs.
+# soc_min/soc_target moved from SENSORS to NUMBERS, so their old sensor configs are cleared.
+RETIRED_SENSORS = ["a290_cabin_temperature", "a290_soc_target", "a290_soc_min"]
