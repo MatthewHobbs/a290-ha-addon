@@ -66,6 +66,14 @@ Leave `account_id` blank and the add-on auto-discovers your MyRenault/Kamereon
 account on login. Only set it if you have multiple accounts and need to pin a
 specific one.
 
+## Status panel
+
+The add-on adds a **read-only "Alpine A290" panel to the Home Assistant sidebar** (via
+ingress). It shows the latest poll at a glance — battery, range, charging, plug, climate,
+charge limits and diagnostics — without needing a dashboard. It is **read-only** (it never
+changes anything), **auth-gated by Home Assistant**, and stores no credentials or precise
+location. The bundled dashboards remain the richer view; the panel is the quick glance.
+
 ## Requirements
 
 - The **Mosquitto broker** add-on (the MQTT connection is auto-discovered).
