@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.6
+
+- **Bubble dashboard — location parity.** The **Vehicle Status** pop-up now shows the car
+  **map** below its LOCATION text (it previously had the heading + text but no map), and the
+  **Location** pop-up gains the yellow **LOCATION** separator heading for parity with the
+  other sections. Reuses the existing map/separator cards — no new dependencies. Re-deploy
+  the bubble dashboard (or set `redeploy_dashboard: true` once) to pick it up.
+
 ## 1.4.5
 
 - **Custom AppArmor profile — raises the Supervisor security rating to 6.** Ships
