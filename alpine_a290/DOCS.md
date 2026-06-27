@@ -3,6 +3,23 @@
 Polls your Alpine A290 through the Renault/Kamereon API and publishes the data to
 Home Assistant via MQTT auto-discovery.
 
+## Before you start — install these first
+
+The add-on itself only needs the **Mosquitto broker** add-on (its MQTT connection is
+auto-discovered). But if you use one of the **bundled dashboards** (`deploy_dashboard`),
+you must **first install the frontend cards via HACS** — otherwise the dashboard renders
+as *"Custom element doesn't exist"* with broken tiles:
+
+| Install via HACS → Frontend | Needed for |
+| --- | --- |
+| **card-mod** + **Mushroom** | both dashboards |
+| **Button Card** + **Browser Mod** | the **standard** dashboard (tiles + pop-ups) |
+| **Bubble Card** | the **bubble** dashboard only |
+
+Install Mosquitto and the cards above **before** enabling `deploy_dashboard`, so the
+dashboard renders correctly the first time. (The car's location uses Home Assistant's
+built-in `map` card — no map plugin or API key needed.)
+
 ## Configuration
 
 | Option | Description |
