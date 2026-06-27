@@ -5,20 +5,30 @@ Home Assistant via MQTT auto-discovery.
 
 ## Before you start — install these first
 
-The add-on itself only needs the **Mosquitto broker** add-on (its MQTT connection is
-auto-discovered). But if you use one of the **bundled dashboards** (`deploy_dashboard`),
-you must **first install the frontend cards via HACS** — otherwise the dashboard renders
-as *"Custom element doesn't exist"* with broken tiles:
+The add-on **deploys the standard dashboard for you by default** (`deploy_dashboard: standard`),
+so install its frontend cards via **HACS → Frontend** *before you start the add-on for the
+first time* — otherwise the dashboard renders as *"Custom element doesn't exist"* with broken
+tiles. You also need the **Mosquitto broker** add-on (the add-on's MQTT connection is
+auto-discovered from it).
 
 | Install via HACS → Frontend | Needed for |
 | --- | --- |
 | **card-mod** + **Mushroom** | both dashboards |
-| **Button Card** + **Browser Mod** | the **standard** dashboard (tiles + pop-ups) |
+| **Button Card** + **Browser Mod** | the **standard** dashboard (the default — tiles + pop-ups) |
 | **Bubble Card** | the **bubble** dashboard only |
 
-Install Mosquitto and the cards above **before** enabling `deploy_dashboard`, so the
-dashboard renders correctly the first time. (The car's location uses Home Assistant's
-built-in `map` card — no map plugin or API key needed.)
+Install Mosquitto and the cards above **before first start**, so the dashboard renders
+correctly the first time. (The car's location uses Home Assistant's built-in `map` card — no
+map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dashboard: none`.
+
+### Finding your VIN and account id
+
+- **VIN** (required): the 17-character vehicle identification number — on your **My Alpine**
+  app (vehicle details), your registration document (V5C), or the windscreen base. Enter it
+  in **uppercase**.
+- **account id** (optional): leave it **blank** and the add-on auto-discovers your
+  MyAlpine/Kamereon account on login. Only set it if you have multiple accounts and need to
+  pin a specific one.
 
 ## Configuration
 
@@ -35,7 +45,7 @@ built-in `map` card — no map plugin or API key needed.)
 | `precondition_temperature` | Target cabin temperature (°C, 16–27, default 20) used by the **Start Climate** button. |
 | `log_level` | `info` normally; `debug` for troubleshooting. |
 | `debug_dump` | `false` by default. When `true`, every poll logs the decoded data from all readable API endpoints — with your VIN, account id, username and contact/identifier fields redacted — to help diagnose what your car does/doesn't expose. Turn off again once captured (it's verbose). Prefer this over `log_level: debug` for API diagnostics: the library's own debug logging would expose access tokens. |
-| `deploy_dashboard` | `none` (default), `standard`, `bubble`, or `both`. Auto-installs that dashboard — see below. `both` installs the standard dashboard at your `dashboard_url_path` and the bubble one with a `-bubble` suffix (e.g. `alpine-a290` and `alpine-a290-bubble`). |
+| `deploy_dashboard` | `standard` (default), `bubble`, `both`, or `none`. Auto-installs that dashboard — see below. `both` installs the standard dashboard at your `dashboard_url_path` and the bubble one with a `-bubble` suffix (e.g. `alpine-a290` and `alpine-a290-bubble`). Set `none` to skip dashboard deployment. |
 | `dashboard_url_path` | URL slug for the deployed dashboard (default `alpine-a290`; with `both`, the bubble one is suffixed `-bubble`). |
 | `redeploy_dashboard` | `true` re-pushes the dashboard config on next start (to pick up an update). Default `false` so your edits are never overwritten. |
 

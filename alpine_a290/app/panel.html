@@ -64,20 +64,21 @@
                    : d.data_stale === "on" ? "Data stale"
                    : s.ok ? "Online" : "Starting…";
 
+    const dkm = " " + (s.dist_unit || "km");   // miles for en_GB, km otherwise
     const batt = d.battery_level;
     const tiles = [];
     if (batt !== undefined)
       tiles.push(tile("Battery", num(batt, "%"),
         batt <= 15 ? "warn" : batt > 30 ? "ok" : "",
         `<div class="bar"><span style="width:${Math.max(0, Math.min(100, batt))}%"></span></div>`));
-    tiles.push(tile("Range", num(d.range)));
+    tiles.push(tile("Range", num(d.range, dkm)));
     tiles.push(tile("Charging", num(d.charging_status), d.charging === "on" ? "ok" : ""));
-    if (d.charging === "on") tiles.push(tile("Charging Power", num(d.charging_power)));
+    if (d.charging === "on") tiles.push(tile("Charging Power", num(d.charging_power, " kW")));
     tiles.push(tile("Plug", num(d.plug_status)));
-    tiles.push(tile("Available Energy", num(d.available_energy)));
-    tiles.push(tile("Mileage", num(d.mileage)));
+    tiles.push(tile("Available Energy", num(d.available_energy, " kWh")));
+    tiles.push(tile("Mileage", num(d.mileage, dkm)));
     tiles.push(tile("Climate", num(d.hvac_status)));
-    tiles.push(tile("Outside Temp", num(d.external_temperature)));
+    tiles.push(tile("Outside Temp", num(d.external_temperature, " °C")));
     tiles.push(tile("Charge Limits", `${num(d.soc_min, "%")} – ${num(d.soc_target, "%")}`));
     if (d.last_charge_type) tiles.push(tile("Last Charge", num(d.last_charge_type)));
     if (d.plug_suspect === "on") tiles.push(tile("Plug State", "Suspect", "warn"));

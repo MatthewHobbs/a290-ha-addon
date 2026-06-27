@@ -23,6 +23,7 @@ from aiohttp import web
 from catalog import (
     ACTION_BUTTONS,
     BINARY_SENSORS,
+    DEFAULT_DISABLED_SENSORS,
     ICONS,
     NUMBERS,
     OPTIONAL_ENDPOINTS,
@@ -173,6 +174,8 @@ def publish_discovery(client, supported_eps, dist_unit):
             conf["state_class"] = state_class
         if obj in ICONS:
             conf["icon"] = ICONS[obj]
+        if obj in DEFAULT_DISABLED_SENSORS:
+            conf["enabled_by_default"] = False
         client.publish(f"{DISCOVERY_PREFIX}/sensor/{NODE}/{obj}/config", json.dumps(conf), retain=True)
     for obj, (name, dev_class) in BINARY_SENSORS.items():
         conf = {"name": name, "object_id": obj, "unique_id": obj,
@@ -684,7 +687,8 @@ HEALTH_PORT = 8099
 
 # Latest poll snapshot for the read-only ingress status panel. Deliberately excludes raw
 # GPS (lat/lon are published separately to MQTT, not stored here) and any credential.
-_LATEST = {"version": VERSION, "ok": False, "last_poll": None, "supported": [], "data": {}}
+_LATEST = {"version": VERSION, "ok": False, "last_poll": None, "supported": [],
+           "dist_unit": "km", "data": {}}
 
 _PANEL_FILE = os.path.join(os.path.dirname(__file__), "panel.html")
 
@@ -738,6 +742,7 @@ async def main():
     supported = await detect_supported(vsession)
     _MQTT_CTX["supported"], _MQTT_CTX["dist_unit"] = supported, dist_unit
     _LATEST["supported"] = sorted(supported)
+    _LATEST["dist_unit"] = dist_unit  # so the status panel can label range/mileage
     client = mqtt_connect()
     publish_discovery(client, supported, dist_unit)
     await deploy.run_deploy()
