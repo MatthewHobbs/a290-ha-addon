@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.7
+
+- **Pre-built, signed images — faster, more reliable installs.** The add-on is now published
+  as a **multi-arch image** (`amd64` + `aarch64`) to **GHCR**, built and **Cosign-signed**
+  (keyless OIDC) by a new `release` workflow on every version-bump merge to `main`. The
+  Supervisor now **pulls** the image (via the new `image:` in `config.yaml`) instead of
+  **building it on your device** — no more slow on-device builds or SD-card wear. Each release
+  also gets a **`v<version>` git tag + GitHub Release**.
+
 ## 1.4.6
 
 - **Bubble dashboard — location parity.** The **Vehicle Status** pop-up now shows the car
