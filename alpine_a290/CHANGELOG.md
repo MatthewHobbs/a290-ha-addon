@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.4.0
+
+- **Set the charge limits from Home Assistant.** The Minimum SoC and Charge Target SoC are now
+  **writable `number` sliders** (`number.alpine_a290_minimum_soc` 15–45 %,
+  `number.alpine_a290_charge_target_soc` 55–100 %) instead of read-only sensors. Moving a
+  slider writes to the car via `renault-api`'s `set_battery_soc` (the `soc-levels` endpoint,
+  which the A290 supports — distinct from the forbidden charge-*mode* endpoint); both limits
+  are always sent together, with the unchanged one read back first. Published only where the
+  car supports `soc-levels`, and optimistic so the slider reflects the new value immediately.
+  This brings the **last remaining capability Home Assistant's `renault` integration had over the
+  add-on** in-house, so the add-on can now fully replace it. The bundled dashboards point at
+  the new `number.*` entities automatically. Charge-limit writes are **serialised** (a lock),
+  so moving both sliders in quick succession can't interleave the read-modify-write and
+  clobber a limit.
+- **`debug_dump` now covers the full endpoint set.** Added the previously-missing readable
+  endpoints — `charges` (real charge-session history) and `car-adapter` (vehicle spec, incl.
+  battery capacity), plus `charge-history` / `hvac-history` / `hvac-sessions` so the dump
+  documents what the A290 forbids too. The date-ranged ones (`charges`, `charge-history`) are
+  probed over the last 30 days. Use it to see what `charges` returns before deciding whether to
+  build a proper charge-history feature on it.
+- **`debug_dump` privacy hardened to match the R5 add-on.** The dump now **masks GPS and
+  identifier keys** (lat/lon, gigyaId/personId/accountId, ICCID/IMEI, address/postcode/…) and
+  numeric-id values; **drops the `location` / `contracts` / `notification-settings` endpoints**
+  (location/contact/account PII with no telemetry value); runs **once per restart** instead of
+  every poll; and the log line now **warns it may contain personal data** rather than claiming
+  full redaction. (Previously it logged unmasked GPS under a "secrets redacted" label.)
+
 ## 1.3.3
 
 - Refine the Range/Mileage units fix from 1.3.1: only drop the `distance` device_class when

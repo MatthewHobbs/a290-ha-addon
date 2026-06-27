@@ -279,18 +279,55 @@ def test_precondition_temp_default(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
+# writable charge-limit numbers
+# --------------------------------------------------------------------------- #
+def test_numbers_published_when_soc_supported():
+    c = StubClient()
+    main.publish_discovery(c, {main.SOC_ENDPOINT}, "mi")
+    base = f"homeassistant/number/{main.NODE}"
+    for obj, (name, _icon, mn, mx, step) in main.NUMBERS.items():
+        short = obj[len("a290_"):]
+        conf = json.loads(c.pub[f"{base}/{short}/config"])
+        assert conf["name"] == name
+        assert conf["command_topic"] == f"{main.CMD_PREFIX}{short}"
+        assert conf["value_template"] == "{{ value_json.%s }}" % short
+        assert (conf["min"], conf["max"], conf["step"]) == (mn, mx, step)
+        assert conf["device_class"] == "battery" and conf["unit_of_measurement"] == "%"
+
+
+def test_numbers_cleared_when_soc_unsupported():
+    c = StubClient()
+    main.publish_discovery(c, set(), "mi")   # soc-levels not supported
+    base = f"homeassistant/number/{main.NODE}"
+    for obj in main.NUMBERS:
+        assert c.pub[f"{base}/{obj[len('a290_'):]}/config"] == ""
+
+
+def test_retired_soc_sensors_are_cleared():
+    c = StubClient()
+    main.publish_discovery(c, {main.SOC_ENDPOINT}, "mi")
+    for obj in ("a290_soc_min", "a290_soc_target"):
+        assert c.pub[f"homeassistant/sensor/{main.NODE}/{obj}/config"] == ""
+
+
+def test_number_cmds_match_numbers():
+    assert main.NUMBER_CMDS == {obj[len("a290_"):] for obj in main.NUMBERS}
+
+
+# --------------------------------------------------------------------------- #
 # command dispatch + startup detection failure
 # --------------------------------------------------------------------------- #
 class _Msg:
-    def __init__(self, topic):
+    def __init__(self, topic, payload=b""):
         self.topic = topic
+        self.payload = payload
 
 
 def test_on_message_dispatches_known_command(monkeypatch):
     recorded = []
 
-    def fake_run_command(cmd):           # sync fake: records at call time
-        recorded.append(cmd)
+    def fake_run_command(cmd, payload=""):   # sync fake: records at call time
+        recorded.append((cmd, payload))
         async def _noop():
             return None
         return _noop()
@@ -306,10 +343,13 @@ def test_on_message_dispatches_known_command(monkeypatch):
     monkeypatch.setattr(main.asyncio, "run_coroutine_threadsafe", fake_schedule)
 
     main._on_message(None, None, _Msg(f"{main.CMD_PREFIX}horn"))
-    assert recorded == ["horn"]
+    assert recorded == [("horn", "")]
+
+    main._on_message(None, None, _Msg(f"{main.CMD_PREFIX}soc_target", b"80"))
+    assert recorded[-1] == ("soc_target", "80")
 
     main._on_message(None, None, _Msg("unrelated/topic"))   # non-command -> ignored
-    assert recorded == ["horn"]
+    assert len(recorded) == 2
 
 
 def test_detect_supported_degrades_and_invalidates_on_login_failure(monkeypatch):

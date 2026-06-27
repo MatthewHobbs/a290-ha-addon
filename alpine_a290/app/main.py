@@ -14,7 +14,7 @@ import os
 import signal
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import aiohttp
 import deploy
@@ -24,9 +24,11 @@ from catalog import (
     ACTION_BUTTONS,
     BINARY_SENSORS,
     ICONS,
+    NUMBERS,
     OPTIONAL_ENDPOINTS,
     RETIRED_SENSORS,
     SENSORS,
+    SOC_ENDPOINT,
 )
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.renault_client import RenaultClient
@@ -117,8 +119,9 @@ def save_state(state):
 def _on_message(client, userdata, msg):
     if _LOOP is not None and msg.topic.startswith(CMD_PREFIX):
         cmd = msg.topic[len(CMD_PREFIX):]
-        LOG.info("Received command: %s", cmd)
-        asyncio.run_coroutine_threadsafe(run_command(cmd), _LOOP)
+        payload = msg.payload.decode(errors="replace") if msg.payload else ""
+        LOG.info("Received command: %s %s", cmd, payload)
+        asyncio.run_coroutine_threadsafe(run_command(cmd, payload), _LOOP)
 
 
 _MQTT_CTX = {"supported": None, "dist_unit": None}
@@ -197,8 +200,25 @@ def publish_discovery(client, supported_eps, dist_unit):
             buttons.append(short)
         else:
             client.publish(topic, "", retain=True)
-    LOG.info("Published discovery: %d sensors (%d unsupported cleared), %d binary_sensors, device_tracker, buttons=%s",
-             published, len(skip), len(BINARY_SENSORS), buttons or "none")
+    numbers = []
+    soc_ok = SOC_ENDPOINT in supported_eps
+    for obj, (name, icon, mn, mx, step) in NUMBERS.items():
+        short = obj[5:]
+        topic = f"{DISCOVERY_PREFIX}/number/{NODE}/{short}/config"
+        if soc_ok:
+            conf = {"name": name, "object_id": obj, "unique_id": obj,
+                    "state_topic": STATE_TOPIC, "value_template": "{{ value_json.%s }}" % short,
+                    "command_topic": f"{CMD_PREFIX}{short}", "availability_topic": AVAIL_TOPIC,
+                    "min": mn, "max": mx, "step": step, "mode": "slider",
+                    "unit_of_measurement": "%", "device_class": "battery",
+                    "optimistic": True, "icon": icon, "device": DEVICE}
+            client.publish(topic, json.dumps(conf), retain=True)
+            numbers.append(short)
+        else:
+            client.publish(topic, "", retain=True)
+    LOG.info("Published discovery: %d sensors (%d unsupported cleared), %d binary_sensors, "
+             "device_tracker, buttons=%s, numbers=%s",
+             published, len(skip), len(BINARY_SENSORS), buttons or "none", numbers or "none")
 
 
 KM_TO_MI = 0.621371
@@ -323,7 +343,7 @@ async def detect_supported(vsession):
                     supported.discard(ep)
             except Exception as err:  # noqa: BLE001
                 LOG.warning("supports_endpoint(%s) check failed: %s", ep, err)
-        for ep in sorted(action_eps):
+        for ep in sorted(action_eps | {SOC_ENDPOINT}):
             try:
                 if await _supports(vehicle, ep):
                     supported.add(ep)
@@ -350,9 +370,58 @@ COMMAND_ACTIONS = {
     "refresh_location": lambda v: v.refresh_location(),
 }
 
+# Command suffixes (topic tail) that map to writable numbers rather than button actions.
+NUMBER_CMDS = {obj[5:] for obj in NUMBERS}
 
-async def run_command(cmd):
-    """Dispatch an MQTT button press to its renault-api action; never fatal."""
+_soc_lock = None
+_soc_lock_loop = None
+
+
+def _soc_lock_get():
+    """One lock per event loop, serialising charge-limit writes so two quick slider moves
+    can't interleave a read-modify-write and clobber each other. Re-created if the running
+    loop changes (so per-test event loops don't trip cross-loop binding)."""
+    global _soc_lock, _soc_lock_loop
+    loop = asyncio.get_running_loop()
+    if _soc_lock is None or _soc_lock_loop is not loop:
+        _soc_lock, _soc_lock_loop = asyncio.Lock(), loop
+    return _soc_lock
+
+
+async def set_soc_level(which, payload):
+    """Write a charge limit. set_battery_soc needs both min and target together, so the
+    opposing slider's current value is read back first and re-sent unchanged. Serialised so
+    adjusting both sliders in quick succession can't interleave and clobber a change."""
+    try:
+        value = int(float(payload))
+    except (TypeError, ValueError):
+        LOG.warning("Ignoring non-numeric %s value: %r", which, payload)
+        return
+    locale = cfg("A290_LOCALE", "en_GB")
+    async with _soc_lock_get():
+        try:
+            async with aiohttp.ClientSession(timeout=API_TIMEOUT) as websession:
+                vehicle = await _login_vehicle(websession, locale)
+                soc = await vehicle.get_battery_soc()
+                cur_min = getattr(soc, "socMin", None)
+                cur_target = getattr(soc, "socTarget", None)
+                new_min, new_target = (value, cur_target) if which == "soc_min" else (cur_min, value)
+                if new_min is None or new_target is None:
+                    LOG.error("Cannot set %s: current limits unavailable (min=%s, target=%s)",
+                              which, cur_min, cur_target)
+                    return
+                await vehicle.set_battery_soc(min=int(new_min), target=int(new_target))
+            LOG.info("Set charge limits: min=%s%%, target=%s%%", new_min, new_target)
+        except Exception as err:  # noqa: BLE001
+            LOG.error("Failed to set %s=%s: %s", which, value, err)
+
+
+async def run_command(cmd, payload=""):
+    """Dispatch an MQTT command: a button press to its renault-api action, or a number set
+    to set_battery_soc. Never fatal."""
+    if cmd in NUMBER_CMDS:
+        await set_soc_level(cmd, payload)
+        return
     action = COMMAND_ACTIONS.get(cmd)
     if action is None:
         LOG.warning("Ignoring unknown command: %s", cmd)
@@ -434,14 +503,27 @@ async def resolve_account(client):
     raise RuntimeError("No MYRENAULT account found and A290_ACCOUNT_ID not set")
 
 
+# No-arg readable telemetry endpoints. Deliberately excludes get_location (GPS),
+# get_contracts and get_notification_settings — those carry location / contact / account PII
+# with no sensor-mapping diagnostic value. Includes ones the A290 forbids (charge-mode,
+# pressure, lock-status, res-state, hvac-history, hvac-sessions) so the dump documents the
+# full supported/forbidden picture. Date-ranged endpoints (charges, charge-history) are
+# probed separately below — they can't be called arg-less.
 _DEBUG_METHODS = [
-    "get_details", "get_battery_status", "get_battery_soc", "get_cockpit",
-    "get_hvac_status", "get_hvac_settings", "get_location", "get_charge_schedule",
-    "get_charge_mode", "get_charging_settings", "get_tyre_pressure", "get_lock_status",
-    "get_res_state", "get_contracts", "get_notification_settings",
+    "get_details", "get_car_adapter", "get_battery_status", "get_battery_soc", "get_cockpit",
+    "get_hvac_status", "get_hvac_settings", "get_hvac_history", "get_hvac_sessions",
+    "get_charge_schedule", "get_charge_mode", "get_charging_settings",
+    "get_tyre_pressure", "get_lock_status", "get_res_state",
 ]
-_DEBUG_REDACT_KEYS = {"registrationnumber", "vin", "tcucode", "radiocode", "siret",
-                      "msisdn", "phonenumber", "phone", "email", "firstname", "lastname"}
+_DEBUG_RANGE_DAYS = 30
+# Keys masked regardless of value type — identifiers / contact / location fields.
+_DEBUG_REDACT_KEYS = {
+    "registrationnumber", "vin", "tcucode", "radiocode", "siret", "msisdn", "phonenumber",
+    "phone", "mobile", "email", "firstname", "lastname", "gigyaid", "personid", "accountid",
+    "iccid", "imei", "contractid", "address", "postcode", "zipcode", "city", "country",
+    "gpslatitude", "gpslongitude", "latitude", "longitude",
+}
+_DEBUG_STATE = {"dumped": False}
 
 
 def debug_enabled():
@@ -449,7 +531,7 @@ def debug_enabled():
 
 
 def _debug_redact(obj, secrets):
-    """Mask ID/contact keys and secret values; keep telemetry. Recurses dicts/lists."""
+    """Mask identifiers (by key, any value type) + configured secret values; keep telemetry."""
     if isinstance(obj, dict):
         return {k: ("***" if k.lower() in _DEBUG_REDACT_KEYS else _debug_redact(v, secrets))
                 for k, v in obj.items()}
@@ -459,7 +541,27 @@ def _debug_redact(obj, secrets):
         for s in secrets:
             if s and s in obj:
                 obj = obj.replace(s, "***")
+        return obj
+    if any(s and s == str(obj) for s in secrets):   # secret value held as a number (e.g. id)
+        return "***"
     return obj
+
+
+async def _dump_one(out, name, call, secrets):
+    """Run one debug probe, redact its raw payload, store the result; never fatal. Handles
+    dict, list (e.g. charges returns a list of sessions), and raw_data-bearing objects — a
+    list must be parsed, not str()'d, or key-based GPS/id redaction is skipped."""
+    try:
+        res = await call()
+        if isinstance(res, dict):
+            raw = res
+        elif isinstance(res, list):
+            raw = [getattr(x, "raw_data", x) for x in res]
+        else:
+            raw = getattr(res, "raw_data", None) or {"_repr": str(res)}
+        out[name] = _debug_redact(raw, secrets)
+    except Exception as err:  # noqa: BLE001
+        out[name] = {"_error": f"{type(err).__name__}: {err}"}
 
 
 async def dump_api(vehicle):
@@ -468,16 +570,25 @@ async def dump_api(vehicle):
     out = {}
     for meth in _DEBUG_METHODS:
         fn = getattr(vehicle, meth, None)
-        if fn is None:
-            continue
-        try:
-            res = await fn()
-            raw = res if isinstance(res, dict) else getattr(res, "raw_data", None)
-            out[meth] = _debug_redact(raw if raw is not None else str(res), secrets)
-        except Exception as err:  # noqa: BLE001
-            out[meth] = {"_error": f"{type(err).__name__}: {err}"}
-    LOG.info("API DEBUG DUMP (secrets/IDs redacted):\n%s",
-             json.dumps(out, indent=2, default=str, ensure_ascii=False))
+        if fn is not None:
+            await _dump_one(out, meth, lambda _f=fn: _f(), secrets)
+    # Date-ranged endpoints can't be called arg-less; probe the last N days.
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=_DEBUG_RANGE_DAYS)
+    for meth, call in (("get_charges", lambda: vehicle.get_charges(start, end)),
+                       ("get_charge_history", lambda: vehicle.get_charge_history(start, end, "month"))):
+        if getattr(vehicle, meth, None) is not None:
+            await _dump_one(out, meth, call, secrets)
+    LOG.warning("API DEBUG DUMP — may contain personal data; redaction is best-effort, do NOT "
+                "paste publicly. One-shot per restart; turn debug_dump off when done.\n%s",
+                json.dumps(out, indent=2, default=str, ensure_ascii=False))
+
+
+async def maybe_dump_api(vehicle):
+    """Run the debug dump once per restart when debug_dump is on (not every poll)."""
+    if debug_enabled() and not _DEBUG_STATE["dumped"]:
+        _DEBUG_STATE["dumped"] = True
+        await dump_api(vehicle)
 
 
 async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
@@ -563,8 +674,7 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
     plug_code = plug.value if plug is not None else None
     data["plug_suspect"] = detect_plug_suspect(state, plug_code, mileage,
                                                 battery.batteryLevel, charging)
-    if debug_enabled():
-        await dump_api(vehicle)
+    await maybe_dump_api(vehicle)
     return data, location_attrs
 
 
