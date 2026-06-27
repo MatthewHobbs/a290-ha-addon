@@ -6,6 +6,7 @@ failure modes (no dashboard on first install / silently clobbering edits) from o
 import asyncio
 
 import deploy
+import pytest
 
 
 # --------------------------------------------------------------------------- #
@@ -153,6 +154,34 @@ def test_run_deploy_warns_on_unknown_style(monkeypatch):
 def test_run_deploy_skips_without_supervisor_token(monkeypatch):
     monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "standard")
     monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    asyncio.run(deploy.run_deploy())
+
+
+# --------------------------------------------------------------------------- #
+# dashboard_url_path validation — never overwrite a built-in HA panel
+# --------------------------------------------------------------------------- #
+def test_validate_url_path_normalises_valid():
+    assert deploy._validate_url_path("  Alpine-A290  ") == "alpine-a290"
+
+
+@pytest.mark.parametrize("reserved", ["developer-tools", "media-browser", "shopping-list"])
+def test_validate_url_path_rejects_reserved(reserved):
+    with pytest.raises(ValueError):
+        deploy._validate_url_path(reserved)
+
+
+@pytest.mark.parametrize("bad", ["", "alpine_a290", "energy", "no space", "-leading", "UPPER"])
+def test_validate_url_path_rejects_invalid(bad):
+    # no hyphen ("energy", "alpine_a290", "UPPER"), bad charset ("no space", "-leading"), empty
+    with pytest.raises(ValueError):
+        deploy._validate_url_path(bad)
+
+
+def test_run_deploy_skips_reserved_url_path(monkeypatch):
+    # Reaches validation (token present) and returns before any WS connection / save.
+    monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "standard")
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "tok")
+    monkeypatch.setenv("A290_DASHBOARD_URL_PATH", "energy")
     asyncio.run(deploy.run_deploy())
 
 
