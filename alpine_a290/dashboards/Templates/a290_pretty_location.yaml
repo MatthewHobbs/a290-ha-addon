@@ -11,11 +11,16 @@
 #     sensor (sensor.a290). If you do not run the `places` integration, or it is
 #     unavailable, it simply shows "Away".
 #
-# NOTE: distance() returns the value in the HA unit system's length unit —
-# kilometres on a metric system — but a zone's `radius` is always in metres,
-# so each comparison multiplies the distance by 1000 (km -> m). Without that,
-# the test reads (km <= metres) and reports "Home" anywhere within ~radius km
-# of the home zone.
+# NOTE: distance() returns the value in the HA unit system's length unit, and a
+# zone's `radius` is always in metres, so each comparison converts the distance
+# to metres before testing it against the radius. Without that, the test reads
+# (km <= metres) and reports "Home" anywhere within ~radius km of the home zone.
+#
+# UNIT SYSTEM: this template assumes a METRIC Home Assistant, where distance()
+# returns kilometres — hence the `* 1000` (km -> m). On an IMPERIAL unit system
+# distance() returns MILES, so change both `* 1000` factors to `* 1609.344`
+# (mi -> m), or the zone test is off by ~1.6x. HA's sandboxed templates can't
+# read the configured unit system, so this can't be auto-detected here.
 #
 # OPTIONAL dependencies (the sensor degrades gracefully without them):
 #   * zone.driveway  - create this zone if you want a separate "Driveway" state;
