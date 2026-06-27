@@ -18,3 +18,10 @@ htmlcov/
 secrets.yaml
 .env
 *.local
+
+# the editor — personal/local settings only (CONTRIBUTING.md and any shared .review/ config stay tracked)
+local editor settings
+
+# Editor / IDE
+.vscode/
+.idea/
