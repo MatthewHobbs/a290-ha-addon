@@ -823,7 +823,7 @@
             name:
             - font-weight: 400
           card_mod:
-            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
         - type: custom:button-card
           name: Flash Lights
           icon: mdi:car-light-high
@@ -840,7 +840,7 @@
             name:
             - font-weight: 400
           card_mod:
-            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
         - type: custom:button-card
           name: Stop Charging
           icon: mdi:stop-circle
@@ -855,7 +855,7 @@
             name:
             - font-weight: 400
           card_mod:
-            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
         - type: custom:button-card
           name: HVAC Stop
           icon: mdi:fan-off
@@ -872,7 +872,7 @@
             name:
             - font-weight: 400
           card_mod:
-            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
         - type: custom:button-card
           name: Beep Horn
           icon: mdi:bugle
@@ -889,7 +889,7 @@
             name:
             - font-weight: 400
           card_mod:
-            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
+            style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}@media(max-width:600px){ha-card #name{font-family:system-ui,sans-serif !important;font-size:14px !important;}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
     - type: grid
       card_mod:
         style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;}
