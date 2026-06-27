@@ -14,7 +14,12 @@ import yaml
 LOG = logging.getLogger("alpine_a290.deploy")
 
 REPO = "MatthewHobbs/a290-ha-addon"
-CDN = f"https://cdn.jsdelivr.net/gh/{REPO}@main/alpine_a290/dashboards"
+# Pin dashboard assets to this release's git tag (created by release.yaml) so a deployed
+# dashboard is reproducible per version; fall back to main for a dev/untagged build.
+# (A290_VERSION defaults to "dev"; release.yaml passes the real version as BUILD_VERSION.)
+_VERSION = os.environ.get("A290_VERSION", "dev")
+_REF = f"v{_VERSION}" if _VERSION not in ("", "dev") else "main"
+CDN = f"https://cdn.jsdelivr.net/gh/{REPO}@{_REF}/alpine_a290/dashboards"
 FONT_URL = "https://fonts.googleapis.com/css2?family=Zen+Dots&display=swap"
 DASHBOARDS = {"standard": "front-end.txt", "bubble": "front-end-bubble.txt"}
 DASHBOARD_DIR = os.environ.get("A290_DASHBOARD_DIR", "/app/dashboards")

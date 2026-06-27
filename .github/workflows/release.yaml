@@ -106,6 +106,7 @@ jobs:
           arch: ${{ matrix.arch }}
           build-args: |
             BUILD_FROM=ghcr.io/home-assistant/${{ matrix.arch }}-base:3.19
+            BUILD_VERSION=${{ needs.prepare.outputs.version }}
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
           context: "./alpine_a290"
           image: ${{ matrix.image }}
