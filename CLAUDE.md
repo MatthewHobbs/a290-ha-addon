@@ -74,6 +74,20 @@ and uses Playwright across ~10 phone viewports to fail on any text truncation or
 Ruff config (`ruff.toml`): line-length 120, target py311, `select = E,F,W,B,I`,
 `ignore = E501,B008`.
 
+## Reviews — Claude + codex, compared
+
+Every review of a change here — PR review, diff review, pre-merge review, security review —
+is run **twice: once by Claude and once independently by `codex`** — and the two results
+reconciled. A single reviewer misses things and can be confidently wrong; two independent
+passes surface contradictions and errors that one alone won't, and the comparison is the
+point (not just running both).
+
+- `codex exec review --base <branch>` (PR vs base), `codex exec review --uncommitted`
+  (working tree), or `codex exec review --commit <sha>` — run from the repo root.
+- Compare the two explicitly: where they agree, where they contradict, and anything one
+  caught that the other missed. Reconcile — don't just stack both.
+- Surface contradictions and errors rather than silently picking one.
+
 ## Before recommending a merge: build the container locally
 
 This add-on ships as a container image that HA Supervisor pulls **by tag** (`config.yaml`
