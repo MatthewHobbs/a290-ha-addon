@@ -12,7 +12,11 @@ PY="${PYTHON:-python3}"
 HA_IMAGE="${HA_IMAGE:-ghcr.io/home-assistant/home-assistant:stable}"
 CONFIG="$(mktemp -d)"
 
-cleanup() { docker rm -f ha-ui >/dev/null 2>&1 || true; rm -rf "$CONFIG"; }
+cleanup() {
+  docker rm -f ha-ui >/dev/null 2>&1 || true
+  # HA writes .storage as root, so a plain rm fails on Linux CI — fall back to sudo.
+  rm -rf "$CONFIG" 2>/dev/null || sudo rm -rf "$CONFIG" 2>/dev/null || true
+}
 trap cleanup EXIT
 
 echo "==> Vendor custom cards into the HA www/ (same-origin, no CORS issues)"

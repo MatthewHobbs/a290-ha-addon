@@ -13,7 +13,7 @@
         heading: Vehicle Status
         heading_style: title
         card_mod:
-          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
       - type: picture-elements
         image: /local/backgrounds/alpine_a290_background.png
         visibility:
@@ -417,7 +417,7 @@
         heading: Climate/Charging Presets
         heading_style: title
         card_mod:
-          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
       - type: custom:mushroom-entity-card
         entity: sensor.alpine_a290_preconditioning_temperature
         name: Desired Temp
@@ -475,7 +475,7 @@
         heading: Last Charge
         heading_style: title
         card_mod:
-          style: :host{margin-top:40px;display:block;}.content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+          style: :host{margin-top:40px;display:block;}.content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
         visibility:
         - condition: state
           entity: binary_sensor.a290_test_show_panel
@@ -591,7 +591,7 @@
         heading: Test Charge
         heading_style: title
         card_mod:
-          style: :host{margin-top:40px;display:block;}.content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+          style: :host{margin-top:40px;display:block;}.content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
         visibility:
         - condition: state
           entity: binary_sensor.a290_test_show_panel
@@ -734,7 +734,7 @@
         heading: Last Activity
         heading_style: title
         card_mod:
-          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
       - type: horizontal-stack
         cards:
         - type: custom:mushroom-entity-card
@@ -770,7 +770,7 @@
         heading: Current Location
         heading_style: title
         card_mod:
-          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
       - type: custom:mushroom-template-card
         entity: sensor.a290
         primary: LOCATION
@@ -802,7 +802,7 @@
         heading: Remote Control
         heading_style: title
         card_mod:
-          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
       - type: grid
         square: false
         columns: 3
@@ -898,7 +898,7 @@
         heading: Update / Test / Errors
         heading_style: title
         card_mod:
-          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}
+          style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}@media(max-width:430px){.content{letter-spacing:0.5px !important;}}
       - type: grid
         columns: 2
         square: false

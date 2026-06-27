@@ -115,8 +115,13 @@ def run():
                 try:
                     page.goto(f"{args.base}/{dash}", wait_until="domcontentloaded", timeout=30000)
                     page.wait_for_function(JS_RENDERED, timeout=30000)
-                    try:
-                        page.evaluate("document.fonts && document.fonts.ready")
+                    try:  # actually load Zen Dots before measuring — fonts.ready alone resolves
+                        page.evaluate(                                 # before a not-yet-applied font fetches
+                            "async () => { try {"
+                            " await document.fonts.load('400 12px \"Zen Dots\"');"
+                            " await document.fonts.load('700 13px \"Zen Dots\"');"
+                            " await document.fonts.ready;"
+                            " } catch (e) {} }")
                     except Exception:
                         pass
                     page.wait_for_timeout(1200)  # settle layout + late cards
