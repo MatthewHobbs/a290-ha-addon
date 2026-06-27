@@ -18,3 +18,10 @@ htmlcov/
 secrets.yaml
 .env
 *.local
+
+# Personal/local settings only
+*.local.json
+
+# Editor / IDE
+.vscode/
+.idea/
