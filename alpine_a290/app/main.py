@@ -498,7 +498,8 @@ async def resolve_account(client):
     person = await client.get_person()
     for account in person.accounts:
         if account.accountType == "MYRENAULT":
-            LOG.info("Auto-discovered account id: %s", account.accountId)
+            LOG.info("Auto-discovered MYRENAULT account")
+            LOG.debug("Account id: %s", account.accountId)
             return account.accountId
     raise RuntimeError("No MYRENAULT account found and A290_ACCOUNT_ID not set")
 
@@ -566,7 +567,8 @@ async def _dump_one(out, name, call, secrets):
 
 async def dump_api(vehicle):
     """DEBUG: fetch every readable endpoint, redact IDs/secrets, log the lot. Never fatal."""
-    secrets = [v for v in (cfg("A290_VIN"), cfg("A290_ACCOUNT_ID"), cfg("A290_USERNAME")) if v]
+    secrets = [v for v in (cfg("A290_VIN"), cfg("A290_ACCOUNT_ID"), cfg("A290_USERNAME"),
+                           cfg("A290_PASSWORD")) if v]
     out = {}
     for meth in _DEBUG_METHODS:
         fn = getattr(vehicle, meth, None)

@@ -1027,47 +1027,6 @@
             card:
               type: custom:mushroom-entity-card
               entity: binary_sensor.alpine_a290_api_auth_failure
-              name: CLI Prompt
-              icon: mdi:console
-              secondary_info: state
-              tap_action:
-                action: call-service
-                service: browser_mod.popup
-                data:
-                  title: CLI Prompted On Script Call
-                  content:
-                    type: vertical-stack
-                    cards:
-                    - type: markdown
-                      content: |-
-                        **What happened?**
-
-                        One or more Alpine RAW scripts tried to call the Alpine CLI and it attempted to prompt for interactive input.
-
-                        **Why you still see data**
-
-                        Your scripts can fall back to cached JSON, so values may still look valid, but `ok: false` means the latest live call did **not** succeed.
-
-                        **What to do?**
-
-                        - Run your Auto-Reauth (8) automation or your login script.
-                        - If it persists, check `/config/renault/renault_api_login.log` and `/config/renault_cli.log`.
-              hold_action:
-                action: none
-              double_tap_action:
-                action: none
-              card_mod:
-                style:
-                  mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-                  mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
-                  .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_api_auth_failure') =='on' %}color:red;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.4;animation:none{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
-          - type: conditional
-            conditions:
-            - entity: binary_sensor.alpine_a290_api_auth_failure
-              state: 'on'
-            card:
-              type: custom:mushroom-entity-card
-              entity: binary_sensor.alpine_a290_api_auth_failure
               name: Auth Failure
               icon: mdi:account-alert
               secondary_info: state
@@ -1116,7 +1075,7 @@
                 action: call-service
                 service: browser_mod.popup
                 data:
-                  title: RAW Data Stale
+                  title: Data Stale
                   content:
                     type: vertical-stack
                     cards:
@@ -1124,16 +1083,16 @@
                       content: |-
                         **What happened?**
 
-                        One or more Alpine RAW sensors have not refreshed within the expected time window (stale threshold is 6 hours).
+                        The Alpine A290 sensors have not refreshed within the expected time window (the `stale_hours` threshold, 6 hours by default).
 
                         **What this means**
 
-                        Values may still be shown, but they may be old (stale). The system will typically recover after the next successful login + refresh.
+                        Values may still be shown, but they may be old (stale). It will typically recover after the next successful poll.
 
                         **What to do?**
 
-                        - Run your Auto-Reauth (8) automation or trigger a manual refresh.
-                        - Check `/config/renault_cli.log` for errors if it keeps happening.
+                        - Check the **Alpine A290 add-on** log (Settings → Add-ons → Alpine A290 → Log).
+                        - Restart the add-on to trigger an immediate poll.
               hold_action:
                 action: none
               double_tap_action:
