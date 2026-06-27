@@ -88,3 +88,8 @@ NUMBERS = {
 # Cleared on every discovery publish so retired entities don't linger on existing installs.
 # soc_min/soc_target moved from SENSORS to NUMBERS, so their old sensor configs are cleared.
 RETIRED_SENSORS = ["a290_cabin_temperature", "a290_soc_target", "a290_soc_min"]
+
+# Published but disabled in the entity registry by default — mapping artifacts with no
+# user-meaningful state. drive_side is just RHD/LHD derived from locale (used internally for
+# heated-seat mapping); it adds noise to the entity list. Users who want it can re-enable it.
+DEFAULT_DISABLED_SENSORS = {"a290_drive_side"}

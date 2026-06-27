@@ -45,17 +45,9 @@ def _validate_url_path(url_path):
     return p
 
 IMG_MAP = {
-    "alpine_a290_background.png": "Images/Background/alpine_a290_background.png",
-    "alpine_a290_side.png": "Images/Background/alpine_a290_side.png",
-    "alpine_a290_tornado_grey.png": "Images/Background/alpine_a290_tornado_grey.png",
-    "card-background.jpg": "Images/Background/card-background.jpg",
+    "alpine_a290_background.webp": "Images/Background/alpine_a290_background.webp",
+    "alpine_a290_side.webp": "Images/Background/alpine_a290_side.webp",
     "charge-indicator.png": "Images/Charging/charge-indicator.png",
-    "map-marker-black.png": "Images/Map%20Markers/map-marker-black.png",
-    "map-marker-grey.png": "Images/Map%20Markers/map-marker-grey.png",
-    "map-marker-pop-green.png": "Images/Map%20Markers/map-marker-pop-green.png",
-    "map-marker-pop-yellow.png": "Images/Map%20Markers/map-marker-pop-yellow.png",
-    "map-marker-white.png": "Images/Map%20Markers/map-marker-white.png",
-    "rmap-marker-midnight-blue.png": "Images/Map%20Markers/rmap-marker-midnight-blue.png",
 }
 
 

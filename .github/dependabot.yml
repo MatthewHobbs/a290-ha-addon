@@ -1,0 +1,22 @@
+# Dependabot — weekly checks for GitHub Actions and the add-on's Python deps.
+# renault-api is deliberately NOT auto-updated: per-model endpoint support is hard-coded in
+# the library (see CLAUDE.md), so it is bumped manually after a docker-verified review.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: "/alpine_a290/app"
+    schedule:
+      interval: weekly
+    ignore:
+      - dependency-name: renault-api
+    groups:
+      python:
+        patterns: ["*"]
