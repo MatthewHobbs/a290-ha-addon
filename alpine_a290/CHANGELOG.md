@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.8
+
+- **Auto-deployed dashboards are now pinned to the release.** When the add-on installs a
+  dashboard it now rewrites the image/asset CDN refs to this release's **`v<version>` git
+  tag** (created by the release workflow) instead of `@main`, so a deployed dashboard is
+  **reproducible** and can't shift under you when `main` moves. Dev/untagged builds still use
+  `@main`.
+
 ## 1.4.7
 
 - **Pre-built, signed images — faster, more reliable installs.** The add-on is now published
