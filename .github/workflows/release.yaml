@@ -28,6 +28,7 @@ jobs:
       name: ${{ steps.normalize.outputs.name }}
       description: ${{ steps.normalize.outputs.description }}
       url: ${{ steps.normalize.outputs.url }}
+      is_new: ${{ steps.newcheck.outputs.is_new }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
@@ -49,6 +50,18 @@ jobs:
           url="${{ steps.info.outputs.url }}"
           if [[ -n "$url" && "$url" != "null" ]]; then
             echo "url=${url}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Is this version already released?
+        id: newcheck
+        run: |
+          tag="v${{ steps.normalize.outputs.version }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "is_new=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::${tag} already exists — image/tag publish will be skipped (no version bump)."
+          else
+            echo "is_new=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::${tag} is new — image will be published and tagged on push to main."
           fi
 
       - name: Prepare build matrix
@@ -90,13 +103,13 @@ jobs:
             io.hass.name=${{ needs.prepare.outputs.name }}
             io.hass.description=${{ needs.prepare.outputs.description }}
             ${{ needs.prepare.outputs.url && format('io.hass.url={0}', needs.prepare.outputs.url) || '' }}
-          push: ${{ github.event_name == 'push' }}
+          push: ${{ github.event_name == 'push' && needs.prepare.outputs.is_new == 'true' }}
           version: ${{ needs.prepare.outputs.version }}
 
   manifest:
     name: Publish multi-arch manifest
     needs: [prepare, build]
-    if: github.event_name == 'push'
+    if: ${{ github.event_name == 'push' && needs.prepare.outputs.is_new == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -116,7 +129,7 @@ jobs:
   tag:
     name: Tag release
     needs: [prepare, manifest]
-    if: github.event_name == 'push'
+    if: ${{ github.event_name == 'push' && needs.prepare.outputs.is_new == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write   # create the git tag + GitHub Release
