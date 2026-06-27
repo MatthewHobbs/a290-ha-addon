@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.6.0
+
+UX pass — a fresh product + design review of the current dashboards, acted on in lockstep
+with the R5 add-on.
+
+- **The standard dashboard now deploys by default** (`deploy_dashboard: standard`). Most
+  users want a dashboard on first boot; the old `none` default left a fresh install with no
+  dashboard until the option was found and changed. The auto-deploy path is hardened
+  (validated url path, never overwrites an existing dashboard). Don't want it? Set
+  `deploy_dashboard: none`. DOCS now states the HACS cards are needed **before first start**
+  and explains where to find your VIN.
+- **Last Charge tiles are now self-describing.** "Start/End/Gain" repeated across the Time,
+  State-of-Charge and Energy rows (six tiles labelled "Start"); they're now
+  `Started / Ended / Duration`, `SoC Start / SoC End / SoC Gain`,
+  `Energy Start / Energy End / Energy Added`.
+- **Charge-limit (SoC) numbers stand out.** The Min/Target/Current values were the same size
+  as their labels; the value is now larger, with the current SoC in white and the target in
+  green.
+- **Bubble dashboard: restored the "Stop Charging" signal.** The bubble Commands pop-up now
+  shows a disabled charge-control tile (parity with the standard dashboard) so the A290's
+  charge-start/stop API limitation is visible there too.
+- **Fixes:** removed a duplicate "Initial" charging-power tile (it showed the same value as
+  "Avg."); the "Run Test Charge" tile pointed at a non-existent entity (always "unavailable")
+  — now wired to the real button; the location card no longer depends on the optional Places
+  sensor to render; and an "A Alpine"→"An Alpine" typo in the auth-failure pop-up.
+- **`Drive Side` is hidden by default** (a RHD/LHD mapping artifact, not user-meaningful) —
+  re-enable it in the entity settings if you want it.
+- **Status panel shows units** (range, kW, kWh, °C, distance per your locale).
+- **Much lighter dashboards.** Backgrounds converted to WebP and unused images removed —
+  the bundled image assets dropped from ~5 MB to ~240 KB, so the dashboard paints far faster
+  on mobile.
+
 ## 1.5.1
 
 - **Fix: add-on failed to start after updating (AppArmor).** The custom AppArmor profile

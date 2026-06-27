@@ -2,7 +2,7 @@
     icon: mdi:car-sports
     theme: poplars-dark
     background:
-      image: /local/backgrounds/alpine_a290_background.png
+      image: /local/backgrounds/alpine_a290_background.webp
       size: cover
       alignment: center
       repeat: no-repeat
@@ -112,7 +112,7 @@
       shadow_opacity: '0'
       cards:
       - type: picture
-        image: /local/backgrounds/alpine_a290_background.png
+        image: /local/backgrounds/alpine_a290_background.webp
       - type: custom:bubble-card
         card_type: separator
         name: Batt / Range / Mileage
@@ -170,7 +170,7 @@
         icon: mdi:map-marker
         styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: custom:mushroom-template-card
-        entity: sensor.a290
+        entity: device_tracker.alpine_a290_location
         primary: LOCATION
         secondary: '{{ states(''sensor.alpine_pretty_location'') }}'
         icon: mdi:map-marker
@@ -477,10 +477,12 @@
                 letter-spacing: 0.2px;
               }
               .minbig, .maxbig, .curbig {
-                font-size: 14px;
+                font-size: 18px;
                 font-weight: 700;
                 color: orange;
               }
+              .curbig { color: #ffffff; }
+              .maxbig { color: #3ddc84; }
               .tri {
                 width: 0;
                 height: 0;
@@ -496,7 +498,7 @@
           state: Disconnected
         card:
           type: picture
-          image: /local/backgrounds/alpine_a290_side.png
+          image: /local/backgrounds/alpine_a290_side.webp
       - type: horizontal-stack
         cards:
         - type: custom:bubble-card
@@ -675,6 +677,22 @@
               target:
                 entity_id: button.alpine_a290_stop_climate
           styles: .bubble-icon-container{color:red !important;}
+      - type: custom:bubble-card
+        card_type: separator
+        name: Charge Control
+        icon: mdi:ev-station
+        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
+      # Ghost tile: the A290's API forbids charge start/stop, so this is shown disabled to
+      # signal the limitation (parity with the standard dashboard) rather than hidden.
+      - type: custom:bubble-card
+        card_type: button
+        button_type: name
+        name: Stop Charging (unavailable on A290)
+        icon: mdi:stop-circle
+        button_action:
+          tap_action:
+            action: none
+        styles: .bubble-icon-container{color:grey !important;opacity:0.3;}.bubble-name{opacity:0.5;}
     - type: custom:bubble-card
       card_type: pop-up
       hash: '#alpine-activity'
@@ -728,7 +746,7 @@
         icon: mdi:map-marker
         styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: custom:mushroom-template-card
-        entity: sensor.a290
+        entity: device_tracker.alpine_a290_location
         primary: LOCATION
         secondary: '{{ states(''sensor.alpine_pretty_location'') }}'
         icon: mdi:map-marker
@@ -772,21 +790,21 @@
           card_type: button
           button_type: state
           entity: sensor.alpine_a290_last_charge_start
-          name: Start
+          name: Started
           icon: mdi:clock-start
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:green !important;opacity:1;"}}
         - type: custom:bubble-card
           card_type: button
           button_type: state
           entity: sensor.alpine_a290_last_charge_end
-          name: End
+          name: Ended
           icon: mdi:clock-end
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:red !important;opacity:1;"}}
         - type: custom:bubble-card
           card_type: button
           button_type: state
           entity: sensor.alpine_a290_last_charge_duration
-          name: Total
+          name: Duration
           icon: mdi:timer
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":""}}
       - type: horizontal-stack
@@ -795,21 +813,21 @@
           card_type: button
           button_type: state
           entity: sensor.alpine_a290_last_charge_start_soc
-          name: Start
+          name: SoC Start
           icon: mdi:battery-20
           styles: .bubble-icon-container{color:green !important;}
         - type: custom:bubble-card
           card_type: button
           button_type: state
           entity: sensor.alpine_a290_last_charge_end_soc
-          name: End
+          name: SoC End
           icon: mdi:battery-80
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:red !important;opacity:1;"}}
         - type: custom:bubble-card
           card_type: button
           button_type: state
           entity: sensor.alpine_a290_last_charge_soc_recovered
-          name: Gain
+          name: SoC Gain
           icon: mdi:battery-plus
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:green !important;opacity:1;"}}
       - type: horizontal-stack
@@ -818,32 +836,25 @@
           card_type: button
           button_type: state
           entity: sensor.alpine_a290_last_charge_start_energy
-          name: Start
+          name: Energy Start
           icon: mdi:flash
           styles: .bubble-icon-container{color:green !important;}
         - type: custom:bubble-card
           card_type: button
           button_type: state
           entity: sensor.alpine_a290_last_charge_end_energy
-          name: End
+          name: Energy End
           icon: mdi:flash
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:red !important;opacity:1;"}}
         - type: custom:bubble-card
           card_type: button
           button_type: state
           entity: sensor.alpine_a290_last_charge_energy_recovered
-          name: Gain
+          name: Energy Added
           icon: mdi:flash-outline
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:green !important;opacity:1;"}}
       - type: horizontal-stack
         cards:
-        - type: custom:bubble-card
-          card_type: button
-          button_type: state
-          entity: sensor.alpine_a290_last_charge_average_power
-          name: Initial
-          icon: mdi:speedometer
-          styles: .bubble-icon-container{color:orange !important;}
         - type: custom:bubble-card
           card_type: button
           button_type: state
