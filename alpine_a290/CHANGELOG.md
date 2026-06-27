@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.4.4
+## 1.4.5
 
 - **Custom AppArmor profile — raises the Supervisor security rating to 6.** Ships
   `apparmor.txt`, confining the poller to the files (read-only system + `/app`, read-write
@@ -11,7 +11,7 @@
   enforces the same slug rule the code applies (lowercase, must contain a hyphen), so a bad
   value is rejected at input instead of silently skipping the dashboard deploy.
 
-## 1.4.3
+## 1.4.4
 
 - **Guard `dashboard_url_path` against overwriting a built-in Home Assistant panel.** Before
   auto-deploying, the add-on now validates the configured path (lowercase slug, must contain
