@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.4.2
+
+- **Fix dashboard pop-up help that referenced the old CLI integration.** Removed a leftover
+  **"CLI Prompt"** tile that duplicated the auth-failure tile with obsolete advice (RAW
+  scripts, the Alpine CLI, `Auto-Reauth (8)`, `/config/renault_cli.log`), and rewrote the
+  **"Data Stale"** pop-up to point at the **add-on Log** and a restart instead of those
+  non-existent files/automations. The add-on has no CLI or shell scripts, so the old text
+  was wrong for every current user.
+- **Bubble dashboard:** removed a redundant full-size background image from the **main menu**
+  pop-up — it duplicated the page background and could render as a broken strip on first load.
+- **Privacy:** the Kamereon **account id is no longer logged at `info`** (now only at
+  `debug`), and the account **password is added to the `debug_dump` redaction list** so it
+  can never appear unmasked in a dump.
+- **Docs:** added a **"Before you start"** prerequisites section to `DOCS.md` so the required
+  HACS frontend cards are installed **before** a dashboard is deployed (otherwise tiles show
+  *"Custom element doesn't exist"*).
+
 ## 1.4.1
 
 - **Fix dashboard text truncation on phones, with consistent typography.** Tile labels and

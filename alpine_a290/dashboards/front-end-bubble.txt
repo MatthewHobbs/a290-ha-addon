@@ -20,8 +20,6 @@
       bg_blur: '6'
       shadow_opacity: '0'
       cards:
-      - type: picture
-        image: /local/backgrounds/alpine_a290_background.png
       - type: horizontal-stack
         cards:
         - type: custom:bubble-card
