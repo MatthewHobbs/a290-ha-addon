@@ -18,3 +18,10 @@ htmlcov/
 secrets.yaml
 .env
 *.local
+
+# Claude Code — personal/local settings only (CLAUDE.md and any shared .claude/ config stay tracked)
+.claude/settings.local.json
+
+# Editor / IDE
+.vscode/
+.idea/

@@ -5,9 +5,9 @@ Home Assistant **add-on** for the **Alpine A290** EV. It polls the Renault/Kamer
 / `button.*` / `number.*` entities over **MQTT auto-discovery** — no shell scripts, no
 `venv`, no `secrets.yaml`. Credentials are entered on the add-on's Configuration page.
 
-A sibling repo, **`r5-ha-addon`** (`~/Documents/GitHub/r5-ha-addon`), is the Renault 5 port
-of the same code. **Keep the two in lockstep** — most feature/fix work here should be
-mirrored there (adjusting for per-model API differences), and vice-versa.
+A sibling repo, **`MatthewHobbs/r5-ha-addon`**, is the Renault 5 port of the same code.
+**Keep the two in lockstep** — most feature/fix work here should be mirrored there
+(adjusting for per-model API differences), and vice-versa.
 
 ## Layout
 
@@ -77,8 +77,9 @@ Ruff config (`ruff.toml`): line-length 120, target py311, `select = E,F,W,B,I`,
 ## Before recommending a merge: build the container locally
 
 This add-on ships as a container image that HA Supervisor pulls **by tag** (`config.yaml`
-`version`). Per the user's standing rule, a version-bump / runtime PR is **not** verified by
-CI alone — build and boot the image locally and observe the changed behaviour first:
+`version`), so the production platform can't be live-verified until *after* a release is
+tagged and published. A version-bump / runtime PR is therefore **not** considered verified
+by CI alone — build and boot the image locally and observe the changed behaviour first:
 
 ```sh
 docker buildx build --platform linux/amd64 \
