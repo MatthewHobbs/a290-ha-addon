@@ -39,8 +39,8 @@
           hold_action: none
           triggers_update:
           - sensor.alpine_a290_battery_level
-          - sensor.alpine_a290_charge_target_soc
-          - sensor.alpine_a290_minimum_soc
+          - number.alpine_a290_charge_target_soc
+          - number.alpine_a290_minimum_soc
           - binary_sensor.alpine_a290_charging
           show_name: false
           show_state: true
@@ -56,7 +56,7 @@
               <div></div>
             min_badge: |
               [[[
-                const s = states['sensor.alpine_a290_minimum_soc']?.state;
+                const s = states['number.alpine_a290_minimum_soc']?.state;
                 const v = (s === undefined || s === null || s === 'unknown' || s === 'unavailable')
                   ? '—'
                   : String(s).replace('%','');
@@ -71,7 +71,7 @@
               <div></div>
             max_badge: |
               [[[
-                const s = states['sensor.alpine_a290_charge_target_soc']?.state;
+                const s = states['number.alpine_a290_charge_target_soc']?.state;
                 const v = (s === undefined || s === null || s === 'unknown' || s === 'unavailable')
                   ? '—'
                   : String(s).replace('%','');
@@ -198,7 +198,7 @@
                     const TRACK_LEFT = 8;
                     const TRACK_RIGHT = 90;
 
-                    const s = states['sensor.alpine_a290_minimum_soc']?.state;
+                    const s = states['number.alpine_a290_minimum_soc']?.state;
                     const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
                     const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
                     return `${pos}%`;
@@ -217,7 +217,7 @@
                     const TRACK_LEFT = 8;
                     const TRACK_RIGHT = 90;
 
-                    const s = states['sensor.alpine_a290_charge_target_soc']?.state;
+                    const s = states['number.alpine_a290_charge_target_soc']?.state;
                     const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
                     const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
                     return `${pos}%`;
@@ -237,7 +237,7 @@
                     const TRACK_LEFT = 8;
                     const TRACK_RIGHT = 90;
 
-                    const s = states['sensor.alpine_a290_minimum_soc']?.state;
+                    const s = states['number.alpine_a290_minimum_soc']?.state;
                     const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
                     const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
                     return `${pos}%`;
@@ -257,7 +257,7 @@
                     const TRACK_LEFT = 8;
                     const TRACK_RIGHT = 90;
 
-                    const s = states['sensor.alpine_a290_charge_target_soc']?.state;
+                    const s = states['number.alpine_a290_charge_target_soc']?.state;
                     const v = Math.max(0, Math.min(100, parseFloat(String(s).replace('%','')) || 0));
                     const pos = TRACK_LEFT + (v / 100) * (TRACK_RIGHT - TRACK_LEFT);
                     return `${pos}%`;
@@ -454,7 +454,7 @@
             mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
             .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_heated_seat_driver') =='on' %}color:red;{% else %}color:grey;opacity:0.4;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
       - type: custom:mushroom-entity-card
-        entity: sensor.alpine_a290_minimum_soc
+        entity: number.alpine_a290_minimum_soc
         name: Min SOC
         icon: ''
         card_mod:
@@ -463,7 +463,7 @@
             mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
             .: ha-state-icon{color:red;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
       - type: custom:mushroom-entity-card
-        entity: sensor.alpine_a290_charge_target_soc
+        entity: number.alpine_a290_charge_target_soc
         name: Max SOC
         icon: ''
         card_mod:
