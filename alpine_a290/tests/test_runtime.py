@@ -633,3 +633,73 @@ def test_main_exits_on_missing_config(monkeypatch):
         monkeypatch.delenv(k, raising=False)
     with pytest.raises(SystemExit):
         asyncio.run(main.main())
+
+
+# --------------------------------------------------------------------------- #
+# Parity with the R5 twin: state round-trip, cached-login failure modes, and the
+# sync/async supports_endpoint wrapper (these guard the same code paths R5 tests).
+# --------------------------------------------------------------------------- #
+def test_state_roundtrip(monkeypatch, tmp_path):
+    f = tmp_path / "state.json"
+    monkeypatch.setattr(main, "STATE_FILE", str(f))
+    assert main.load_state() == {}            # missing file
+    main.save_state({"a": 1})
+    assert main.load_state() == {"a": 1}
+    f.write_text("{not json")
+    assert main.load_state() == {}            # corrupt file
+
+
+def test_vehicle_session_invalidates_on_login_failure(monkeypatch):
+    closed = {"n": 0}
+
+    class FakeSession:
+        async def close(self):
+            closed["n"] += 1
+
+    monkeypatch.setattr(main.aiohttp, "ClientSession", lambda *a, **k: FakeSession())
+
+    async def boom(ws, loc):
+        raise RuntimeError("login refused")
+
+    monkeypatch.setattr(main, "_login_vehicle", boom)
+
+    async def scenario():
+        vs = main.VehicleSession("en_GB")
+        with pytest.raises(RuntimeError):
+            await vs.vehicle()
+        assert closed["n"] == 1          # half-open session was closed
+        assert vs._vehicle is None
+
+    asyncio.run(scenario())
+
+
+def test_invalidate_swallows_close_error():
+    class BadSession:
+        async def close(self):
+            raise RuntimeError("already closed")
+
+    async def scenario():
+        vs = main.VehicleSession("en_GB")
+        vs._websession = BadSession()
+        await vs.invalidate()            # must not raise
+        assert vs._websession is None
+
+    asyncio.run(scenario())
+
+
+def test_supports_handles_sync_and_async():
+    class SyncV:
+        def supports_endpoint(self, ep):
+            return True
+
+    class AsyncV:
+        def supports_endpoint(self, ep):
+            async def _a():
+                return True
+            return _a()
+
+    async def scenario():
+        assert await main._supports(SyncV(), "x") is True
+        assert await main._supports(AsyncV(), "x") is True
+
+    asyncio.run(scenario())
