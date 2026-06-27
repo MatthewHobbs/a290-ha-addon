@@ -14,7 +14,6 @@ init: false
 # Read-only status panel in the HA sidebar (ingress; auth-gated by HA). Served by the
 # poller's own HTTP server on the health port — no extra Supervisor role, no config writes.
 ingress: true
-ingress_port: 8099
 panel_icon: mdi:car-sports
 panel_title: Alpine A290
 # Talk to the HA core API (used to auto-deploy the dashboard, when enabled).
