@@ -9,8 +9,6 @@ arch:
 init: false
 # Talk to the HA core API (used to auto-deploy the dashboard, when enabled).
 homeassistant_api: true
-# Let the Supervisor restart the add-on if the poller's health endpoint stops responding.
-watchdog: "http://[HOST]:[PORT:8099]/healthz"
 # Pull MQTT broker connection from the Mosquitto add-on automatically.
 services:
   - mqtt:need
