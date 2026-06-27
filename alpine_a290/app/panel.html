@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alpine A290</title>
+<style>
+  :root { --bg:#14171b; --card:#1c2127; --line:#2a313a; --fg:#e8eaed; --muted:#9aa3ad;
+          --accent:#ffd400; --ok:#3ddc84; --warn:#ff5252; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+           padding:14px 16px; border-bottom:1px solid var(--line); }
+  h1 { font-size:1.05rem; margin:0; letter-spacing:.5px; text-transform:uppercase; }
+  .status { font-size:.78rem; padding:3px 10px; border-radius:999px; white-space:nowrap; }
+  .status.ok { background:rgba(61,220,132,.15); color:var(--ok); }
+  .status.bad { background:rgba(255,82,82,.15); color:var(--warn); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+          gap:10px; padding:16px; }
+  .tile { background:var(--card); border:1px solid var(--line); border-radius:12px;
+          padding:12px 14px; }
+  .tile .k { font-size:.72rem; color:var(--muted); text-transform:uppercase;
+             letter-spacing:.4px; white-space:normal; }
+  .tile .v { font-size:1.25rem; font-weight:600; margin-top:4px; white-space:normal;
+             word-break:break-word; }
+  .tile .v.warn { color:var(--warn); }
+  .tile .v.ok { color:var(--ok); }
+  .bar { height:6px; border-radius:3px; background:var(--line); margin-top:8px; overflow:hidden; }
+  .bar > span { display:block; height:100%; background:var(--accent); }
+  footer { color:var(--muted); font-size:.74rem; padding:6px 16px 18px;
+           display:flex; flex-wrap:wrap; gap:4px 14px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Alpine A290</h1>
+  <span id="status" class="status">…</span>
+</header>
+<div id="grid" class="grid"></div>
+<footer>
+  <span id="version"></span><span id="endpoints"></span><span id="updated"></span>
+</footer>
+<script>
+  const $ = (id) => document.getElementById(id);
+  // Escape any backend/API-provided value before it reaches innerHTML (defends the
+  // authenticated ingress frame against unexpected markup in an API string field).
+  const esc = (v) => String(v).replace(/[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const num = (v, u = "") => (v === null || v === undefined || v === "" ? "—" : v + u);
+
+  function tile(k, v, cls = "", extra = "") {
+    return `<div class="tile"><div class="k">${esc(k)}</div>` +
+           `<div class="v ${cls}">${esc(v)}</div>${extra}</div>`;
+  }
+
+  function render(s) {
+    const d = s.data || {};
+    const bad = !s.ok || d.api_auth_failure === "on" || d.data_stale === "on";
+    const st = $("status");
+    st.className = "status " + (bad ? "bad" : "ok");
+    st.textContent = d.api_auth_failure === "on" ? "Auth failure"
+                   : d.data_stale === "on" ? "Data stale"
+                   : s.ok ? "Online" : "Starting…";
+
+    const batt = d.battery_level;
+    const tiles = [];
+    if (batt !== undefined)
+      tiles.push(tile("Battery", num(batt, "%"),
+        batt <= 15 ? "warn" : batt > 30 ? "ok" : "",
+        `<div class="bar"><span style="width:${Math.max(0, Math.min(100, batt))}%"></span></div>`));
+    tiles.push(tile("Range", num(d.range)));
+    tiles.push(tile("Charging", num(d.charging_status), d.charging === "on" ? "ok" : ""));
+    if (d.charging === "on") tiles.push(tile("Charging Power", num(d.charging_power)));
+    tiles.push(tile("Plug", num(d.plug_status)));
+    tiles.push(tile("Available Energy", num(d.available_energy)));
+    tiles.push(tile("Mileage", num(d.mileage)));
+    tiles.push(tile("Climate", num(d.hvac_status)));
+    tiles.push(tile("Outside Temp", num(d.external_temperature)));
+    tiles.push(tile("Charge Limits", `${num(d.soc_min, "%")} – ${num(d.soc_target, "%")}`));
+    if (d.last_charge_type) tiles.push(tile("Last Charge", num(d.last_charge_type)));
+    if (d.plug_suspect === "on") tiles.push(tile("Plug State", "Suspect", "warn"));
+    $("grid").innerHTML = tiles.join("");
+
+    $("version").textContent = "v" + (s.version || "?");
+    $("endpoints").textContent = (s.supported || []).length + " endpoints supported";
+    $("updated").textContent = s.last_poll ? "polled " + new Date(s.last_poll).toLocaleString() : "";
+  }
+
+  async function tick() {
+    try {
+      const r = await fetch("api/state", { cache: "no-store" });
+      render(await r.json());
+    } catch (e) {
+      $("status").className = "status bad";
+      $("status").textContent = "Panel offline";
+    }
+  }
+  tick();
+  setInterval(tick, 10000);
+</script>
+</body>
+</html>

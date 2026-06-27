@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.0
+
+- **Read-only status panel in the sidebar (ingress).** The add-on now serves a small
+  **at-a-glance panel** — battery, range, charging, plug, climate, charge limits,
+  diagnostics — straight from the Home Assistant sidebar, no dashboard required. It'\''s
+  **read-only** (it shows the latest poll; it never changes anything) and **auth-gated by
+  Home Assistant** (ingress). Served by the poller'\''s own HTTP server, so it needs **no extra
+  Supervisor permissions** and stores **no credentials or raw GPS**. *(This also takes the
+  add-on'\''s Supervisor security rating from 6 to 8 — ingress is the legitimate way to reach
+  it.)* Config stays on the Configuration tab as before.
+
 ## 1.4.8
 
 - **Auto-deployed dashboards are now pinned to the release.** When the add-on installs a
