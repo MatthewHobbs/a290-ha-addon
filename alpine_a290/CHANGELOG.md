@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.4.5
+
+- **Custom AppArmor profile — raises the Supervisor security rating to 6.** Ships
+  `apparmor.txt`, confining the poller to the files (read-only system + `/app`, read-write
+  `/data`) and network (outbound TLS/DNS/MQTT and the health-port bind) it actually needs —
+  no mount, ptrace, raw sockets, or writes outside `/data`. (Rating goes 5 → 6; 6 is the
+  practical ceiling for an add-on without an ingress web UI.)
+
+## 1.4.4
+
+- **Guard `dashboard_url_path` against overwriting a built-in Home Assistant panel.** Before
+  auto-deploying, the add-on now validates the configured path (lowercase slug, must contain
+  a hyphen, and not a reserved HA path such as `energy` / `lovelace` / `developer-tools`) and
+  **skips with a clear log line** instead of pushing a Lovelace config to it. This stops a
+  mistyped or reserved value — especially with `redeploy_dashboard: true` — from clobbering
+  an existing dashboard or a core panel.
+
 ## 1.4.2
 
 - **Fix dashboard pop-up help that referenced the old CLI integration.** Removed a leftover
