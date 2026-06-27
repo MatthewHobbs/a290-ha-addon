@@ -7,9 +7,6 @@
   `/data`) and network (outbound TLS/DNS/MQTT and the health-port bind) it actually needs —
   no mount, ptrace, raw sockets, or writes outside `/data`. (Rating goes 5 → 6; 6 is the
   practical ceiling for an add-on without an ingress web UI.)
-- **`dashboard_url_path` is now validated on the Configuration page.** The option schema
-  enforces the same slug rule the code applies (lowercase, must contain a hyphen), so a bad
-  value is rejected at input instead of silently skipping the dashboard deploy.
 
 ## 1.4.4
 

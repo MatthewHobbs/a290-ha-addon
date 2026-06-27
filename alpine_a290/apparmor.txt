@@ -15,6 +15,8 @@ profile alpine_a290 flags=(attach_disconnected,mediate_deleted) {
   network inet udp,
   network inet6 udp,
   network netlink raw,
+  # s6-overlay v3's supervision tree communicates over AF_UNIX sockets — grant them.
+  unix,
 
   # S6-Overlay v3 supervision tree + the bashio entrypoint (CMD ["/run.sh"] execs python3).
   /run.sh rix,
@@ -31,7 +33,11 @@ profile alpine_a290 flags=(attach_disconnected,mediate_deleted) {
   /etc/cont-init.d/** rwix,
   /etc/cont-finish.d/** rwix,
 
-  # Read-only system libraries, config and the add-on code.
+  # Read-only system libraries, config and the add-on code. Python's shared libraries
+  # (libpython, libssl, native wheels) need mmap-exec ('m') — grant it explicitly rather
+  # than relying solely on abstractions/base's lib glob.
+  /usr/lib/** mr,
+  /lib/** mr,
   /usr/** r,
   /etc/** r,
   /app/** r,
