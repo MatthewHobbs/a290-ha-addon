@@ -44,11 +44,15 @@
 </footer>
 <script>
   const $ = (id) => document.getElementById(id);
+  // Escape any backend/API-provided value before it reaches innerHTML (defends the
+  // authenticated ingress frame against unexpected markup in an API string field).
+  const esc = (v) => String(v).replace(/[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const num = (v, u = "") => (v === null || v === undefined || v === "" ? "—" : v + u);
 
   function tile(k, v, cls = "", extra = "") {
-    return `<div class="tile"><div class="k">${k}</div>` +
-           `<div class="v ${cls}">${v}</div>${extra}</div>`;
+    return `<div class="tile"><div class="k">${esc(k)}</div>` +
+           `<div class="v ${cls}">${esc(v)}</div>${extra}</div>`;
   }
 
   function render(s) {
