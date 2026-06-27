@@ -19,6 +19,26 @@ FONT_URL = "https://fonts.googleapis.com/css2?family=Zen+Dots&display=swap"
 DASHBOARDS = {"standard": "front-end.txt", "bubble": "front-end-bubble.txt"}
 DASHBOARD_DIR = os.environ.get("A290_DASHBOARD_DIR", "/app/dashboards")
 
+# Built-in HA panels / dashboards we must never create-or-overwrite. (A custom dashboard
+# url_path must also contain a hyphen, which already excludes most single-word panels —
+# this set covers the hyphenated/underscored ones too.)
+RESERVED_URL_PATHS = {
+    "lovelace", "energy", "map", "logbook", "history", "config", "developer-tools",
+    "profile", "todo", "calendar", "media-browser", "default_view", "hassio", "shopping-list",
+}
+
+
+def _validate_url_path(url_path):
+    """Return a safe, lowercased dashboard url_path or raise ValueError. Guards against a
+    typo'd/hostile value silently overwriting a built-in HA panel via lovelace/config/save."""
+    p = url_path.strip().lower()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", p) or "-" not in p:
+        raise ValueError(f"invalid dashboard_url_path {url_path!r}: must be lowercase "
+                         "letters/digits/'-'/'_', start alphanumeric, and contain a hyphen")
+    if p in RESERVED_URL_PATHS:
+        raise ValueError(f"dashboard_url_path {url_path!r} is a reserved Home Assistant path")
+    return p
+
 IMG_MAP = {
     "alpine_a290_background.png": "Images/Background/alpine_a290_background.png",
     "alpine_a290_side.png": "Images/Background/alpine_a290_side.png",
@@ -137,6 +157,11 @@ async def run_deploy():
         LOG.warning("No SUPERVISOR_TOKEN (set homeassistant_api: true); skipping dashboard deploy")
         return
     url_path = os.environ.get("A290_DASHBOARD_URL_PATH", "alpine-a290").strip() or "alpine-a290"
+    try:
+        url_path = _validate_url_path(url_path)
+    except ValueError as err:
+        LOG.warning("Dashboard auto-deploy skipped — %s", err)
+        return
     redeploy = os.environ.get("A290_REDEPLOY_DASHBOARD", "false").strip().lower() in ("true", "1", "on")
 
     try:

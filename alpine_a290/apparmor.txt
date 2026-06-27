@@ -1,0 +1,51 @@
+#include <tunables/global>
+
+# Custom AppArmor profile for the Alpine A290 add-on. Confines the Python poller to the
+# files and network it actually needs: read-only system + /app code, read-write /data
+# (options.json + state.json) and scratch, outbound TCP/UDP (Kamereon HTTPS, DNS, MQTT) and
+# the /healthz bind. It deliberately does NOT grant mount, ptrace, raw packet sockets or
+# write access outside /data — so a compromised dependency can't escalate.
+profile alpine_a290 flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Networking: outbound TLS to Kamereon + MQTT (tcp), DNS resolution (udp), and the
+  # interface lookups aiohttp/getaddrinfo make over netlink.
+  network inet tcp,
+  network inet6 tcp,
+  network inet udp,
+  network inet6 udp,
+  network netlink raw,
+  # s6-overlay v3's supervision tree communicates over AF_UNIX sockets — grant them.
+  unix,
+
+  # S6-Overlay v3 supervision tree + the bashio entrypoint (CMD ["/run.sh"] execs python3).
+  /run.sh rix,
+  /init ix,
+  /bin/** ix,
+  /usr/bin/** ix,
+  /usr/local/bin/** ix,
+  /command/** ix,
+  /package/** ix,
+  /etc/s6-overlay/** ix,
+  /run/{s6,s6-rc*,service}/** rwix,
+  /run/** rwk,
+  /etc/services.d/** rwix,
+  /etc/cont-init.d/** rwix,
+  /etc/cont-finish.d/** rwix,
+
+  # Read-only system libraries, config and the add-on code. Python's shared libraries
+  # (libpython, libssl, native wheels) need mmap-exec ('m') — grant it explicitly rather
+  # than relying solely on abstractions/base's lib glob.
+  /usr/lib/** mr,
+  /lib/** mr,
+  /usr/** r,
+  /etc/** r,
+  /app/** r,
+
+  # Writable add-on data (/data/options.json + /data/state.json) and scratch.
+  /data/** rw,
+  /tmp/** rw,
+  /dev/tty rw,
+  /proc/sys/kernel/random/uuid r,
+  @{PROC}/@{pid}/** r,
+}
