@@ -13,7 +13,7 @@ import pytest
 # _cdnify — pure URL rewrite
 # --------------------------------------------------------------------------- #
 def test_cdnify_maps_known_image_to_cdn():
-    out = deploy._cdnify("image: /local/backgrounds/alpine_a290_background.png")
+    out = deploy._cdnify("image: /local/backgrounds/alpine_a290_background.webp")
     assert "cdn.jsdelivr.net" in out
     assert "/local/backgrounds/" not in out
 
@@ -24,7 +24,7 @@ def test_cdnify_leaves_unmapped_image_untouched():
 
 
 def test_cdnify_points_at_the_addon_repo():
-    out = deploy._cdnify("image: /local/backgrounds/alpine_a290_background.png")
+    out = deploy._cdnify("image: /local/backgrounds/alpine_a290_background.webp")
     assert "a290-ha-addon" in out and "alpine_a290/dashboards" in out
 
 
@@ -35,7 +35,7 @@ def test_fetch_dashboard_reads_bundled_yaml_and_cdnifies(tmp_path, monkeypatch):
         "- title: Home\n"
         "  cards:\n"
         "    - type: picture\n"
-        "      image: /local/backgrounds/alpine_a290_background.png\n",
+        "      image: /local/backgrounds/alpine_a290_background.webp\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(deploy, "DASHBOARD_DIR", str(tmp_path))   # read the bundled file

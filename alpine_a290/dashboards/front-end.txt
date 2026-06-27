@@ -15,7 +15,7 @@
         card_mod:
           style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}.content p{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
       - type: picture-elements
-        image: /local/backgrounds/alpine_a290_background.png
+        image: /local/backgrounds/alpine_a290_background.webp
         visibility:
         - condition: state
           entity: sensor.alpine_a290_plug_status
@@ -298,10 +298,12 @@
                 letter-spacing: 0.2px;
               }
               .minbig, .maxbig, .curbig {
-                font-size: 14px;
+                font-size: 18px;
                 font-weight: 700;
                 color: orange;
               }
+              .curbig { color: #ffffff; }
+              .maxbig { color: #3ddc84; }
               .tri {
                 width: 0;
                 height: 0;
@@ -486,7 +488,7 @@
         cards:
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_start
-          name: Start
+          name: Started
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -494,7 +496,7 @@
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:green;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_end
-          name: End
+          name: Ended
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -502,7 +504,7 @@
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:red;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_duration
-          name: Total
+          name: Duration
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -510,7 +512,7 @@
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_start_soc
-          name: Start
+          name: SoC Start
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -519,7 +521,7 @@
           icon: mdi:car-battery
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_end_soc
-          name: End
+          name: SoC End
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -527,7 +529,7 @@
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:red;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_soc_recovered
-          name: Gain
+          name: SoC Gain
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -535,7 +537,7 @@
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:green;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_start_energy
-          name: Start
+          name: Energy Start
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -543,7 +545,7 @@
               .: ha-state-icon{color:green;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_end_energy
-          name: End
+          name: Energy End
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -551,7 +553,7 @@
               .: ha-state-icon{ {% if is_state('binary_sensor.alpine_a290_charging','on') %}color:grey;opacity:0.35;{% else %}color:red;opacity:1;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.alpine_a290_last_charge_energy_recovered
-          name: Gain
+          name: Energy Added
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -602,7 +604,7 @@
         cards:
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_start_time
-          name: Start
+          name: Started
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -610,7 +612,7 @@
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_end_time
-          name: End
+          name: Ended
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -618,7 +620,7 @@
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_duration
-          name: Total
+          name: Duration
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -626,7 +628,7 @@
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_start_soc
-          name: Start
+          name: SoC Start
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -634,7 +636,7 @@
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_end_soc
-          name: End
+          name: SoC End
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -642,7 +644,7 @@
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_soc_recovered
-          name: Gain
+          name: SoC Gain
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -650,7 +652,7 @@
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_start_energy
-          name: Start
+          name: Energy Start
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -658,7 +660,7 @@
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:green;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_end_energy
-          name: End
+          name: Energy End
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -666,7 +668,7 @@
               .: ha-state-icon{ {% if is_state('input_boolean.a290_test_mode','on') %}color:grey;opacity:0.35;{% else %}color:red;{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: sensor.test_last_charge_energy_delta
-          name: Gain
+          name: Energy Added
           card_mod:
             style:
               mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
@@ -772,7 +774,7 @@
         card_mod:
           style: .content{font-family:"Zen Dots",system-ui,sans-serif !important;font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;border-bottom:1px solid var(--divider-color);padding-bottom:6px;text-transform:uppercase;}.content p{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
       - type: custom:mushroom-template-card
-        entity: sensor.a290
+        entity: device_tracker.alpine_a290_location
         primary: LOCATION
         secondary: '{{ states(''sensor.alpine_pretty_location'') }}'
         icon: mdi:map-marker
@@ -951,7 +953,7 @@
               mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
               .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
-          entity: sensor.a290_test_charge
+          entity: input_button.a290_test_charge_run
           name: Run Test Charge
           icon: mdi:run
           secondary_info: state
@@ -1042,7 +1044,7 @@
                       content: |-
                         **What happened?**
 
-                        A Alpine API request failed due to an authentication issue (expired token / invalid session / unauthorized/forbidden response).
+                        An Alpine API request failed due to an authentication issue (expired token / invalid session / unauthorized/forbidden response).
 
                         **Why you might still see data**
 
@@ -1108,5 +1110,5 @@
       size: cover
       repeat: repeat
       attachment: scroll
-      image: /local/backgrounds/alpine_a290_background.png
+      image: /local/backgrounds/alpine_a290_background.webp
     dense_section_placement: true
