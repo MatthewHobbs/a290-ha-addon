@@ -28,7 +28,9 @@ that's a platform limit, not a missing feature.)
   dashboard (`front-end.txt`) and a **Bubble Card** dashboard (`front-end-bubble.txt`),
   both fed by the add-on. The add-on can install either — or **both** — for you
   (`deploy_dashboard: standard|bubble|both`), or you can copy them in manually. Assets
-  (A290 renders, map markers, Zen Dots font) live under `alpine_a290/dashboards/`.
+  (A290 renders, map markers, Zen Dots font) live under `alpine_a290/dashboards/`. Both are
+  built for phones and [**verified on the top mobile devices**](docs/dashboards-on-mobile.md)
+  by CI.
 
 ## Requirements
 

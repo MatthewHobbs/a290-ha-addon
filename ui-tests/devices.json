@@ -1,0 +1,15 @@
+{
+  "_comment": "Top mobile devices 2024-25 (popular set + narrow/wide bounds). CSS viewport width is the truncation-critical dimension; deviceScaleFactor affects rendering crispness only. Widths cluster at 360/375/393/412/430 which span the realistic mobile range.",
+  "devices": [
+    { "name": "iPhone 15 Pro Max", "width": 430, "height": 932, "deviceScaleFactor": 3, "isMobile": true, "hasTouch": true },
+    { "name": "iPhone 15 Pro",     "width": 393, "height": 852, "deviceScaleFactor": 3, "isMobile": true, "hasTouch": true },
+    { "name": "iPhone 15",         "width": 393, "height": 852, "deviceScaleFactor": 3, "isMobile": true, "hasTouch": true },
+    { "name": "iPhone SE (2022)",  "width": 375, "height": 667, "deviceScaleFactor": 2, "isMobile": true, "hasTouch": true },
+    { "name": "Pixel 8",           "width": 412, "height": 915, "deviceScaleFactor": 2.625, "isMobile": true, "hasTouch": true },
+    { "name": "Pixel 7a",          "width": 412, "height": 892, "deviceScaleFactor": 2.6, "isMobile": true, "hasTouch": true },
+    { "name": "Galaxy S24",        "width": 360, "height": 780, "deviceScaleFactor": 3, "isMobile": true, "hasTouch": true },
+    { "name": "Galaxy S23",        "width": 360, "height": 780, "deviceScaleFactor": 3, "isMobile": true, "hasTouch": true },
+    { "name": "Galaxy A54",        "width": 360, "height": 800, "deviceScaleFactor": 2.625, "isMobile": true, "hasTouch": true },
+    { "name": "Android (narrow bound)", "width": 360, "height": 640, "deviceScaleFactor": 2, "isMobile": true, "hasTouch": true }
+  ]
+}

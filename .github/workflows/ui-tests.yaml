@@ -1,0 +1,48 @@
+name: UI Tests
+
+# Renders the bundled dashboards in a real Home Assistant across the top mobile device
+# sizes and fails on text truncation / broken cards. Path-filtered so it only runs when the
+# dashboards or the harness change (the rendering inputs).
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'alpine_a290/dashboards/**'
+      - 'ui-tests/**'
+      - '.github/workflows/ui-tests.yaml'
+  pull_request:
+    paths:
+      - 'alpine_a290/dashboards/**'
+      - 'ui-tests/**'
+      - '.github/workflows/ui-tests.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  responsive:
+    name: Dashboard responsive render (mobile matrix)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps (aiohttp + PyYAML + Playwright/Chromium)
+        run: |
+          python3 -m pip install --quiet aiohttp PyYAML playwright
+          python3 -m playwright install --with-deps chromium
+
+      - name: Render dashboards across the mobile device matrix
+        run: bash ui-tests/run.sh
+
+      - name: Upload device screenshots
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: dashboard-screenshots
+          path: ui-tests/screenshots/
+          if-no-files-found: warn
