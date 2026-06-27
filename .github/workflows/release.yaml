@@ -49,10 +49,13 @@ jobs:
           INFO_DESCRIPTION: ${{ steps.info.outputs.description }}
           INFO_URL: ${{ steps.info.outputs.url }}
         run: |
-          image="${INFO_IMAGE//\"/}"   # defensively strip any quotes the info helper kept
+          # The info helper preserves the literal quotes from quoted config.yaml scalars
+          # (e.g. version: "1.4.7"), so strip them where the value flows into an image
+          # reference / tag.
+          image="${INFO_IMAGE//\"/}"
           echo "image_name=${image##*/}" >> "$GITHUB_OUTPUT"
           echo "registry_prefix=${image%/*}" >> "$GITHUB_OUTPUT"
-          echo "version=${INFO_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version=${INFO_VERSION//\"/}" >> "$GITHUB_OUTPUT"
           echo "name=${INFO_NAME}" >> "$GITHUB_OUTPUT"
           echo "description=${INFO_DESCRIPTION}" >> "$GITHUB_OUTPUT"
           if [[ -n "$INFO_URL" && "$INFO_URL" != "null" ]]; then
