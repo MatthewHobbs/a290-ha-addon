@@ -147,17 +147,35 @@ def test_charger_popup_none_when_unset(monkeypatch):
     assert deploy._charger_popup() is None
 
 
+def _flat_popup_cards(pop):
+    out = {}
+    for c in pop["cards"]:
+        for inner in (c["cards"] if c.get("type") == "horizontal-stack" else [c]):
+            if "entity" in inner:
+                out[inner["entity"]] = inner
+    return out
+
+
 def test_charger_popup_builds_native_controls(monkeypatch):
     monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.smart")
     monkeypatch.setenv("A290_CHARGER_BUMP_CHARGE", "switch.bump")
     monkeypatch.setenv("A290_CHARGER_TARGET_SOC", "number.soc")
     monkeypatch.setenv("A290_CHARGER_TARGET_TIME", "select.ttime")
+    monkeypatch.setenv("A290_CHARGER_DISPATCHING", "binary_sensor.disp")
     pop = deploy._charger_popup()
     assert pop["card_type"] == "pop-up" and pop["hash"] == deploy._CHARGER_HASH
-    by_entity = {c["entity"]: c for c in pop["cards"] if "entity" in c}
-    assert by_entity["number.soc"]["button_type"] == "slider"      # charge target = slider
-    assert by_entity["switch.smart"]["button_type"] == "switch"    # toggles
-    assert by_entity["select.ttime"]["tap_action"]["action"] == "more-info"
+    # smart + bump share one horizontal-stack row (compact toggles)
+    assert any(c.get("type") == "horizontal-stack" and len(c["cards"]) == 2 for c in pop["cards"])
+    by_entity = _flat_popup_cards(pop)
+    assert by_entity["switch.smart"]["button_type"] == "switch"     # toggles
+    assert by_entity["number.soc"]["button_type"] == "slider"       # charge target slider
+    assert by_entity["number.soc"]["show_state"] is True            # shows the %
+    assert "FFD60A" in by_entity["number.soc"]["styles"]            # 80% recommendation marker
+    assert by_entity["select.ttime"]["card_type"] == "select"       # target time dropdown
+    # off-peak badge: two state-conditional cards (only the matching one shows)
+    conds = [c for c in pop["cards"] if c.get("type") == "conditional"]
+    assert {c["conditions"][0]["state"] for c in conds} == {"on", "off"}
+    assert any("Off-peak now" in c["card"]["name"] for c in conds)
 
 
 def _flat_menu_names(menu):

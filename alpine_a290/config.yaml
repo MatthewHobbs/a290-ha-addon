@@ -1,5 +1,5 @@
 name: Alpine A290
-version: "1.12.0"
+version: "1.13.0"
 slug: alpine_a290
 description: Polls your Alpine A290 (Renault/Kamereon API) and publishes its data to Home Assistant via MQTT auto-discovery. Credentials are entered once on the Configuration page.
 url: https://github.com/MatthewHobbs/a290-ha-addon/tree/main/alpine_a290
@@ -41,6 +41,7 @@ options:
   charger_bump_charge: ""
   charger_target_soc: ""
   charger_target_time: ""
+  charger_dispatching: ""
 schema:
   username: str
   password: password
@@ -61,3 +62,4 @@ schema:
   charger_bump_charge: str?
   charger_target_soc: str?
   charger_target_time: str?
+  charger_dispatching: str?
