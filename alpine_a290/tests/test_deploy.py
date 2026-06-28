@@ -100,6 +100,129 @@ def test_add_card_cards_layout():
     assert view["cards"][-1]["title"] == "Smart Charging"
 
 
+def test_charger_card_is_dark_styled(monkeypatch):
+    monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.x")
+    card = deploy._charger_card()
+    assert "background: none" in card["card_mod"]["style"]         # transparent over dark panel
+
+
+def test_charger_card_target_time_is_plain_row(monkeypatch):
+    # the target-time select is shown as a plain value row (not a light inline MDC dropdown)
+    monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.smart")
+    monkeypatch.setenv("A290_CHARGER_TARGET_TIME", "select.ttime")
+    rows = {r["entity"]: r for r in deploy._charger_card()["entities"]}
+    assert rows["select.ttime"].get("type") == "simple-entity"
+    assert "type" not in rows["switch.smart"]                      # switches stay interactive
+
+
+def test_add_card_inserts_beneath_presets_heading():
+    # standard dashboard: the card goes directly after the Climate/Charging Presets block —
+    # i.e. immediately before the next heading, not at the end of the section.
+    view = {"type": "sections", "sections": [{"type": "grid", "cards": [
+        {"type": "heading", "heading": "Climate/Charging Presets"},
+        {"type": "tile", "entity": "x"},
+        {"type": "heading", "heading": "Last Charge"},
+        {"type": "tile", "entity": "y"},
+    ]}]}
+    card = {"type": "entities", "title": "Smart Charging"}
+    deploy._add_card(view, card)
+    cards = view["sections"][0]["cards"]
+    assert cards[2] is card                       # inserted before the "Last Charge" heading
+    assert cards[3]["heading"] == "Last Charge"
+
+
+def test_add_card_appends_new_section_when_no_anchor():
+    view = {"type": "sections", "sections": [{"type": "grid", "cards": [
+        {"type": "heading", "heading": "Something Else"}]}]}
+    deploy._add_card(view, {"type": "entities", "title": "Smart Charging"})
+    assert view["sections"][-1]["cards"][0]["title"] == "Smart Charging"
+
+
+# --------------------------------------------------------------------------- #
+# bubble dashboard — Smart Charging pop-up + main-menu restructure
+# --------------------------------------------------------------------------- #
+def test_charger_popup_none_when_unset(monkeypatch):
+    for env, _ in deploy._CHARGER_ENTITIES:
+        monkeypatch.delenv(env, raising=False)
+    assert deploy._charger_popup() is None
+
+
+def test_charger_popup_builds_native_controls(monkeypatch):
+    monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.smart")
+    monkeypatch.setenv("A290_CHARGER_BUMP_CHARGE", "switch.bump")
+    monkeypatch.setenv("A290_CHARGER_TARGET_SOC", "number.soc")
+    monkeypatch.setenv("A290_CHARGER_TARGET_TIME", "select.ttime")
+    pop = deploy._charger_popup()
+    assert pop["card_type"] == "pop-up" and pop["hash"] == deploy._CHARGER_HASH
+    by_entity = {c["entity"]: c for c in pop["cards"] if "entity" in c}
+    assert by_entity["number.soc"]["button_type"] == "slider"      # charge target = slider
+    assert by_entity["switch.smart"]["button_type"] == "switch"    # toggles
+    assert by_entity["select.ttime"]["tap_action"]["action"] == "more-info"
+
+
+def _flat_menu_names(menu):
+    out = []
+    for item in menu["cards"]:
+        if item.get("type") == "horizontal-stack":
+            out.extend(c["name"] for c in item["cards"])
+        else:
+            out.append(item["name"])
+    return out
+
+
+def _bubble_menu_view():
+    def btn(name):
+        return {"type": "custom:bubble-card", "card_type": "button", "button_type": "name",
+                "name": name}
+    menu = {"type": "custom:bubble-card", "card_type": "pop-up", "hash": "#alpine", "cards": [
+        {"type": "horizontal-stack", "cards": [btn("Vehicle Status"), btn("Charge Status")]},
+        {"type": "horizontal-stack", "cards": [btn("Activity"), btn("Last Charge")]},
+        btn("Diagnostics"),
+        btn("Location"),
+    ]}
+    return {"cards": [menu]}
+
+
+def test_inject_bubble_charging_button_popup_and_location_full_width(monkeypatch):
+    monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.smart")
+    view = _bubble_menu_view()
+    deploy._inject_bubble_charging(view)
+    assert any(c.get("hash") == deploy._CHARGER_HASH for c in view["cards"])   # pop-up added
+    menu = view["cards"][0]
+    assert "Smart Charging" in _flat_menu_names(menu)                          # menu button
+    assert menu["cards"][-1]["name"] == "Location"                            # last item
+    assert menu["cards"][-1]["type"] == "custom:bubble-card"                  # full-width btn
+
+
+def test_inject_bubble_charging_noop_when_unset(monkeypatch):
+    for env, _ in deploy._CHARGER_ENTITIES:
+        monkeypatch.delenv(env, raising=False)
+    view = _bubble_menu_view()
+    deploy._inject_bubble_charging(view)
+    assert len(view["cards"]) == 1                                            # no pop-up
+    assert "Smart Charging" not in _flat_menu_names(view["cards"][0])         # menu untouched
+
+
+def test_fetch_dashboard_bubble_injects_popup(tmp_path, monkeypatch):
+    (tmp_path / "front-end-bubble.txt").write_text(
+        "- title: Alpine\n"
+        "  cards:\n"
+        "    - type: custom:bubble-card\n"
+        "      card_type: pop-up\n"
+        "      hash: '#alpine'\n"
+        "      cards:\n"
+        "        - type: horizontal-stack\n"
+        "          cards:\n"
+        "            - {type: custom:bubble-card, card_type: button, name: Charge Status}\n"
+        "            - {type: custom:bubble-card, card_type: button, name: Location}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(deploy, "DASHBOARD_DIR", str(tmp_path))
+    monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.smart")
+    cfg = asyncio.run(deploy._fetch_dashboard("bubble"))
+    assert any(c.get("hash") == deploy._CHARGER_HASH for c in cfg["views"][0]["cards"])
+
+
 # --------------------------------------------------------------------------- #
 # run_deploy — create-once vs redeploy
 # --------------------------------------------------------------------------- #

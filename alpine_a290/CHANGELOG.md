@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.12.0
+
+- **Smart Charging is now a proper part of each dashboard.** When you set the `charger_*`
+  options, the controls are placed natively instead of tacked on at the end:
+  - **Standard dashboard** — the "Smart Charging" card is inserted **directly beneath the
+    Climate/Charging Presets** section and is now **dark-themed** to match (no more white
+    card / light inputs clashing with the dashboard).
+  - **Bubble dashboard** — a **"Smart Charging" tab** is added to the main menu, opening a
+    pop-up of native Bubble Card controls: smart/bump-charge toggles, an **inline slider**
+    for the charge target, and a tap-to-edit target time. The **Location** button moves to a
+    full-width row at the bottom of the menu.
+- Nothing to configure beyond the existing `charger_*` options; both layouts are covered by
+  the dashboard UI-test gate. DOCS now show how to find the exact Octopus Intelligent ids
+  (the id segment is your charger's serial, not your account).
+
 ## 1.11.0
 
 - **New: climate (preconditioning) schedule sensors.** Two new sensors surface the car's
