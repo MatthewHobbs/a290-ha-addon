@@ -20,6 +20,18 @@ import yaml
 HERE = os.path.dirname(os.path.abspath(__file__))
 DASH_DIR_DEFAULT = os.path.join(HERE, "..", "alpine_a290", "dashboards")
 DASHBOARDS = {"alpine-standard": "front-end.txt", "alpine-bubble": "front-end-bubble.txt"}
+APP_DIR = os.path.join(HERE, "..", "alpine_a290", "app")
+
+# Demo charger entities so the optional "Smart Charging" controls are rendered (and overflow-
+# checked) by the harness. We set these into the environment and reuse the add-on's own
+# deploy-time injection, so the harness exercises exactly what users get when they configure
+# the charger_* options — the standard-dashboard card and the bubble pop-up "tab".
+CHARGER_DEMO = {
+    "A290_CHARGER_SMART_CHARGE": "switch.demo_intelligent_smart_charge",
+    "A290_CHARGER_BUMP_CHARGE": "switch.demo_intelligent_bump_charge",
+    "A290_CHARGER_TARGET_SOC": "number.demo_intelligent_charge_target",
+    "A290_CHARGER_TARGET_TIME": "select.demo_intelligent_target_time",
+}
 
 # Lovelace resources. card-mod first (it patches card rendering); mushroom/button-card are
 # vendored single-file bundles served from /local/cards; bubble-card is chunked so it loads
@@ -70,6 +82,14 @@ KNOWN = {
     "sensor.alpine_a290_last_updated": ("2026-06-27T09:15:00+00:00", {"device_class": "timestamp"}),
     "sensor.alpine_a290_hvac_last_activity": ("2026-06-27T08:50:00+00:00", {"device_class": "timestamp"}),
     "sensor.alpine_a290_gps_last_activity": ("2026-06-27T09:10:00+00:00", {"device_class": "timestamp"}),
+    # Demo Octopus Intelligent charger entities (Smart Charging card / bubble pop-up).
+    "switch.demo_intelligent_smart_charge": ("on", {"icon": "mdi:ev-station"}),
+    "switch.demo_intelligent_bump_charge": ("off", {"icon": "mdi:battery-plus-variant"}),
+    "number.demo_intelligent_charge_target": ("90", {"min": 10, "max": 100, "step": 1,
+        "mode": "slider", "unit_of_measurement": "%", "device_class": "battery"}),
+    "select.demo_intelligent_target_time": ("06:30", {"icon": "mdi:clock-outline",
+        "options": ["04:00", "04:30", "05:00", "05:30", "06:00", "06:30", "07:00", "07:30",
+                    "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00"]}),
 }
 DEFAULTS = {
     "binary_sensor": ("off", {}),
@@ -146,6 +166,21 @@ def load_views(dash_dir, fname):
     return views
 
 
+def inject_smart_charging(url_path, views):
+    """Apply the add-on's own deploy-time Smart Charging injection to a parsed dashboard, so
+    the harness renders the optional charger controls exactly as a configured user gets them:
+    an entities card on the standard dashboard, a pop-up 'tab' on the bubble dashboard."""
+    if not views or not isinstance(views[0], dict):
+        return
+    sys.path.insert(0, os.path.abspath(APP_DIR))
+    os.environ.update(CHARGER_DEMO)
+    import deploy
+    if "bubble" in url_path:
+        deploy._inject_bubble_charging(views[0])
+    elif (card := deploy._charger_card()):
+        deploy._add_card(views[0], card)
+
+
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="http://localhost:8123")
@@ -153,9 +188,14 @@ async def main():
     ap.add_argument("--dashboards", default=DASH_DIR_DEFAULT)
     args = ap.parse_args()
 
-    dash_texts = [open(os.path.join(args.dashboards, f), encoding="utf-8").read()
-                  for f in DASHBOARDS.values()]
-    entities = extract_entities(dash_texts)
+    # Build each dashboard's views with the Smart Charging injection applied, then extract the
+    # entities to seed from the *injected* YAML (so the demo charger entities get states too).
+    built = {}
+    for url_path, fname in DASHBOARDS.items():
+        views = load_views(args.dashboards, fname)
+        inject_smart_charging(url_path, views)
+        built[url_path] = views
+    entities = extract_entities([yaml.safe_dump(v) for v in built.values()])
 
     async with aiohttp.ClientSession() as session:
         print("Seeding entity states…")
@@ -173,12 +213,12 @@ async def main():
             print(f"  registered {len(RESOURCES)} resources")
 
             existing_dash = {d.get("url_path") for d in (await api.cmd(type="lovelace/dashboards/list") or [])}
-            for url_path, fname in DASHBOARDS.items():
+            for url_path in DASHBOARDS:
                 if url_path not in existing_dash:
                     await api.cmd(type="lovelace/dashboards/create", url_path=url_path,
                                   title=url_path, icon="mdi:car-sports", mode="storage",
                                   show_in_sidebar=True, require_admin=False)
-                views = load_views(args.dashboards, fname)
+                views = built[url_path]
                 await api.cmd(type="lovelace/config/save", url_path=url_path,
                               config={"title": url_path, "views": views})
                 print(f"  deployed dashboard '{url_path}' ({len(views)} views)")
