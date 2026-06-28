@@ -69,11 +69,48 @@ def _read_dashboard(style):
         return fh.read()
 
 
+# Optional "Smart Charging" card — the user maps their own EV-charger control entities (any
+# integration, e.g. Octopus Intelligent) via the charger_* options; each blank slot is
+# skipped. It's a plain built-in `entities` card (no extra HACS card needed).
+_CHARGER_ENTITIES = (
+    ("A290_CHARGER_SMART_CHARGE", "Smart Charge"),
+    ("A290_CHARGER_BUMP_CHARGE", "Bump Charge"),
+    ("A290_CHARGER_TARGET_SOC", "Charge Target"),
+    ("A290_CHARGER_TARGET_TIME", "Target Time"),
+)
+
+
+def _charger_card():
+    """Build a 'Smart Charging' entities card from the configured charger entities, or None
+    when none are set (so the card only appears for users who opt in)."""
+    rows = []
+    for env, name in _CHARGER_ENTITIES:
+        eid = os.environ.get(env, "").strip()
+        if eid and eid.lower() != "null":
+            rows.append({"entity": eid, "name": name})
+    if not rows:
+        return None
+    return {"type": "entities", "title": "Smart Charging",
+            "show_header_toggle": False, "entities": rows}
+
+
 async def _fetch_dashboard(style):
     views = yaml.safe_load(_cdnify(_read_dashboard(style)))
     if not isinstance(views, list):
         raise ValueError("dashboard YAML did not parse to a list of views")
+    card = _charger_card()
+    if card and views and isinstance(views[0], dict):
+        _add_card(views[0], card)
     return {"title": "Alpine A290", "views": views}
+
+
+def _add_card(view, card):
+    """Add a card to a view, supporting both the `sections` layout (the standard dashboard)
+    and the plain `cards` layout (the bubble dashboard)."""
+    if isinstance(view.get("sections"), list):
+        view["sections"].append({"type": "grid", "cards": [card]})
+    else:
+        view.setdefault("cards", []).append(card)
 
 
 class _WS:
