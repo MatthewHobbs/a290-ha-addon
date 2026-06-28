@@ -31,6 +31,7 @@ CHARGER_DEMO = {
     "A290_CHARGER_BUMP_CHARGE": "switch.demo_intelligent_bump_charge",
     "A290_CHARGER_TARGET_SOC": "number.demo_intelligent_charge_target",
     "A290_CHARGER_TARGET_TIME": "select.demo_intelligent_target_time",
+    "A290_CHARGER_DISPATCHING": "binary_sensor.demo_intelligent_dispatching",
 }
 
 # Lovelace resources. card-mod first (it patches card rendering); mushroom/button-card are
@@ -90,6 +91,8 @@ KNOWN = {
     "select.demo_intelligent_target_time": ("06:30", {"icon": "mdi:clock-outline",
         "options": ["04:00", "04:30", "05:00", "05:30", "06:00", "06:30", "07:00", "07:30",
                     "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00"]}),
+    "binary_sensor.demo_intelligent_dispatching": ("on", {"friendly_name": "Dispatching",
+        "next_start": "2026-06-27T23:30:00+00:00", "next_end": "2026-06-28T05:30:00+00:00"}),
 }
 DEFAULTS = {
     "binary_sensor": ("off", {}),

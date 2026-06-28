@@ -58,6 +58,7 @@ map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dash
 | `charger_bump_charge` | *(optional)* entity id of your charger's **bump/boost-charge** switch. |
 | `charger_target_soc` | *(optional)* entity id of your charger's **charge-target %** number. |
 | `charger_target_time` | *(optional)* entity id of your charger's **target-time** (ready-by) control. |
+| `charger_dispatching` | *(optional)* entity id of an Octopus Intelligent **dispatching** `binary_sensor` — drives the green "Off-peak now" / red "Peak rate" badge. |
 
 ## Smart Charging card
 
@@ -71,15 +72,18 @@ you have. Where they appear depends on the dashboard:
 - **Standard dashboard** — a **"Smart Charging"** card (a built-in `entities` card, no extra
   HACS card needed) is inserted **directly beneath the Climate/Charging Presets** section.
 - **Bubble dashboard** — a **"Smart Charging"** tab is added to the main menu, opening a
-  pop-up of native Bubble Card controls: on/off toggles for smart- and bump-charge, an
-  **inline slider** for the charge target, and a tap-to-edit button for the target time.
+  pop-up of native Bubble Card controls: smart- and bump-charge as **compact toggles on one
+  line**, a **charge-target slider** showing the live **%** with a marker at **80%** (Alpine's
+  recommended target) to drag to, a **target-time dropdown**, and — if `charger_dispatching`
+  is set — a green **"Off-peak now"** / red **"Peak rate"** badge from the Octopus dispatching
+  sensor.
 
 Both are read-write — toggling a switch or moving the slider controls your charger directly.
 
 **Filling in the entity ids.** Open **Developer Tools → States**, filter on `intelligent`
 (or your charger's integration), and copy the exact ids. For Octopus Intelligent they look
 like the example below — note `<charger-id>` is your **charger's serial** (a UUID), *not*
-your account number, and the domains differ (`switch` / `number` / `select`):
+your account number, and the domains differ (`switch` / `number` / `select` / `binary_sensor`):
 
 ```yaml
 # <charger-id> is your charger's serial, e.g. 00000000_0009_4000_XXXX_XXXXXXXXXXXX
@@ -87,6 +91,7 @@ charger_smart_charge: switch.octopus_energy_<charger-id>_intelligent_smart_charg
 charger_bump_charge:  switch.octopus_energy_<charger-id>_intelligent_bump_charge
 charger_target_soc:   number.octopus_energy_<charger-id>_intelligent_charge_target
 charger_target_time:  select.octopus_energy_<charger-id>_intelligent_target_time
+charger_dispatching:  binary_sensor.octopus_energy_<charger-id>_intelligent_dispatching
 ```
 
 Paste each id exactly — a stray trailing space shows as **"Entity not found"** on the card.
