@@ -53,6 +53,34 @@ map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dash
 | `deploy_dashboard` | `standard` (default), `bubble`, `both`, or `none`. Auto-installs that dashboard — see below. `both` installs the standard dashboard at your `dashboard_url_path` and the bubble one with a `-bubble` suffix (e.g. `alpine-a290` and `alpine-a290-bubble`). Set `none` to skip dashboard deployment. |
 | `dashboard_url_path` | URL slug for the deployed dashboard (default `alpine-a290`; with `both`, the bubble one is suffixed `-bubble`). |
 | `redeploy_dashboard` | `true` re-pushes the dashboard config on next start (to pick up an update). Default `false` so your edits are never overwritten. |
+| `charger_smart_charge` | *(optional)* entity id of your EV charger's **smart-charge** switch — see [Smart Charging](#smart-charging-card) below. |
+| `charger_bump_charge` | *(optional)* entity id of your charger's **bump/boost-charge** switch. |
+| `charger_target_soc` | *(optional)* entity id of your charger's **charge-target %** number. |
+| `charger_target_time` | *(optional)* entity id of your charger's **target-time** (ready-by) control. |
+
+## Smart Charging card
+
+If you control charging through a smart-charging integration — e.g. **[Octopus Energy /
+Intelligent Octopus](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy)**, Ohme,
+Zappi, Wallbox — you can show those controls on the deployed dashboard next to the car's
+data. Set the `charger_*` options above to your charger's entity ids and the dashboard gains
+a **"Smart Charging"** card (a built-in `entities` card — no extra HACS card needed). Leave
+them blank (the default) and no card is added; each blank one is skipped, so you can map just
+the controls you have.
+
+For example, with the Octopus Intelligent entities from your account:
+
+```yaml
+charger_smart_charge: switch.octopus_energy_<account>_intelligent_smart_charge
+charger_bump_charge:  switch.octopus_energy_<account>_intelligent_bump_charge
+charger_target_soc:   number.octopus_energy_<account>_intelligent_charge_target
+charger_target_time:  select.octopus_energy_<account>_intelligent_target_time
+```
+
+(Find the exact ids in **Developer Tools → States**.) The card is read-write — toggling a
+switch or changing the target there controls your charger directly. It's added when the
+dashboard is deployed, so set `redeploy_dashboard: true` (and restart once) if you add the
+entities after the dashboard already exists.
 
 ## Dashboard auto-deploy (optional)
 

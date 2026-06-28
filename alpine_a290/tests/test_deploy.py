@@ -47,6 +47,60 @@ def test_fetch_dashboard_reads_bundled_yaml_and_cdnifies(tmp_path, monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
+# _charger_card — optional "Smart Charging" section
+# --------------------------------------------------------------------------- #
+def test_charger_card_none_when_no_entities_set(monkeypatch):
+    for env, _ in deploy._CHARGER_ENTITIES:
+        monkeypatch.delenv(env, raising=False)
+    assert deploy._charger_card() is None
+
+
+def test_charger_card_skips_blank_and_null(monkeypatch):
+    monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.octopus_intelligent_smart_charge")
+    monkeypatch.setenv("A290_CHARGER_BUMP_CHARGE", "")        # blank -> skipped
+    monkeypatch.setenv("A290_CHARGER_TARGET_SOC", "null")     # bashio empty -> skipped
+    monkeypatch.setenv("A290_CHARGER_TARGET_TIME", "select.octopus_intelligent_target_time")
+    card = deploy._charger_card()
+    assert card["type"] == "entities" and card["title"] == "Smart Charging"
+    names = [r["name"] for r in card["entities"]]
+    ents = [r["entity"] for r in card["entities"]]
+    assert names == ["Smart Charge", "Target Time"]          # only the two set, in order
+    assert "switch.octopus_intelligent_smart_charge" in ents
+
+
+def test_fetch_dashboard_appends_charger_card_when_configured(tmp_path, monkeypatch):
+    (tmp_path / "front-end.txt").write_text("- title: Home\n  cards: []\n", encoding="utf-8")
+    monkeypatch.setattr(deploy, "DASHBOARD_DIR", str(tmp_path))
+    monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.x")
+    cfg = asyncio.run(deploy._fetch_dashboard("standard"))
+    last = cfg["views"][0]["cards"][-1]
+    assert last["type"] == "entities" and last["title"] == "Smart Charging"
+
+
+def test_fetch_dashboard_no_charger_card_when_unset(tmp_path, monkeypatch):
+    for env, _ in deploy._CHARGER_ENTITIES:
+        monkeypatch.delenv(env, raising=False)
+    (tmp_path / "front-end.txt").write_text("- title: Home\n  cards: []\n", encoding="utf-8")
+    monkeypatch.setattr(deploy, "DASHBOARD_DIR", str(tmp_path))
+    cfg = asyncio.run(deploy._fetch_dashboard("standard"))
+    assert cfg["views"][0]["cards"] == []                    # nothing appended
+
+
+def test_add_card_sections_layout():
+    # the standard dashboard is a `sections` view — the card must land in a new grid section
+    view = {"type": "sections", "sections": [{"type": "grid", "cards": []}]}
+    deploy._add_card(view, {"type": "entities", "title": "Smart Charging"})
+    assert view["sections"][-1] == {"type": "grid", "cards": [{"type": "entities", "title": "Smart Charging"}]}
+
+
+def test_add_card_cards_layout():
+    # the bubble dashboard is a plain `cards` view — the card is appended to cards
+    view = {"cards": [{"type": "x"}]}
+    deploy._add_card(view, {"type": "entities", "title": "Smart Charging"})
+    assert view["cards"][-1]["title"] == "Smart Charging"
+
+
+# --------------------------------------------------------------------------- #
 # run_deploy — create-once vs redeploy
 # --------------------------------------------------------------------------- #
 class FakeWS:
