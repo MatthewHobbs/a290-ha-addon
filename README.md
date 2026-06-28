@@ -12,6 +12,10 @@ This app logs in to your car's **My Alpine** account, reads its data (battery, c
 location, climate) every few minutes, and shows it in Home Assistant — you enter your login
 once on the Configuration page, no files to edit.
 
+| Standard dashboard | Bubble dashboard | Smart Charging |
+| --- | --- | --- |
+| [![Standard dashboard](docs/screenshots/standard-iphone-15-pro.png)](docs/dashboards-on-mobile.md) | [![Bubble dashboard](docs/screenshots/bubble-iphone-15-pro.png)](docs/dashboards-on-mobile.md) | [![Smart Charging](docs/screenshots/smart-charging-iphone-15-pro.png)](docs/dashboards-on-mobile.md) |
+
 Under the hood it polls the [Renault/Kamereon API](https://github.com/hacf-fr/renault-api)
 and publishes `sensor.alpine_a290_*` entities over **MQTT auto-discovery**.
 

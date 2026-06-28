@@ -7,6 +7,17 @@ on the Configuration page, no files to edit.
 Polls your Alpine A290 through the Renault/Kamereon API and publishes the data to
 Home Assistant via MQTT auto-discovery.
 
+## What it looks like
+
+The app deploys a ready-made, phone-friendly dashboard (standard and/or a Bubble Card
+version). With the optional `charger_*` options set, a **Smart Charging** section is added.
+
+| Standard dashboard | Bubble dashboard | Smart Charging |
+| --- | --- | --- |
+| ![Standard dashboard](https://raw.githubusercontent.com/MatthewHobbs/a290-ha-addon/main/docs/screenshots/standard-iphone-15-pro.png) | ![Bubble dashboard](https://raw.githubusercontent.com/MatthewHobbs/a290-ha-addon/main/docs/screenshots/bubble-iphone-15-pro.png) | ![Smart Charging pop-up](https://raw.githubusercontent.com/MatthewHobbs/a290-ha-addon/main/docs/screenshots/smart-charging-iphone-15-pro.png) |
+
+*(Rendered by the UI-test harness with sample data — no real account or location data.)*
+
 ## Before you start — install these first
 
 The app **deploys the standard dashboard for you by default** (`deploy_dashboard: standard`),
