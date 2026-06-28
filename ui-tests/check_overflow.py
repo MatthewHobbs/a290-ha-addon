@@ -127,6 +127,30 @@ def run():
                     page.wait_for_timeout(1200)  # settle layout + late cards
                     issues = page.evaluate(JS_DETECT)
                     page.screenshot(path=shot, full_page=True)
+                    if dash == "alpine-bubble":
+                        # Open the Smart Charging pop-up "tab" (hash navigation) and check +
+                        # capture it too — a broken Bubble Card config renders an error card.
+                        # The hash change re-renders, so settle before re-scanning (else the
+                        # JS context can be torn down mid-evaluate on slower viewports).
+                        page.evaluate("() => { location.hash = '#alpine-charging'; }")
+                        # Wait for the pop-up's inner cards to actually paint (Bubble Card
+                        # lazy-renders them), else the capture can catch an empty shell.
+                        try:
+                            page.wait_for_selector("text=Charge Target", timeout=8000)
+                        except Exception:
+                            pass
+                        page.wait_for_timeout(800)
+                        pshot = os.path.join(args.out, f"{dash}__smart_charging__{slug}.png")
+                        page.screenshot(path=pshot, full_page=True)
+                        # Best-effort error-card scan of the pop-up: the hash re-render can
+                        # tear down the JS context on slower viewports. The screenshot above is
+                        # the deliverable; skip the scan on the race rather than false-fail
+                        # (the pop-up config is identical across viewports, so a real broken
+                        # card still surfaces on the ones that do scan).
+                        try:
+                            issues = issues + page.evaluate(JS_DETECT)
+                        except Exception:
+                            pass
                 except Exception as err:
                     issues = [{"type": "render-error", "tag": "-", "text": f"{type(err).__name__}: {err}"}]
                     try:

@@ -74,32 +74,30 @@
         - type: custom:bubble-card
           card_type: button
           button_type: name
-          name: Location
-          icon: mdi:map-marker
-          button_action:
-            tap_action:
-              action: navigate
-              navigation_path: '#alpine-location'
-      - type: horizontal-stack
-        cards:
-        - type: custom:bubble-card
-          card_type: button
-          button_type: name
           name: Last Charge
           icon: mdi:flash
           button_action:
             tap_action:
               action: navigate
               navigation_path: '#alpine-lastcharge'
-        - type: custom:bubble-card
-          card_type: button
-          button_type: name
-          name: Diagnostics
-          icon: mdi:flask
-          button_action:
-            tap_action:
-              action: navigate
-              navigation_path: '#alpine-diag'
+      - type: custom:bubble-card
+        card_type: button
+        button_type: name
+        name: Diagnostics
+        icon: mdi:flask
+        button_action:
+          tap_action:
+            action: navigate
+            navigation_path: '#alpine-diag'
+      - type: custom:bubble-card
+        card_type: button
+        button_type: name
+        name: Location
+        icon: mdi:map-marker
+        button_action:
+          tap_action:
+            action: navigate
+            navigation_path: '#alpine-location'
     - type: custom:bubble-card
       card_type: pop-up
       hash: '#alpine-status'
