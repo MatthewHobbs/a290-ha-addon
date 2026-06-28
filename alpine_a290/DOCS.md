@@ -58,7 +58,7 @@ map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dash
 | `charger_bump_charge` | *(optional)* entity id of your charger's **bump/boost-charge** switch. |
 | `charger_target_soc` | *(optional)* entity id of your charger's **charge-target %** number. |
 | `charger_target_time` | *(optional)* entity id of your charger's **target-time** (ready-by) control. |
-| `charger_dispatching` | *(optional)* entity id of an Octopus Intelligent **dispatching** `binary_sensor` — drives the green "Off-peak now" / red "Peak rate" badge. |
+| `charger_dispatching` | *(optional)* entity id of any **on/off** entity that's `on` when electricity is cheap — drives the green "Off-peak now" / red "Peak rate" badge. An **off-peak tariff** sensor is the best fit (see below); a `binary_sensor` or `calendar` both work. |
 
 ## Smart Charging card
 
@@ -91,8 +91,22 @@ charger_smart_charge: switch.octopus_energy_<charger-id>_intelligent_smart_charg
 charger_bump_charge:  switch.octopus_energy_<charger-id>_intelligent_bump_charge
 charger_target_soc:   number.octopus_energy_<charger-id>_intelligent_charge_target
 charger_target_time:  select.octopus_energy_<charger-id>_intelligent_target_time
-charger_dispatching:  binary_sensor.octopus_energy_<charger-id>_intelligent_dispatching
+# Off-peak badge — point at your tariff's off-peak sensor (<meter-id> is your electricity
+# meter serial, a different id from the charger above):
+charger_dispatching:  binary_sensor.octopus_energy_electricity_<meter-id>_off_peak
 ```
+
+**Which sensor for the off-peak badge?** The badge just needs an entity that's `on` when
+it's a good time to charge. Pick by what you care about:
+
+- **Cheapest price (recommended)** — your tariff's **off-peak** sensor, e.g.
+  `binary_sensor.octopus_energy_electricity_<meter-id>_off_peak`. It's `on` for the whole
+  cheap window (e.g. 23:30–05:30), which is exactly what "Off-peak now / Peak rate" means.
+- **Greenest energy** — Octopus's `calendar.octopus_energy_<account>_greener_nights` (lowest
+  -carbon window). Works too (a calendar is `on` during its event), though the label still
+  reads "Off-peak".
+- **Car actively charging** — the `…_intelligent_dispatching` `binary_sensor` is `on` only
+  while Octopus is mid-dispatch (plugged in + charging), so the badge is green less often.
 
 Paste each id exactly — a stray trailing space shows as **"Entity not found"** on the card.
 The controls are added when the dashboard is deployed, so set `redeploy_dashboard: true`
