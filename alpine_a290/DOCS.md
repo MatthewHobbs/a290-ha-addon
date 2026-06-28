@@ -12,7 +12,7 @@ Home Assistant via MQTT auto-discovery.
 The app **deploys the standard dashboard for you by default** (`deploy_dashboard: standard`),
 so install its frontend cards via **HACS → Frontend** *before you start the app for the
 first time* — otherwise the dashboard renders as *"Custom element doesn't exist"* with broken
-tiles. You also need the **Mosquitto broker** add-on (the app's MQTT connection is
+tiles. You also need the **Mosquitto broker** app (the app's MQTT connection is
 auto-discovered from it).
 
 | Install via HACS → Frontend | Needed for |
@@ -92,7 +92,7 @@ location. The bundled dashboards remain the richer view; the panel is the quick 
 
 ## Requirements
 
-- The **Mosquitto broker** add-on (the MQTT connection is auto-discovered).
+- The **Mosquitto broker** app (the MQTT connection is auto-discovered).
 
 ## Entities
 

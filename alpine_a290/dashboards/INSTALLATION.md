@@ -24,7 +24,7 @@ raw-editor paste. The [manual install](#manual-install-advanced) is kept as a fa
 Install these **before** the app, so a deployed dashboard renders straight away (a
 dashboard deployed before its cards exist shows a wall of "custom element doesn't exist"):
 
-- **Mosquitto broker** — Settings → Add-ons → Add-on Store. The app auto-discovers it.
+- **Mosquitto broker** — Settings → Apps → App Store. The app auto-discovers it.
 - **[HACS](https://hacs.xyz)** → Frontend, then these cards:
   - **card-mod**, **Mushroom**, **Button Card**, **Browser Mod**
   - **Bubble Card** — only if you want the Bubble dashboard
@@ -34,7 +34,7 @@ API key to install.
 
 ### 2. Install + configure the app (the data layer)
 
-1. **Settings → Add-ons → Add-on Store → ⋮ (top-right) → Repositories**, and add:
+1. **Settings → Apps → App Store → ⋮ (top-right) → Repositories**, and add:
    ```
    https://github.com/MatthewHobbs/a290-ha-addon
    ```
@@ -89,7 +89,7 @@ control. Do steps 1–2 of the recommended route first (app + HACS cards), then:
 
 ### 3. Copy the assets to `/config/www/`
 
-Using the **File Editor** add-on or **Samba**:
+Using the **File Editor** app or **Samba**:
 
 1. Create `/config/www/backgrounds/` and copy everything from this repo's `Images/`
    subfolders into it (the dashboards reference them as `/local/backgrounds/…`).
@@ -149,7 +149,7 @@ install them):
 
 ## Troubleshooting
 
-- **No `alpine_a290` entities?** Check the app log (Settings → Add-ons → Alpine A290
+- **No `alpine_a290` entities?** Check the app log (Settings → Apps → Alpine A290
   → Log). A `403` usually means wrong credentials/locale. Confirm Mosquitto is running.
 - **Entities show but the dashboard is blank/red:** a HACS card is missing — recheck
   the prerequisites and hard-refresh the browser. If you auto-deployed before installing
