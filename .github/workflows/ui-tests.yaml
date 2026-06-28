@@ -30,8 +30,10 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
-          # The PR branch, so the refresh step sees the real branch head (not the merge ref).
-          ref: ${{ github.head_ref }}
+          # Same-repo PRs: check out the real branch head so the refresh step can push to it.
+          # Forks / pushes: leave empty so checkout uses the default ref (the fork's branch
+          # doesn't exist here — overriding it would fail before the tests run).
+          ref: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
