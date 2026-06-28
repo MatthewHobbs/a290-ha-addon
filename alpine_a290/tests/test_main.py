@@ -154,6 +154,71 @@ def test_rapid_charge_is_classified_public(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
+# authoritative Last Charge via the charges endpoint
+# --------------------------------------------------------------------------- #
+_CHARGE_ITEM = {
+    "chargeStartDate": "2026-06-20T22:00:00+00:00",
+    "chargeEndDate": "2026-06-21T02:00:00+00:00",   # 4 h later
+    "chargeStartBatteryLevel": 30, "chargeEndBatteryLevel": 80,
+    "chargeBatteryLevelRecovered": 50, "chargeEnergyRecovered": 26.0,
+    "chargeStartInstantaneousPower": 7.0,
+}
+
+
+def test_parse_charge_session_picks_latest_and_computes():
+    older = {**_CHARGE_ITEM, "chargeEndDate": "2026-06-10T02:00:00+00:00"}
+    lc = main._parse_charge_session([older, _CHARGE_ITEM], 52.0)
+    # picked the most recent by end date
+    assert lc["last_charge_end"] == "2026-06-21T02:00:00+00:00"
+    assert lc["last_charge_start_soc"] == 30 and lc["last_charge_end_soc"] == 80
+    assert lc["last_charge_recovered_pct"] == 50
+    assert lc["last_charge_recovered_kwh"] == 26.0
+    assert lc["last_charge_duration_min"] == 240          # from timestamps, not chargeDuration
+    assert lc["last_charge_average_power"] == 6.5         # 26 kWh / 4 h
+    assert lc["last_charge_type"] == "Home"               # 6.5 kW <= HOME_POWER_MAX_KW
+    # produces exactly the Last Charge sensor keys (same contract as the inferred path)
+    expected = {obj[len("a290_"):] for obj in main.SENSORS if "last_charge" in obj}
+    assert set(lc) == expected
+
+
+def test_parse_charge_session_empty_and_incomplete():
+    assert main._parse_charge_session([], 52.0) == {}
+    assert main._parse_charge_session(None, 52.0) == {}
+    # a session still in progress (no end date) is ignored
+    assert main._parse_charge_session([{"chargeStartDate": "2026-06-21T22:00:00+00:00"}], 52.0) == {}
+
+
+def test_parse_charge_session_derives_missing_energy_from_soc():
+    item = {"chargeStartDate": "2026-06-21T00:00:00+00:00",
+            "chargeEndDate": "2026-06-21T01:00:00+00:00",
+            "chargeStartBatteryLevel": 20, "chargeEndBatteryLevel": 40}
+    lc = main._parse_charge_session([item], 50.0)
+    assert lc["last_charge_recovered_pct"] == 20          # 40 - 20
+    assert lc["last_charge_recovered_kwh"] == 10.0        # 20% of 50 kWh
+
+
+def test_is_newer_charge_newest_end_wins():
+    real = {"last_charge_end": "2026-06-21T02:00:00+00:00"}
+    live_old = {"last_charge_end": "2026-06-20T02:00:00+00:00"}
+    live_new = {"last_charge_end": "2026-06-22T02:00:00+00:00"}
+    assert main._is_newer_charge(real, {}) is True        # nothing inferred yet -> use endpoint
+    assert main._is_newer_charge({}, live_old) is False   # no endpoint data -> keep inferred
+    assert main._is_newer_charge(real, live_old) is True  # endpoint session is newer
+    assert main._is_newer_charge(real, live_new) is False  # a just-ended live session is newer
+    # an unparseable endpoint date never displaces a live session
+    assert main._is_newer_charge({"last_charge_end": "garbage"}, live_old) is False
+
+
+def test_due_for_charges_throttle(monkeypatch):
+    monkeypatch.setattr(main, "now_ts", lambda: 10_000.0)
+    assert main._due_for_charges({}) is True                              # never fetched
+    assert main._due_for_charges({"charges_last_fetch": 10_000.0}) is False
+    assert main._due_for_charges({"charges_last_fetch": 0.0}) is True     # stale
+    assert main._due_for_charges({"charges_last_fetch": 10_000.0,
+                                  "charges_dirty": True}) is True          # session just ended
+
+
+# --------------------------------------------------------------------------- #
 # plug stuck-detection
 # --------------------------------------------------------------------------- #
 def test_plug_suspect_disconnected_but_charging():

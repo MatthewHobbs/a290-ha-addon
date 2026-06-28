@@ -23,6 +23,7 @@ from aiohttp import web
 from catalog import (
     ACTION_BUTTONS,
     BINARY_SENSORS,
+    CHARGES_ENDPOINT,
     DEFAULT_DISABLED_SENSORS,
     ICONS,
     NUMBERS,
@@ -358,7 +359,7 @@ async def detect_supported(vsession):
                     supported.discard(ep)
             except Exception as err:  # noqa: BLE001
                 LOG.warning("supports_endpoint(%s) check failed: %s", ep, err)
-        for ep in sorted(action_eps | {SOC_ENDPOINT}):
+        for ep in sorted(action_eps | {SOC_ENDPOINT, CHARGES_ENDPOINT}):
             try:
                 if await _supports(vehicle, ep):
                     supported.add(ep)
@@ -503,7 +504,112 @@ def update_charge_session(state, battery, capacity_kwh, charging):
         }
         LOG.info("Charge session END (dur=%smin, +%s%%, +%skWh, avg=%skW)", dur, rec_pct, rec_kwh, avg)
         state["session_active"] = False
+        state["charges_dirty"] = True   # a session just ended -> refetch authoritative charges next poll
     return state.get("last_charge", {})
+
+
+# --- Authoritative Last Charge via the charges endpoint -------------------------------
+# update_charge_session() above *infers* the last session by watching live battery polls.
+# When the car exposes the charges endpoint we instead read Renault's own per-session record
+# (get_charges -> raw_data["charges"]) and prefer it. The inferred value stays as the fallback
+# for cars/sessions the endpoint doesn't (yet) cover; newest-end wins so a just-finished
+# session shows live immediately, then gets replaced by the authoritative record once posted.
+CHARGES_LOOKBACK_DAYS = 14
+CHARGES_REFRESH_SEC = 1800   # between charges reads; an ended session forces an immediate refetch
+
+
+def _epoch(s):
+    """ISO-8601 string -> epoch seconds, or None if unparseable. Tolerates a trailing 'Z'."""
+    if not isinstance(s, str) or not s.strip():
+        return None
+    try:
+        return datetime.fromisoformat(s.strip().replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
+def _parse_charge_session(charges, capacity_kwh):
+    """Most recent *completed* session from a get_charges() payload, in the same
+    last_charge_* shape update_charge_session() produces ({} when none usable). Duration is
+    derived from the start/end timestamps (sidesteps the per-model seconds-vs-minutes quirk in
+    chargeDuration); energy/power fall back to capacity-scaled SoC when the API omits kWh."""
+    done = [c for c in (charges or []) if isinstance(c, dict) and c.get("chargeEndDate")]
+    if not done:
+        return {}
+    c = max(done, key=lambda x: x.get("chargeEndDate") or "")
+    start_soc = _num(c.get("chargeStartBatteryLevel"))
+    end_soc = _num(c.get("chargeEndBatteryLevel"))
+    rec_pct = _num(c.get("chargeBatteryLevelRecovered"))
+    if rec_pct is None and None not in (start_soc, end_soc):
+        rec_pct = round(end_soc - start_soc, 2)
+    rec_kwh = _num(c.get("chargeEnergyRecovered"))
+    if rec_kwh is None and rec_pct is not None:
+        rec_kwh = round(rec_pct / 100.0 * capacity_kwh, 2)
+    s_ep, e_ep = _epoch(c.get("chargeStartDate")), _epoch(c.get("chargeEndDate"))
+    dur = round((e_ep - s_ep) / 60.0) if (s_ep is not None and e_ep is not None and e_ep >= s_ep) else None
+    avg = round(rec_kwh / (dur / 60.0), 2) if (rec_kwh and dur) else _num(c.get("chargeStartInstantaneousPower"))
+    start_energy = round(start_soc / 100.0 * capacity_kwh, 2) if start_soc is not None else None
+    end_energy = round(end_soc / 100.0 * capacity_kwh, 2) if end_soc is not None else None
+    return {
+        "last_charge_start": c.get("chargeStartDate"),
+        "last_charge_end": c.get("chargeEndDate"),
+        "last_charge_start_soc": start_soc,
+        "last_charge_end_soc": end_soc,
+        "last_charge_start_energy": start_energy,
+        "last_charge_end_energy": end_energy,
+        "last_charge_recovered_pct": rec_pct,
+        "last_charge_recovered_kwh": round(rec_kwh, 2) if rec_kwh is not None else None,
+        "last_charge_duration_min": dur,
+        "last_charge_average_power": avg,
+        "last_charge_type": "Rapid/Public" if (avg or 0) > HOME_POWER_MAX_KW else "Home",
+    }
+
+
+def _is_newer_charge(real, live):
+    """True when endpoint session `real` should replace inferred session `live` (newest end
+    wins; an unparseable endpoint date never displaces a live session)."""
+    if not real:
+        return False
+    if not live:
+        return True
+    re_, le = _epoch(real.get("last_charge_end")), _epoch(live.get("last_charge_end"))
+    if re_ is None:
+        return False
+    return le is None or re_ >= le
+
+
+def _due_for_charges(state):
+    """Throttle charges reads: once per CHARGES_REFRESH_SEC, or immediately after a session end."""
+    if state.get("charges_dirty"):
+        return True
+    last = state.get("charges_last_fetch")
+    return last is None or (now_ts() - last) >= CHARGES_REFRESH_SEC
+
+
+async def fetch_real_last_charge(vehicle, capacity_kwh):
+    """Read recent charge sessions and return the latest completed one in last_charge_* shape."""
+    end = datetime.now(timezone.utc)
+    start = end - timedelta(days=CHARGES_LOOKBACK_DAYS)
+    res = await vehicle.get_charges(start, end)
+    raw = getattr(res, "raw_data", None) or {}
+    return _parse_charge_session(raw.get("charges"), capacity_kwh)
+
+
+async def resolve_last_charge(vehicle, state, supported_eps, capacity_kwh, live_lc):
+    """Pick the Last Charge to publish: the authoritative charges-endpoint session when it's
+    at least as recent as the inferred one, else the inferred session. Caches the endpoint
+    result in state so it's only re-read on the throttle/after a session ends."""
+    if CHARGES_ENDPOINT in supported_eps and _due_for_charges(state):
+        state["charges_dirty"] = False
+        state["charges_last_fetch"] = now_ts()
+        try:
+            real = await fetch_real_last_charge(vehicle, capacity_kwh)
+            if real:
+                state["real_last_charge"] = real
+        except Exception as err:  # noqa: BLE001
+            LOG.warning("charges endpoint unavailable: %s", err)
+    real_lc = state.get("real_last_charge", {})
+    return real_lc if _is_newer_charge(real_lc, live_lc) else live_lc
 
 
 async def resolve_account(client):
@@ -688,7 +794,8 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
     except Exception as err:  # noqa: BLE001
         LOG.warning("location unavailable: %s", err)
 
-    data.update(update_charge_session(state, battery, capacity_kwh, charging))
+    live_lc = update_charge_session(state, battery, capacity_kwh, charging)
+    data.update(await resolve_last_charge(vehicle, state, supported_eps, capacity_kwh, live_lc))
     data["charging"] = "on" if charging else "off"
     plug_code = plug.value if plug is not None else None
     data["plug_suspect"] = detect_plug_suspect(state, plug_code, mileage,
