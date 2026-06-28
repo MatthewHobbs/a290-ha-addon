@@ -59,13 +59,27 @@ jobs:
 
       # Keep the committed docs screenshots fresh: on same-repo PRs, copy the just-rendered
       # (dark) phone shots into docs/screenshots and push them back to the PR branch, so they
-      # ride in on the signed squash-merge. GITHUB_TOKEN pushes don't re-trigger CI -> no loop.
+      # ride in on the signed squash-merge. Requires a SCREENSHOT_PAT secret (a fine-grained
+      # PAT with contents:write) so the pushed commit re-triggers the required checks — a
+      # GITHUB_TOKEN push wouldn't, leaving the new HEAD without a render check and unmergeable
+      # under branch protection. Dormant (cleanly skips) when the secret isn't set. A loop
+      # guard stops the re-triggered run from committing again.
       - name: Refresh committed docs screenshots
         if: >-
           github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          SCREENSHOT_PAT: ${{ secrets.SCREENSHOT_PAT }}
         run: |
           set -euo pipefail
+          if [ -z "${SCREENSHOT_PAT:-}" ]; then
+            echo "No SCREENSHOT_PAT secret — auto-refresh disabled (add the secret to enable)."
+            exit 0
+          fi
+          if git log -1 --pretty=%B | grep -q '\[refresh-shots\]'; then
+            echo "Last commit is an auto-refresh — skipping to avoid a loop."
+            exit 0
+          fi
           cp ui-tests/screenshots/alpine-standard__iphone_15_pro.png docs/screenshots/standard-iphone-15-pro.png
           cp ui-tests/screenshots/alpine-standard__galaxy_s24.png docs/screenshots/standard-galaxy-s24.png
           cp ui-tests/screenshots/alpine-bubble__iphone_15_pro.png docs/screenshots/bubble-iphone-15-pro.png
@@ -85,6 +99,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${SCREENSHOT_PAT}@github.com/${{ github.repository }}.git"
           git add docs/screenshots
-          git commit -m "chore: refresh dashboard screenshots [skip ci]"
-          git push
+          git commit -m "chore: refresh dashboard screenshots [refresh-shots]"
+          git push origin "HEAD:${{ github.head_ref }}"
