@@ -47,6 +47,7 @@ map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dash
 | `poll_interval` | Seconds between polls (60–3600, default 300). |
 | `battery_capacity_kwh` | `52` or `40`. Must be set — the API reports capacity as 0; used to derive charge-session energy. |
 | `stale_hours` | Mark data stale after this many hours without a successful poll (default 6). |
+| `gps_precision` | Decimal places the car's GPS is rounded to before publishing (1–6, default **4** ≈ 11 m). Coarsens the location on the retained MQTT topic for privacy; raise to 5–6 for a more precise map pin, lower to 2–3 for more privacy. |
 | `precondition_temperature` | Target cabin temperature (°C, 16–27, default 20) used by the **Start Climate** button. |
 | `log_level` | `info` normally; `debug` for troubleshooting. |
 | `debug_dump` | `false` by default. When `true`, every poll logs the decoded data from all readable API endpoints — with your VIN, account id, username and contact/identifier fields redacted — to help diagnose what your car does/doesn't expose. Turn off again once captured (it's verbose). Prefer this over `log_level: debug` for API diagnostics: the library's own debug logging would expose access tokens. |
