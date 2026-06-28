@@ -83,21 +83,24 @@ _CHARGER_ENTITIES = (
 _CHARGER_HASH = "#alpine-charging"
 # The heading the standard-dashboard card is inserted directly beneath.
 _CHARGER_ANCHOR_HEADING = "Climate/Charging Presets"
-# Match the standard dashboard's other cards: a transparent card over the section's dark
-# translucent panel with light text. Switches render as (dark) toggles and the number as a
-# (dark) slider; only the target-time `select` would render a light inline MDC dropdown that
-# clashes — so that row is shown as a plain value (tap → more-info to change) instead, which
-# avoids the light input entirely (the user's original styling complaint).
-_CHARGER_CARD_MOD = {"style": (
-    "ha-card {"
-    " background: none !important; box-shadow: none !important; border: none !important;"
-    " --primary-text-color: #fff;"
-    " --secondary-text-color: rgba(255,255,255,0.7);"
-    "}"
-)}
-# Charger slots whose entity is a `select` (no good dark inline editor in an entities card) —
-# rendered as a plain value row rather than the light MDC dropdown.
-_CHARGER_SIMPLE_ROWS = {"A290_CHARGER_TARGET_TIME"}
+# The standard dashboard renders every control as a Mushroom card with a 55px coloured icon
+# and Zen Dots styling — these constants mirror that exact look so the Smart Charging controls
+# match the Climate/Charging Presets above them (and avoid the light MDC inputs a plain
+# entities card would produce for the number/select).
+_MUSH_SHAPE = ".shape{--icon-size:55px;--icon-symbol-size:28px;}"
+_MUSH_INFO = (".container{--card-secondary-color:#FFFF00;}"
+              ".primary{font-family:system-ui,sans-serif !important;font-size:12px !important;"
+              "letter-spacing:0.3px;font-weight:400;white-space:normal !important;"
+              "overflow:visible !important;text-overflow:clip !important;line-height:1.15;}"
+              ".secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;"
+              "opacity:0.75;white-space:normal !important;overflow:visible !important;"
+              "text-overflow:clip !important;}")
+_MUSH_RESET = "ha-card{background:none !important;box-shadow:none !important;border:none !important;}"
+_HEADING_STYLE = ('.content{font-family:"Zen Dots",system-ui,sans-serif !important;'
+                  'font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;'
+                  'border-bottom:1px solid var(--divider-color);padding-bottom:6px;'
+                  'text-transform:uppercase;}.content p{white-space:normal !important;'
+                  'overflow:visible !important;text-overflow:clip !important;}')
 # Bubble Card separator styling, matched to the bundled bubble dashboard's other separators.
 _BUBBLE_SEP_STYLE = (
     '.bubble-line{background:#FFFF00 !important;}'
@@ -122,22 +125,56 @@ def _charger_eid(env):
     return eid if eid and eid.lower() != "null" else None
 
 
-def _charger_card():
-    """Build a dark-styled 'Smart Charging' entities card from the configured charger
-    entities, or None when none are set (so it only appears for users who opt in)."""
-    rows = []
-    for env, name in _CHARGER_ENTITIES:
-        if not (eid := _charger_eid(env)):
-            continue
-        row = {"entity": eid, "name": name}
-        if env in _CHARGER_SIMPLE_ROWS:
-            row["type"] = "simple-entity"   # plain value row, not a light inline dropdown
-        rows.append(row)
-    if not rows:
+def _mush_entity(entity, name, icon, icon_css, tap_action=None):
+    """A Mushroom entity card styled to match the standard dashboard's preset cards (55px
+    coloured icon, Zen Dots), with a per-control icon colour (`icon_css` may be a Jinja
+    snippet evaluated by card-mod, e.g. green when on). `tap_action` overrides the default
+    (more-info) — e.g. `toggle` for the switches, so they stay one-tap."""
+    card = {"type": "custom:mushroom-entity-card", "entity": entity, "name": name, "icon": icon,
+            "card_mod": {"style": {
+                "mushroom-shape-icon$": _MUSH_SHAPE,
+                "mushroom-state-info$": _MUSH_INFO,
+                # NB the space after `{` — `{{` would be read as a Jinja expression and break
+                # card-mod for the switch icons (whose colour is a `{% … %}` snippet).
+                ".": "ha-state-icon{ " + icon_css + " }" + _MUSH_RESET}}}
+    if tap_action:
+        card["tap_action"] = tap_action
+    return card
+
+
+def _switch_icon_css(entity, on_colour):
+    return ("{% if is_state('" + entity + "','on') %}color:" + on_colour
+            + ";{% else %}color:grey;opacity:0.4;{% endif %}")
+
+
+def _charger_cards():
+    """Build the standard-dashboard 'Smart Charging' block — a styled heading plus Mushroom
+    cards matching the Climate/Charging Presets (so the Charge Target shows as a value, not a
+    light MDC box) and the off-peak badge. Returns a list of cards, or None when nothing is
+    configured (so it only appears for users who opt in)."""
+    smart = _charger_eid("A290_CHARGER_SMART_CHARGE")
+    bump = _charger_eid("A290_CHARGER_BUMP_CHARGE")
+    soc = _charger_eid("A290_CHARGER_TARGET_SOC")
+    ttime = _charger_eid("A290_CHARGER_TARGET_TIME")
+    dispatch = _charger_eid("A290_CHARGER_DISPATCHING")
+    if not any((smart, bump, soc, ttime, dispatch)):
         return None
-    return {"type": "entities", "title": "Smart Charging",
-            "show_header_toggle": False, "entities": rows,
-            "card_mod": _CHARGER_CARD_MOD}
+    out = [{"type": "heading", "heading": "Smart Charging", "heading_style": "title",
+            "card_mod": {"style": _HEADING_STYLE}}]
+    toggle = {"action": "toggle"}   # keep the switches one-tap (mushroom defaults to more-info)
+    if smart:
+        out.append(_mush_entity(smart, "Smart Charge", "mdi:ev-station",
+                                _switch_icon_css(smart, "#33BEFA"), tap_action=toggle))
+    if bump:
+        out.append(_mush_entity(bump, "Bump Charge", "mdi:battery-plus-variant",
+                                _switch_icon_css(bump, "orange"), tap_action=toggle))
+    if soc:
+        out.append(_mush_entity(soc, "Charge Target", "mdi:battery-charging-high", "color:green;"))
+    if ttime:
+        out.append(_mush_entity(ttime, "Target Time", "mdi:clock-outline", "color:#FFFF00;"))
+    if dispatch:
+        out.append(_offpeak_badge(dispatch, preset_style=True))
+    return out
 
 
 def _toggle_card(entity, name, icon, on_colour):
@@ -151,12 +188,21 @@ def _toggle_card(entity, name, icon, on_colour):
                        + on_colour + "' : '#777'} !important;}")}
 
 
-def _offpeak_badge(entity):
+def _offpeak_badge(entity, *, preset_style=False):
     """Off-peak rate badge. A Mushroom template card (full Jinja) so it can show BOTH the live
     rate and the cheap-window times: green "Off-peak" / red "Peak" for the current rate, with
-    the off-peak window (24-hour) as the sub-line."""
+    the off-peak window (24-hour) as the sub-line. `preset_style` matches the standard
+    dashboard's preset cards (55px icon + small wrapping text, so it fits the 2-up grid)."""
     def fill(s):
         return s.replace("@E@", entity)
+    reset = fill("ha-card{background:none !important;box-shadow:none !important;"
+                 "border:none !important;width:100% !important;"
+                 "--card-primary-color:{% if is_state('@E@','on') %}#5BE36A"
+                 "{% else %}#FF6B6B{% endif %};}")
+    # On the standard dashboard the badge sits in a narrow 2-up cell; we keep its label short
+    # ("Off-peak"/"Peak rate") so it fits, since Mushroom renders the template card's text in
+    # an inner shadow root that card-mod text rules here can't reach.
+    style = ({"mushroom-shape-icon$": _MUSH_SHAPE, ".": reset} if preset_style else reset)
     return {
         "type": "custom:mushroom-template-card",
         "entity": entity,
@@ -164,17 +210,16 @@ def _offpeak_badge(entity):
         "multiline_secondary": True,
         "icon": fill("{% if is_state('@E@','on') %}mdi:leaf{% else %}mdi:flash-alert{% endif %}"),
         "icon_color": fill("{% if is_state('@E@','on') %}green{% else %}red{% endif %}"),
-        "primary": fill("Now: {% if is_state('@E@','on') %}Off-peak{% else %}Peak rate{% endif %}"),
+        # "Now:" prefix on the roomy bubble pop-up; just the rate in the narrow standard cell.
+        "primary": fill(("" if preset_style else "Now: ")
+                        + "{% if is_state('@E@','on') %}Off-peak{% else %}Peak rate{% endif %}"),
         "secondary": fill(
             "{% set s = state_attr('@E@','current_start') or state_attr('@E@','next_start') %}"
             "{% set e = state_attr('@E@','current_end') or state_attr('@E@','next_end') %}"
             "{% if s and e %}Off-peak {{ as_timestamp(s)|timestamp_custom('%H:%M', true) }}"
             "–{{ as_timestamp(e)|timestamp_custom('%H:%M', true) }}{% endif %}"),
         "tap_action": {"action": "more-info"},
-        "card_mod": {"style": fill(
-            "ha-card{background:none !important;box-shadow:none !important;border:none !important;"
-            "width:100% !important;"
-            "--card-primary-color:{% if is_state('@E@','on') %}#5BE36A{% else %}#FF6B6B{% endif %};}")},
+        "card_mod": {"style": style},
     }
 
 
@@ -229,16 +274,16 @@ async def _fetch_dashboard(style):
         if style == "bubble":
             _inject_bubble_charging(view)
         else:
-            card = _charger_card()
-            if card:
-                _add_card(view, card)
+            new_cards = _charger_cards()
+            if new_cards:
+                _add_cards(view, new_cards)
     return {"title": "Alpine A290", "views": views}
 
 
-def _add_card(view, card):
-    """Add the Smart Charging card to a view. On the `sections` layout (standard dashboard)
-    it's inserted directly beneath the Climate/Charging Presets block; otherwise it's
-    appended to the view's `cards`."""
+def _add_cards(view, new_cards):
+    """Insert the Smart Charging cards into a view. On the `sections` layout (standard
+    dashboard) they go directly beneath the Climate/Charging Presets block (before the next
+    heading); otherwise they're appended to the view's `cards`."""
     sections = view.get("sections")
     if isinstance(sections, list):
         for sec in sections:
@@ -253,11 +298,11 @@ def _add_card(view, card):
             nxt = next((j for j in range(hi + 1, len(cards))
                         if isinstance(cards[j], dict) and cards[j].get("type") == "heading"),
                        len(cards))
-            cards.insert(nxt, card)
+            cards[nxt:nxt] = new_cards
             return
-        view["sections"].append({"type": "grid", "cards": [card]})
+        view["sections"].append({"type": "grid", "cards": new_cards})
     else:
-        view.setdefault("cards", []).append(card)
+        view.setdefault("cards", []).extend(new_cards)
 
 
 def _grid_rows(buttons):

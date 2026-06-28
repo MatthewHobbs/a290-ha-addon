@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.15.0
+
+- **Standard dashboard Smart Charging now matches the rest of the dashboard.** Replaced the
+  plain entities card (which rendered the charge-target number as a clashing white input box)
+  with a styled **"SMART CHARGING" heading + Mushroom cards** — the same 55px coloured-icon
+  look as the Climate/Charging Presets:
+  - **Smart Charge / Bump Charge** — icon lights up (blue/grey) with state.
+  - **Charge Target** shows the **%**, **Target Time** shows the selected time (no more white
+    MDC box), and the **off-peak badge** (current rate + 24-hour window) is included.
+- Bubble dashboard unchanged.
+
 ## 1.14.0
 
 - **Smart Charging pop-up polish (bubble dashboard).**
