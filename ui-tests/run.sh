@@ -24,6 +24,14 @@ mkdir -p "$CONFIG/www/cards"
 curl -fsSL "https://github.com/piitaya/lovelace-mushroom/releases/latest/download/mushroom.js" -o "$CONFIG/www/cards/mushroom.js"
 curl -fsSL "https://github.com/custom-cards/button-card/releases/latest/download/button-card.js" -o "$CONFIG/www/cards/button-card.js"
 curl -fsSL "https://cdn.jsdelivr.net/gh/thomasloven/lovelace-card-mod@master/card-mod.js" -o "$CONFIG/www/cards/card-mod.js"
+
+# Vendor the dashboards' background/render images so /local/backgrounds/<file> resolves
+# (the live add-on rewrites these to the CDN via deploy._cdnify; the harness serves them
+# locally instead, so the car render + the SOC gauge's picture-elements background appear).
+echo "==> Vendor dashboard background images into the HA www/"
+mkdir -p "$CONFIG/www/backgrounds"
+find "$HERE/../alpine_a290/dashboards/Images" -type f \( -name '*.webp' -o -name '*.png' \) \
+  -exec cp {} "$CONFIG/www/backgrounds/" \;
 printf 'default_config:\n' > "$CONFIG/configuration.yaml"
 
 echo "==> Start Home Assistant ($HA_IMAGE)"
