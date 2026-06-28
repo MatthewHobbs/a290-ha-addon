@@ -129,6 +129,11 @@ Published via MQTT discovery under the **Alpine A290** device, e.g.
 `sensor.alpine_a290_battery_level`, `…_range`, `…_plug_status`,
 `…_charging_status`, `…_charging_power`, `…_mileage`.
 
+A car that has a charge schedule programmed also exposes it (read-only, from the same settings
+used for preconditioning — not a control): `…_charge_schedule_mode`,
+`…_scheduled_charge_start`, `…_scheduled_charge_duration`. These show *unavailable* when no
+schedule is set.
+
 ### Control buttons
 
 The app publishes a button for each remote action the car supports (it probes
