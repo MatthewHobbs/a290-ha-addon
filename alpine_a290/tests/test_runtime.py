@@ -55,7 +55,7 @@ class FakeVehicle:
         return ns(chargeMode="always")
 
     async def get_location(self):
-        return ns(gpsLatitude=51.5, gpsLongitude=-0.1, lastUpdateTime="t")
+        return ns(gpsLatitude=51.512345, gpsLongitude=-0.123456, lastUpdateTime="t")
 
     async def get_details(self):
         return ns(raw_data={"vin": "SECRET", "batteryLevel": 60})
@@ -107,7 +107,8 @@ def test_poll_once_full(monkeypatch):
     assert data["charge_mode"] == "always"
     assert data["tyre_pressure_fl"] == 2.4
     assert data["heated_seat_passenger"] == "off"   # left seat, LHD
-    assert attrs["latitude"] == 51.5
+    assert attrs["latitude"] == 51.5123 and attrs["longitude"] == -0.1235   # rounded to 4 dp
+    assert attrs["gps_accuracy"] == 11                                       # ~11 m at 4 dp
 
 
 class FlakyVehicle(FakeVehicle):
@@ -405,6 +406,9 @@ def test_mqtt_connect(monkeypatch):
         def will_set(self, *a, **k):
             seen["will"] = True
 
+        def reconnect_delay_set(self, **k):
+            seen["delay"] = k
+
         def connect(self, host, port, keepalive):
             seen["connect"] = (host, port)
 
@@ -417,6 +421,12 @@ def test_mqtt_connect(monkeypatch):
     monkeypatch.setenv("MQTT_PASS", "p")
     main.mqtt_connect()
     assert seen["connect"][0] == "broker" and seen["loop"] and seen["auth"] == ("u", "p")
+    assert seen["delay"] == {"min_delay": 1, "max_delay": 120}   # bounded reconnect backoff
+
+
+def test_on_disconnect_logs_both_paths():
+    main._on_disconnect(None, None, None, 0)   # clean disconnect — no warning
+    main._on_disconnect(None, None, None, 1)   # unexpected — logs a reconnect warning
 
 
 def test_on_connect_resubscribes_and_publishes():
