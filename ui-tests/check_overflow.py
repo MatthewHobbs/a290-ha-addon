@@ -98,6 +98,9 @@ def run():
     init = auth_script(args.base, tokens)
 
     failures = []
+    # The truncation gate runs in light mode (stable); set UI_TESTS_DARK=1 to render in dark
+    # mode instead (used to produce the documentation screenshots).
+    colour_scheme = "dark" if os.environ.get("UI_TESTS_DARK") else "light"
     with sync_playwright() as p:
         browser = p.chromium.launch(args=["--no-sandbox"])
         for dev in devices:
@@ -106,7 +109,7 @@ def run():
                 viewport={"width": dev["width"], "height": dev["height"]},
                 device_scale_factor=dev.get("deviceScaleFactor", 2),
                 is_mobile=dev.get("isMobile", True), has_touch=dev.get("hasTouch", True),
-                user_agent=ua)
+                color_scheme=colour_scheme, user_agent=ua)
             ctx.add_init_script(init)
             page = ctx.new_page()
             for dash in args.dashboards:
