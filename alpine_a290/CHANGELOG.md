@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.11.0
+
+- **New: climate (preconditioning) schedule sensors.** Two new sensors surface the car's
+  programmed climate schedule — **Climate Schedule Mode** and **Climate Ready Time** (the days
+  and times the cabin is set to be preconditioned, e.g. `Mon 07:00, Fri 08:30`). Together with
+  the charge-schedule sensors this gives the full "ready to go by" picture. Read-only, shows
+  *unavailable* when no schedule is set; nothing to configure.
+
 ## 1.10.0
 
 - **New: scheduled-charging sensors.** Three new sensors surface the car's programmed charge
