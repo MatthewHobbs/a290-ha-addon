@@ -3,10 +3,10 @@
 [![CI](https://github.com/MatthewHobbs/a290-ha-addon/actions/workflows/ci.yaml/badge.svg)](https://github.com/MatthewHobbs/a290-ha-addon/actions/workflows/ci.yaml)
 [![Version](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2FMatthewHobbs%2Fa290-ha-addon%2Fmain%2Falpine_a290%2Fconfig.yaml&query=%24.version&label=version&color=41BDF5)](alpine_a290/config.yaml)
 [![License: MIT](https://img.shields.io/github/license/MatthewHobbs/a290-ha-addon?color=blue)](LICENSE)
-[![Home Assistant Add-on](https://img.shields.io/badge/Home%20Assistant-Add--on-41BDF5?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/addons/)
+[![Home Assistant App](https://img.shields.io/badge/Home%20Assistant-App-41BDF5?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/addons/)
 [![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20aarch64-informational)](alpine_a290/config.yaml)
 
-[![Open your Home Assistant instance and add this add-on repository.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FMatthewHobbs%2Fa290-ha-addon)
+[![Open your Home Assistant instance and add this app repository.](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2FMatthewHobbs%2Fa290-ha-addon)
 
 This app logs in to your car's **My Alpine** account, reads its data (battery, charging,
 location, climate) every few minutes, and shows it in Home Assistant — you enter your login
@@ -39,7 +39,7 @@ that's a platform limit, not a missing feature.)
 
 Install these **before** the dashboards will render correctly.
 
-### Add-ons (Settings → Add-ons)
+### Apps (Settings → Apps)
 
 | Dependency | Why | Required? |
 | --- | --- | --- |
@@ -75,11 +75,11 @@ key needed.
 
 1. **Install the dependencies first** — so a deployed dashboard renders immediately instead
    of as "custom element doesn't exist":
-   - **Mosquitto broker** (Settings → Add-ons → Add-on Store) — the app auto-discovers it.
+   - **Mosquitto broker** (Settings → Apps → App Store) — the app auto-discovers it.
    - **[HACS](https://hacs.xyz)** and the frontend cards from [Requirements](#requirements)
      above (card-mod, Mushroom, Button Card, Browser Mod, plus Bubble Card for the bubble
      dashboard).
-2. **Add the app repo + install it:** Settings → Add-ons → Add-on Store → ⋮ →
+2. **Add the app repo + install it:** Settings → Apps → App Store → ⋮ →
    **Repositories**, add `https://github.com/MatthewHobbs/a290-ha-addon`, then install the
    **Alpine A290** app.
 3. **Configure + start:** on the **Configuration** tab set your My Alpine
