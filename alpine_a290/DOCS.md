@@ -1,20 +1,25 @@
-# Alpine A290 add-on
+# Alpine A290 app
+
+Logs in to your **My Alpine** account, reads your car's data (battery, charging, location,
+climate) every few minutes, and publishes it to Home Assistant — you enter your login once
+on the Configuration page, no files to edit.
 
 Polls your Alpine A290 through the Renault/Kamereon API and publishes the data to
 Home Assistant via MQTT auto-discovery.
 
 ## Before you start — install these first
 
-The add-on **deploys the standard dashboard for you by default** (`deploy_dashboard: standard`),
-so install its frontend cards via **HACS → Frontend** *before you start the add-on for the
+The app **deploys the standard dashboard for you by default** (`deploy_dashboard: standard`),
+so install its frontend cards via **HACS → Frontend** *before you start the app for the
 first time* — otherwise the dashboard renders as *"Custom element doesn't exist"* with broken
-tiles. You also need the **Mosquitto broker** add-on (the add-on's MQTT connection is
+tiles. You also need the **Mosquitto broker** add-on (the app's MQTT connection is
 auto-discovered from it).
 
 | Install via HACS → Frontend | Needed for |
 | --- | --- |
 | **card-mod** + **Mushroom** | both dashboards |
-| **Button Card** + **Browser Mod** | the **standard** dashboard (the default — tiles + pop-ups) |
+| **Button Card** | **both** dashboards |
+| **Browser Mod** | pop-ups on the **standard** dashboard |
 | **Bubble Card** | the **bubble** dashboard only |
 
 Install Mosquitto and the cards above **before first start**, so the dashboard renders
@@ -26,8 +31,8 @@ map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dash
 - **VIN** (required): the 17-character vehicle identification number — on your **My Alpine**
   app (vehicle details), your registration document (V5C), or the windscreen base. Enter it
   in **uppercase**.
-- **account id** (optional): leave it **blank** and the add-on auto-discovers your
-  MyAlpine/Kamereon account on login. Only set it if you have multiple accounts and need to
+- **account id** (optional): leave it **blank** and the app auto-discovers your
+  My Alpine/Kamereon account on login. Only set it if you have multiple accounts and need to
   pin a specific one.
 
 ## Configuration
@@ -38,7 +43,7 @@ map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dash
 | `password` | Your My Alpine app password. |
 | `account_id` | Your Kamereon account id. **Optional** — leave blank to auto-discover it. |
 | `vin` | Your vehicle VIN (uppercase). |
-| `locale` | Pick from the dropdown (e.g. `en_GB`, `fr_FR`, `de_DE`). This sets the API region **and** the drive side — `en_GB`/`en_IE` ⇒ RHD, otherwise LHD (used for seat mapping). The country is derived from this, so there is no separate country option. |
+| `locale` | Pick from the dropdown (e.g. `en_GB`, `fr_FR`, `de_DE`). Sets the API region, the drive side (right-hand drive for `en_GB`/`en_IE`, left-hand drive otherwise — used for heated-seat mapping), and distance units (**miles** for `en_GB`, **km** otherwise). The country is derived from this, so there is no separate country option. |
 | `poll_interval` | Seconds between polls (60–3600, default 300). |
 | `battery_capacity_kwh` | `52` or `40`. Must be set — the API reports capacity as 0; used to derive charge-session energy. |
 | `stale_hours` | Mark data stale after this many hours without a successful poll (default 6). |
@@ -51,12 +56,12 @@ map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dash
 
 ## Dashboard auto-deploy (optional)
 
-Set `deploy_dashboard` to `standard`, `bubble`, or `both` and the add-on will install the
+Set `deploy_dashboard` to `standard`, `bubble`, or `both` and the app will install the
 dashboard(s) for you — **no raw-editor paste, no `configuration.yaml` edits, and nothing
 to copy into `/config/www`**. On start it:
 
-1. Reads the chosen dashboard YAML **bundled in the add-on** and rewrites its image
-   references to the **jsDelivr CDN** (served from this add-on's own repo).
+1. Reads the chosen dashboard YAML **bundled in the app** and rewrites its image
+   references to the **jsDelivr CDN** (served from this app's own repo).
 2. Registers the **Zen Dots** Google font as a Lovelace resource.
 3. Creates the dashboard (at `dashboard_url_path`) via the Home Assistant API and pushes
    its config.
@@ -65,21 +70,22 @@ It is **create-once** — if the dashboard already exists it is left untouched (
 are safe). To pull in an updated layout, set `redeploy_dashboard: true` and restart once.
 
 **Still required (these can't be automated):** install the frontend cards via HACS —
-**card-mod** and **Mushroom** (both dashboards), **Button Card** and **Browser Mod**
-(the standard dashboard's tiles and pop-ups), and **Bubble Card** (the bubble dashboard).
-The optional **pretty-location** and **test-mode** features are a small manual package
-under [`dashboards/`](dashboards/) (`Packages/`, `Templates/`, `Helpers/`).
+**card-mod** and **Mushroom** (both dashboards), **Button Card** (both dashboards),
+**Browser Mod** (the standard dashboard's pop-ups), and **Bubble Card** (the bubble
+dashboard). The optional **pretty-location** and **test-mode** features are a small manual
+package under [dashboards/](https://github.com/MatthewHobbs/a290-ha-addon/tree/main/alpine_a290/dashboards/)
+(`Packages/`, `Templates/`, `Helpers/`).
 
 ### Kamereon account id
 
-Leave `account_id` blank and the add-on auto-discovers your MyRenault/Kamereon
+Leave `account_id` blank and the app auto-discovers your My Alpine/Kamereon
 account on login. Only set it if you have multiple accounts and need to pin a
 specific one.
 
 ## Status panel
 
-The add-on adds a **read-only "Alpine A290" panel to the Home Assistant sidebar** (via
-ingress). It shows the latest poll at a glance — battery, range, charging, plug, climate,
+The app adds a **read-only "Alpine A290" panel to the Home Assistant sidebar**. It shows
+the latest poll at a glance — battery, range, charging, plug, climate,
 charge limits and diagnostics — without needing a dashboard. It is **read-only** (it never
 changes anything), **auth-gated by Home Assistant**, and stores no credentials or precise
 location. The bundled dashboards remain the richer view; the panel is the quick glance.
@@ -96,7 +102,7 @@ Published via MQTT discovery under the **Alpine A290** device, e.g.
 
 ### Control buttons
 
-The add-on publishes a button for each remote action the car supports (it probes
+The app publishes a button for each remote action the car supports (it probes
 `supports_endpoint()` at startup and only ships the buttons that are available, so you
 won't see a control your A290 rejects):
 

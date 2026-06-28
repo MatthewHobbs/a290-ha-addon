@@ -1,7 +1,7 @@
 name: Alpine A290
 version: "1.6.0"
 slug: alpine_a290
-description: Polls your Alpine A290 (Renault/Kamereon API) and publishes its data to Home Assistant via MQTT auto-discovery — no scripts, venv or secrets files needed.
+description: Polls your Alpine A290 (Renault/Kamereon API) and publishes its data to Home Assistant via MQTT auto-discovery. Credentials are entered once on the Configuration page.
 url: https://github.com/MatthewHobbs/a290-ha-addon/tree/main/alpine_a290
 # Pre-built multi-arch image published to GHCR by .github/workflows/release.yaml
 # (Cosign-signed). With this set, the Supervisor pulls the image instead of building
