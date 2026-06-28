@@ -12,9 +12,8 @@ This app logs in to your car's **My Alpine** account, reads its data (battery, c
 location, climate) every few minutes, and shows it in Home Assistant — you enter your login
 once on the Configuration page, no files to edit.
 
-A maintained Home Assistant app for the **Alpine A290**. It polls the
-Renault/Kamereon API and publishes `sensor.alpine_a290_*` entities over **MQTT
-auto-discovery**. Credentials are entered once on the app's **Configuration** page.
+Under the hood it polls the [Renault/Kamereon API](https://github.com/hacf-fr/renault-api)
+and publishes `sensor.alpine_a290_*` entities over **MQTT auto-discovery**.
 
 The **dashboards now ship inside the app** (previously a separate `a290-dashboard-view`
 repo — since merged in and archived): enable `deploy_dashboard` and the app installs a
