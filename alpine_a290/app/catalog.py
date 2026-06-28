@@ -80,6 +80,11 @@ ACTION_BUTTONS = {
 # match object_id[5:]); a press writes via set_battery_soc(). Gated on SOC_ENDPOINT support,
 # so a model that rejects the write never ships the control. (name, icon, min, max, step)
 SOC_ENDPOINT = "soc-levels"
+# Authoritative recent-charge-sessions endpoint (renault_api get_charges). Supported by the
+# A290 (A5E1AE) and R5 (R5E1VE) in _VEHICLE_ENDPOINTS; probed at startup so a model that
+# forbids it falls back to the live-inferred Last Charge instead. (charge-history is forbidden
+# on both, so only charges is used.)
+CHARGES_ENDPOINT = "charges"
 NUMBERS = {
     "a290_soc_min":    ("Minimum SoC",       "mdi:battery-arrow-down", 15, 45,  5),
     "a290_soc_target": ("Charge Target SoC", "mdi:battery-arrow-up",   55, 100, 5),
