@@ -69,48 +69,185 @@ def _read_dashboard(style):
         return fh.read()
 
 
-# Optional "Smart Charging" card — the user maps their own EV-charger control entities (any
-# integration, e.g. Octopus Intelligent) via the charger_* options; each blank slot is
-# skipped. It's a plain built-in `entities` card (no extra HACS card needed).
+# Optional "Smart Charging" controls — the user maps their own EV-charger control entities
+# (any integration, e.g. Octopus Intelligent) via the charger_* options; each blank slot is
+# skipped. On the standard dashboard these render as a built-in `entities` card; on the
+# bubble dashboard they become their own pop-up "tab" of native Bubble Card controls.
 _CHARGER_ENTITIES = (
     ("A290_CHARGER_SMART_CHARGE", "Smart Charge"),
     ("A290_CHARGER_BUMP_CHARGE", "Bump Charge"),
     ("A290_CHARGER_TARGET_SOC", "Charge Target"),
     ("A290_CHARGER_TARGET_TIME", "Target Time"),
 )
+_CHARGER_HASH = "#alpine-charging"
+# The heading the standard-dashboard card is inserted directly beneath.
+_CHARGER_ANCHOR_HEADING = "Climate/Charging Presets"
+# Match the standard dashboard's other cards: a transparent card over the section's dark
+# translucent panel with light text. Switches render as (dark) toggles and the number as a
+# (dark) slider; only the target-time `select` would render a light inline MDC dropdown that
+# clashes — so that row is shown as a plain value (tap → more-info to change) instead, which
+# avoids the light input entirely (the user's original styling complaint).
+_CHARGER_CARD_MOD = {"style": (
+    "ha-card {"
+    " background: none !important; box-shadow: none !important; border: none !important;"
+    " --primary-text-color: #fff;"
+    " --secondary-text-color: rgba(255,255,255,0.7);"
+    "}"
+)}
+# Charger slots whose entity is a `select` (no good dark inline editor in an entities card) —
+# rendered as a plain value row rather than the light MDC dropdown.
+_CHARGER_SIMPLE_ROWS = {"A290_CHARGER_TARGET_TIME"}
+# Bubble Card separator styling, matched to the bundled bubble dashboard's other separators.
+_BUBBLE_SEP_STYLE = (
+    '.bubble-line{background:#FFFF00 !important;}'
+    '.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;'
+    'text-transform:uppercase;letter-spacing:2px;}'
+    '.bubble-icon-container{color:#FFFF00 !important;}'
+)
+
+
+def _charger_eid(env):
+    """Return the configured entity id for a charger slot, or None if blank/null."""
+    eid = os.environ.get(env, "").strip()
+    return eid if eid and eid.lower() != "null" else None
 
 
 def _charger_card():
-    """Build a 'Smart Charging' entities card from the configured charger entities, or None
-    when none are set (so the card only appears for users who opt in)."""
+    """Build a dark-styled 'Smart Charging' entities card from the configured charger
+    entities, or None when none are set (so it only appears for users who opt in)."""
     rows = []
     for env, name in _CHARGER_ENTITIES:
-        eid = os.environ.get(env, "").strip()
-        if eid and eid.lower() != "null":
-            rows.append({"entity": eid, "name": name})
+        if not (eid := _charger_eid(env)):
+            continue
+        row = {"entity": eid, "name": name}
+        if env in _CHARGER_SIMPLE_ROWS:
+            row["type"] = "simple-entity"   # plain value row, not a light inline dropdown
+        rows.append(row)
     if not rows:
         return None
     return {"type": "entities", "title": "Smart Charging",
-            "show_header_toggle": False, "entities": rows}
+            "show_header_toggle": False, "entities": rows,
+            "card_mod": _CHARGER_CARD_MOD}
+
+
+def _charger_popup():
+    """Build the bubble-dashboard 'Smart Charging' pop-up of native Bubble Card controls
+    (toggles for smart/bump, a slider for the charge target, a tap-to-edit button for the
+    target time), or None when no charger entities are configured."""
+    smart = _charger_eid("A290_CHARGER_SMART_CHARGE")
+    bump = _charger_eid("A290_CHARGER_BUMP_CHARGE")
+    soc = _charger_eid("A290_CHARGER_TARGET_SOC")
+    ttime = _charger_eid("A290_CHARGER_TARGET_TIME")
+    if not any((smart, bump, soc, ttime)):
+        return None
+    cards = [{"type": "custom:bubble-card", "card_type": "separator",
+              "name": "Smart Charging", "icon": "mdi:ev-station",
+              "styles": _BUBBLE_SEP_STYLE}]
+    if smart:
+        cards.append({"type": "custom:bubble-card", "card_type": "button",
+                      "button_type": "switch", "entity": smart,
+                      "name": "Smart Charge", "icon": "mdi:ev-station"})
+    if bump:
+        cards.append({"type": "custom:bubble-card", "card_type": "button",
+                      "button_type": "switch", "entity": bump,
+                      "name": "Bump Charge", "icon": "mdi:battery-plus-variant"})
+    if soc:
+        cards.append({"type": "custom:bubble-card", "card_type": "button",
+                      "button_type": "slider", "entity": soc, "name": "Charge Target",
+                      "icon": "mdi:battery-charging-high"})
+    if ttime:
+        cards.append({"type": "custom:bubble-card", "card_type": "button",
+                      "button_type": "state", "entity": ttime, "name": "Target Time",
+                      "icon": "mdi:clock-outline",
+                      "tap_action": {"action": "more-info"}})
+    return {"type": "custom:bubble-card", "card_type": "pop-up", "hash": _CHARGER_HASH,
+            "name": "Smart Charging", "icon": "mdi:ev-station", "button_type": "name",
+            "bg_color": "#14171b", "bg_opacity": "85", "bg_blur": "6",
+            "shadow_opacity": "0", "cards": cards}
 
 
 async def _fetch_dashboard(style):
     views = yaml.safe_load(_cdnify(_read_dashboard(style)))
     if not isinstance(views, list):
         raise ValueError("dashboard YAML did not parse to a list of views")
-    card = _charger_card()
-    if card and views and isinstance(views[0], dict):
-        _add_card(views[0], card)
+    view = views[0] if views and isinstance(views[0], dict) else None
+    if view is not None:
+        if style == "bubble":
+            _inject_bubble_charging(view)
+        else:
+            card = _charger_card()
+            if card:
+                _add_card(view, card)
     return {"title": "Alpine A290", "views": views}
 
 
 def _add_card(view, card):
-    """Add a card to a view, supporting both the `sections` layout (the standard dashboard)
-    and the plain `cards` layout (the bubble dashboard)."""
-    if isinstance(view.get("sections"), list):
+    """Add the Smart Charging card to a view. On the `sections` layout (standard dashboard)
+    it's inserted directly beneath the Climate/Charging Presets block; otherwise it's
+    appended to the view's `cards`."""
+    sections = view.get("sections")
+    if isinstance(sections, list):
+        for sec in sections:
+            cards = sec.get("cards")
+            if not isinstance(cards, list):
+                continue
+            hi = next((i for i, c in enumerate(cards)
+                       if isinstance(c, dict) and c.get("type") == "heading"
+                       and c.get("heading") == _CHARGER_ANCHOR_HEADING), None)
+            if hi is None:
+                continue
+            nxt = next((j for j in range(hi + 1, len(cards))
+                        if isinstance(cards[j], dict) and cards[j].get("type") == "heading"),
+                       len(cards))
+            cards.insert(nxt, card)
+            return
         view["sections"].append({"type": "grid", "cards": [card]})
     else:
         view.setdefault("cards", []).append(card)
+
+
+def _grid_rows(buttons):
+    """Pair buttons into 2-up horizontal-stacks; a trailing odd button spans full width."""
+    rows = []
+    for i in range(0, len(buttons), 2):
+        pair = buttons[i:i + 2]
+        rows.append({"type": "horizontal-stack", "cards": pair} if len(pair) == 2
+                    else pair[0])
+    return rows
+
+
+def _inject_bubble_charging(view):
+    """Add the Smart Charging pop-up + a main-menu button to the bubble dashboard, and move
+    the Location button to a full-width row at the bottom of the menu. No-op when no charger
+    entities are configured (the menu is left exactly as bundled)."""
+    popup = _charger_popup()
+    if popup is None:
+        return
+    menu = next((c for c in view.get("cards", [])
+                 if isinstance(c, dict) and c.get("hash") == "#alpine"), None)
+    if menu is None:
+        return
+    buttons = []
+    for item in menu.get("cards", []):
+        if isinstance(item, dict) and item.get("type") == "horizontal-stack":
+            buttons.extend(item.get("cards", []))
+        else:
+            buttons.append(item)
+    location = next((b for b in buttons
+                     if isinstance(b, dict) and b.get("name") == "Location"), None)
+    rest = [b for b in buttons if b is not location]
+    btn = {"type": "custom:bubble-card", "card_type": "button", "button_type": "name",
+           "name": "Smart Charging", "icon": "mdi:ev-station",
+           "button_action": {"tap_action": {"action": "navigate",
+                                             "navigation_path": _CHARGER_HASH}}}
+    idx = next((i for i, b in enumerate(rest)
+                if isinstance(b, dict) and b.get("name") == "Charge Status"), len(rest) - 1)
+    rest.insert(idx + 1, btn)
+    rows = _grid_rows(rest)
+    if location is not None:
+        rows.append(location)
+    menu["cards"] = rows
+    view.setdefault("cards", []).append(popup)
 
 
 class _WS:

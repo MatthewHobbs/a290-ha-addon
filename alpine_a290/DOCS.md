@@ -64,24 +64,34 @@ map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dash
 If you control charging through a smart-charging integration — e.g. **[Octopus Energy /
 Intelligent Octopus](https://github.com/BottlecapDave/HomeAssistant-OctopusEnergy)**, Ohme,
 Zappi, Wallbox — you can show those controls on the deployed dashboard next to the car's
-data. Set the `charger_*` options above to your charger's entity ids and the dashboard gains
-a **"Smart Charging"** card (a built-in `entities` card — no extra HACS card needed). Leave
-them blank (the default) and no card is added; each blank one is skipped, so you can map just
-the controls you have.
+data. Set the `charger_*` options above to your charger's entity ids; leave them blank (the
+default) and nothing is added. Each blank one is skipped, so you can map just the controls
+you have. Where they appear depends on the dashboard:
 
-For example, with the Octopus Intelligent entities from your account:
+- **Standard dashboard** — a **"Smart Charging"** card (a built-in `entities` card, no extra
+  HACS card needed) is inserted **directly beneath the Climate/Charging Presets** section.
+- **Bubble dashboard** — a **"Smart Charging"** tab is added to the main menu, opening a
+  pop-up of native Bubble Card controls: on/off toggles for smart- and bump-charge, an
+  **inline slider** for the charge target, and a tap-to-edit button for the target time.
+
+Both are read-write — toggling a switch or moving the slider controls your charger directly.
+
+**Filling in the entity ids.** Open **Developer Tools → States**, filter on `intelligent`
+(or your charger's integration), and copy the exact ids. For Octopus Intelligent they look
+like the example below — note `<charger-id>` is your **charger's serial** (a UUID), *not*
+your account number, and the domains differ (`switch` / `number` / `select`):
 
 ```yaml
-charger_smart_charge: switch.octopus_energy_<account>_intelligent_smart_charge
-charger_bump_charge:  switch.octopus_energy_<account>_intelligent_bump_charge
-charger_target_soc:   number.octopus_energy_<account>_intelligent_charge_target
-charger_target_time:  select.octopus_energy_<account>_intelligent_target_time
+# <charger-id> is your charger's serial, e.g. 00000000_0009_4000_XXXX_XXXXXXXXXXXX
+charger_smart_charge: switch.octopus_energy_<charger-id>_intelligent_smart_charge
+charger_bump_charge:  switch.octopus_energy_<charger-id>_intelligent_bump_charge
+charger_target_soc:   number.octopus_energy_<charger-id>_intelligent_charge_target
+charger_target_time:  select.octopus_energy_<charger-id>_intelligent_target_time
 ```
 
-(Find the exact ids in **Developer Tools → States**.) The card is read-write — toggling a
-switch or changing the target there controls your charger directly. It's added when the
-dashboard is deployed, so set `redeploy_dashboard: true` (and restart once) if you add the
-entities after the dashboard already exists.
+Paste each id exactly — a stray trailing space shows as **"Entity not found"** on the card.
+The controls are added when the dashboard is deployed, so set `redeploy_dashboard: true`
+(and restart once) if you add the entities after the dashboard already exists.
 
 ## Dashboard auto-deploy (optional)
 
