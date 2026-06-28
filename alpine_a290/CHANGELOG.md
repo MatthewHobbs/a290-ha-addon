@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.13.0
+
+- **Smart Charging pop-up refinements (bubble dashboard).**
+  - **Smart Charge + Bump Charge** are now **compact toggles on one line** instead of two
+    full-width rows.
+  - **Charge Target** shows the live **%** and a marker at **80%** (Alpine's recommended
+    target) to drag to.
+  - **Target Time** is now an inline **dropdown** of the charger's times (showing the current
+    selection), instead of a tap-to-open row.
+  - New optional **`charger_dispatching`** option (an Octopus Intelligent dispatching
+    `binary_sensor`) adds a green **"Off-peak now"** / red **"Peak rate"** badge.
+- All verified across the phone-viewport render gate; the standard-dashboard card gains the
+  off-peak row too. No change unless the `charger_*` options are set.
+
 ## 1.12.0
 
 - **Smart Charging is now a proper part of each dashboard.** When you set the `charger_*`
