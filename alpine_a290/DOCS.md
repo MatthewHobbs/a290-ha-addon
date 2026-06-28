@@ -69,8 +69,9 @@ data. Set the `charger_*` options above to your charger's entity ids; leave them
 default) and nothing is added. Each blank one is skipped, so you can map just the controls
 you have. Where they appear depends on the dashboard:
 
-- **Standard dashboard** — a **"Smart Charging"** card (a built-in `entities` card, no extra
-  HACS card needed) is inserted **directly beneath the Climate/Charging Presets** section.
+- **Standard dashboard** — a **"Smart Charging"** block (a heading + Mushroom cards styled to
+  match the Climate/Charging Presets — coloured icons, no light inputs) is inserted **directly
+  beneath the Climate/Charging Presets** section, including the off-peak badge.
 - **Bubble dashboard** — a **"Smart Charging"** tab is added to the main menu, opening a
   pop-up: smart- and bump-charge as **compact toggles on one line** (styled like the other
   command buttons — the icon lights up when on), a **charge-target slider** showing the live

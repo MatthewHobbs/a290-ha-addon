@@ -47,76 +47,61 @@ def test_fetch_dashboard_reads_bundled_yaml_and_cdnifies(tmp_path, monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
-# _charger_card — optional "Smart Charging" section
+# _charger_cards — optional standard-dashboard "Smart Charging" block (Mushroom cards)
 # --------------------------------------------------------------------------- #
-def test_charger_card_none_when_no_entities_set(monkeypatch):
+def test_charger_cards_none_when_no_entities_set(monkeypatch):
     for env, _ in deploy._CHARGER_ENTITIES:
         monkeypatch.delenv(env, raising=False)
-    assert deploy._charger_card() is None
+    assert deploy._charger_cards() is None
 
 
-def test_charger_card_skips_blank_and_null(monkeypatch):
+def test_charger_cards_match_dashboard_style(monkeypatch):
     monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.octopus_intelligent_smart_charge")
     monkeypatch.setenv("A290_CHARGER_BUMP_CHARGE", "")        # blank -> skipped
-    monkeypatch.setenv("A290_CHARGER_TARGET_SOC", "null")     # bashio empty -> skipped
+    monkeypatch.setenv("A290_CHARGER_TARGET_SOC", "number.octopus_intelligent_charge_target")
     monkeypatch.setenv("A290_CHARGER_TARGET_TIME", "select.octopus_intelligent_target_time")
-    card = deploy._charger_card()
-    assert card["type"] == "entities" and card["title"] == "Smart Charging"
-    names = [r["name"] for r in card["entities"]]
-    ents = [r["entity"] for r in card["entities"]]
-    assert names == ["Smart Charge", "Target Time"]          # only the two set, in order
-    assert "switch.octopus_intelligent_smart_charge" in ents
+    cards = deploy._charger_cards()
+    assert cards[0]["type"] == "heading" and cards[0]["heading"] == "Smart Charging"
+    controls = cards[1:]
+    # every control is a Mushroom card (so the number renders as a value, not a light MDC box)
+    assert all(c["type"] == "custom:mushroom-entity-card" for c in controls)
+    by_entity = {c["entity"]: c for c in controls}
+    assert set(by_entity) == {"switch.octopus_intelligent_smart_charge",
+                              "number.octopus_intelligent_charge_target",
+                              "select.octopus_intelligent_target_time"}   # blank bump skipped
+    # the charge-target number is a plain value card, not an MDC input
+    assert "mushroom-shape-icon$" in by_entity["number.octopus_intelligent_charge_target"]["card_mod"]["style"]
+    # the switch stays one-tap (toggle), the number/select open more-info (default)
+    assert by_entity["switch.octopus_intelligent_smart_charge"]["tap_action"]["action"] == "toggle"
+    assert "tap_action" not in by_entity["number.octopus_intelligent_charge_target"]
 
 
-def test_fetch_dashboard_appends_charger_card_when_configured(tmp_path, monkeypatch):
+def test_charger_cards_include_offpeak_badge(monkeypatch):
+    monkeypatch.setenv("A290_CHARGER_DISPATCHING", "binary_sensor.disp")
+    cards = deploy._charger_cards()
+    assert any(c.get("type") == "custom:mushroom-template-card" for c in cards)
+
+
+def test_fetch_dashboard_adds_charger_block_when_configured(tmp_path, monkeypatch):
     (tmp_path / "front-end.txt").write_text("- title: Home\n  cards: []\n", encoding="utf-8")
     monkeypatch.setattr(deploy, "DASHBOARD_DIR", str(tmp_path))
     monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.x")
     cfg = asyncio.run(deploy._fetch_dashboard("standard"))
-    last = cfg["views"][0]["cards"][-1]
-    assert last["type"] == "entities" and last["title"] == "Smart Charging"
+    assert any(c.get("type") == "heading" and c.get("heading") == "Smart Charging"
+               for c in cfg["views"][0]["cards"])
 
 
-def test_fetch_dashboard_no_charger_card_when_unset(tmp_path, monkeypatch):
+def test_fetch_dashboard_no_charger_block_when_unset(tmp_path, monkeypatch):
     for env, _ in deploy._CHARGER_ENTITIES:
         monkeypatch.delenv(env, raising=False)
     (tmp_path / "front-end.txt").write_text("- title: Home\n  cards: []\n", encoding="utf-8")
     monkeypatch.setattr(deploy, "DASHBOARD_DIR", str(tmp_path))
     cfg = asyncio.run(deploy._fetch_dashboard("standard"))
-    assert cfg["views"][0]["cards"] == []                    # nothing appended
+    assert cfg["views"][0]["cards"] == []                    # nothing added
 
 
-def test_add_card_sections_layout():
-    # the standard dashboard is a `sections` view — the card must land in a new grid section
-    view = {"type": "sections", "sections": [{"type": "grid", "cards": []}]}
-    deploy._add_card(view, {"type": "entities", "title": "Smart Charging"})
-    assert view["sections"][-1] == {"type": "grid", "cards": [{"type": "entities", "title": "Smart Charging"}]}
-
-
-def test_add_card_cards_layout():
-    # the bubble dashboard is a plain `cards` view — the card is appended to cards
-    view = {"cards": [{"type": "x"}]}
-    deploy._add_card(view, {"type": "entities", "title": "Smart Charging"})
-    assert view["cards"][-1]["title"] == "Smart Charging"
-
-
-def test_charger_card_is_dark_styled(monkeypatch):
-    monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.x")
-    card = deploy._charger_card()
-    assert "background: none" in card["card_mod"]["style"]         # transparent over dark panel
-
-
-def test_charger_card_target_time_is_plain_row(monkeypatch):
-    # the target-time select is shown as a plain value row (not a light inline MDC dropdown)
-    monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.smart")
-    monkeypatch.setenv("A290_CHARGER_TARGET_TIME", "select.ttime")
-    rows = {r["entity"]: r for r in deploy._charger_card()["entities"]}
-    assert rows["select.ttime"].get("type") == "simple-entity"
-    assert "type" not in rows["switch.smart"]                      # switches stay interactive
-
-
-def test_add_card_inserts_beneath_presets_heading():
-    # standard dashboard: the card goes directly after the Climate/Charging Presets block —
+def test_add_cards_inserts_beneath_presets_heading():
+    # standard dashboard: the block goes directly after the Climate/Charging Presets section —
     # i.e. immediately before the next heading, not at the end of the section.
     view = {"type": "sections", "sections": [{"type": "grid", "cards": [
         {"type": "heading", "heading": "Climate/Charging Presets"},
@@ -124,18 +109,18 @@ def test_add_card_inserts_beneath_presets_heading():
         {"type": "heading", "heading": "Last Charge"},
         {"type": "tile", "entity": "y"},
     ]}]}
-    card = {"type": "entities", "title": "Smart Charging"}
-    deploy._add_card(view, card)
+    new_cards = [{"type": "heading", "heading": "Smart Charging"}, {"type": "a"}]
+    deploy._add_cards(view, new_cards)
     cards = view["sections"][0]["cards"]
-    assert cards[2] is card                       # inserted before the "Last Charge" heading
-    assert cards[3]["heading"] == "Last Charge"
+    assert cards[2:4] == new_cards                # inserted before the "Last Charge" heading
+    assert cards[4]["heading"] == "Last Charge"
 
 
-def test_add_card_appends_new_section_when_no_anchor():
-    view = {"type": "sections", "sections": [{"type": "grid", "cards": [
-        {"type": "heading", "heading": "Something Else"}]}]}
-    deploy._add_card(view, {"type": "entities", "title": "Smart Charging"})
-    assert view["sections"][-1]["cards"][0]["title"] == "Smart Charging"
+def test_add_cards_cards_layout():
+    # a plain `cards` view — the cards are appended to cards
+    view = {"cards": [{"type": "x"}]}
+    deploy._add_cards(view, [{"type": "heading", "heading": "Smart Charging"}])
+    assert view["cards"][-1]["heading"] == "Smart Charging"
 
 
 # --------------------------------------------------------------------------- #

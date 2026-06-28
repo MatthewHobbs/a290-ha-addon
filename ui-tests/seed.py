@@ -180,8 +180,8 @@ def inject_smart_charging(url_path, views):
     import deploy
     if "bubble" in url_path:
         deploy._inject_bubble_charging(views[0])
-    elif (card := deploy._charger_card()):
-        deploy._add_card(views[0], card)
+    elif (cards := deploy._charger_cards()):
+        deploy._add_cards(views[0], cards)
 
 
 async def main():
