@@ -4,42 +4,41 @@
 > steps add a dashboard (and, for the manual route, packages and helpers) to your config.
 >
 > **Charging control:** Renault **forbids remote charge start and stop on the A290**, so
-> the add-on ships no charging buttons and the dashboards include no charge tile.
+> the app ships no charging buttons and the dashboards include no charge tile.
 
 This dashboard is the **frontend only**. All car data is provided by the
-**[Alpine A290 add-on](https://github.com/MatthewHobbs/a290-ha-addon)** — a proper
-Home Assistant add-on that polls the Renault/Kamereon API and publishes
-`sensor.alpine_a290_*` entities over MQTT auto-discovery. No `venv`, shell scripts or
-`secrets.yaml` editing.
+**[Alpine A290 app](https://github.com/MatthewHobbs/a290-ha-addon)** — a proper
+Home Assistant app that polls the Renault/Kamereon API and publishes
+`sensor.alpine_a290_*` entities over MQTT auto-discovery. Credentials are entered once on the Configuration page, nothing to edit by hand.
 
-**The add-on can also install this dashboard for you.** That's the recommended route
+**The app can also install this dashboard for you.** That's the recommended route
 below — it copies nothing into `/config/www`, edits no `configuration.yaml`, and needs no
 raw-editor paste. The [manual install](#manual-install-advanced) is kept as a fallback.
 
 ---
 
-## Recommended install (add-on auto-deploy)
+## Recommended install (app auto-deploy)
 
 ### 1. Install the dependencies first
 
-Install these **before** the add-on, so a deployed dashboard renders straight away (a
+Install these **before** the app, so a deployed dashboard renders straight away (a
 dashboard deployed before its cards exist shows a wall of "custom element doesn't exist"):
 
-- **Mosquitto broker** — Settings → Add-ons → Add-on Store. The add-on auto-discovers it.
+- **Mosquitto broker** — Settings → Add-ons → Add-on Store. The app auto-discovers it.
 - **[HACS](https://hacs.xyz)** → Frontend, then these cards:
-  - **card-mod**, **Mushroom Cards**, **Button Card**, **Browser Mod**
+  - **card-mod**, **Mushroom**, **Button Card**, **Browser Mod**
   - **Bubble Card** — only if you want the Bubble dashboard
 
 The location map uses Home Assistant's built-in `map` card, so there's no map plugin or
 API key to install.
 
-### 2. Install + configure the add-on (the data layer)
+### 2. Install + configure the app (the data layer)
 
 1. **Settings → Add-ons → Add-on Store → ⋮ (top-right) → Repositories**, and add:
    ```
    https://github.com/MatthewHobbs/a290-ha-addon
    ```
-2. Install the **Alpine A290** add-on. Open its **Configuration** tab and set:
+2. Install the **Alpine A290** app. Open its **Configuration** tab and set:
    | Option | Value |
    | --- | --- |
    | `username` / `password` | Your **My Alpine** app login. |
@@ -48,23 +47,23 @@ API key to install.
    | `locale` | e.g. `en_GB`. Sets the API region, drive side (RHD for `en_GB`/`en_IE`) and units (**miles for `en_GB`**, km otherwise). |
    | `battery_capacity_kwh` | `52` or `40`. |
    | `poll_interval` | Seconds between polls (default 300). |
-3. **Start** the add-on. Within a minute you should see `sensor.alpine_a290_battery_level`,
+3. **Start** the app. Within a minute you should see `sensor.alpine_a290_battery_level`,
    `…_range`, `…_plug_status`, `device_tracker.alpine_a290_location`, etc.
    (Settings → Devices & Services → Entities, filter "alpine".)
 
-See the add-on's [DOCS](https://github.com/MatthewHobbs/a290-ha-addon/blob/main/alpine_a290/DOCS.md)
+See the app's [DOCS](https://github.com/MatthewHobbs/a290-ha-addon/blob/main/alpine_a290/DOCS.md)
 for the full entity list.
 
 ### 3. Turn on dashboard auto-deploy
 
-Back in the add-on's **Configuration** tab, set:
+Back in the app's **Configuration** tab, set:
 
 | Option | Value |
 | --- | --- |
 | `deploy_dashboard` | `standard` (closest to the original), `bubble`, or `both`. |
 | `dashboard_url_path` | URL slug for the dashboard (default `alpine-a290`; with `both`, the bubble one is suffixed `-bubble`). |
 
-**Restart** the add-on. On start it reads the dashboard YAML **bundled in the add-on**,
+**Restart** the app. On start it reads the dashboard YAML **bundled in the app**,
 rewrites its images to the **jsDelivr CDN** (served from this repo), registers the **Zen
 Dots** Google font as a Lovelace resource, and creates the dashboard via the HA API — then
 it appears in your sidebar.
@@ -74,7 +73,7 @@ safe). To pull in a later layout update, set `redeploy_dashboard: true` and rest
 
 ### 4. Control buttons + optional extras
 
-- **Control buttons:** the add-on publishes these **natively over MQTT** — no Home Assistant `renault` integration needed: `button.alpine_a290_sound_horn`, `…_flash_lights`,
+- **Control buttons:** the app publishes these **natively over MQTT** — no Home Assistant `renault` integration needed: `button.alpine_a290_sound_horn`, `…_flash_lights`,
   `…_start_climate`, `…_stop_climate`, `…_refresh_location`. Each is gated on what the
   platform supports; Renault **forbids remote charge-start/stop on the A290**, so no
   charging buttons are shipped and the dashboards include no charge tile.
@@ -86,7 +85,7 @@ safe). To pull in a later layout update, set `redeploy_dashboard: true` and rest
 ## Manual install (advanced)
 
 Use this if you'd rather host the assets yourself (no CDN dependency) or want full local
-control. Do steps 1–2 of the recommended route first (add-on + HACS cards), then:
+control. Do steps 1–2 of the recommended route first (app + HACS cards), then:
 
 ### 3. Copy the assets to `/config/www/`
 
@@ -150,10 +149,10 @@ install them):
 
 ## Troubleshooting
 
-- **No `alpine_a290` entities?** Check the add-on log (Settings → Add-ons → Alpine A290
+- **No `alpine_a290` entities?** Check the app log (Settings → Add-ons → Alpine A290
   → Log). A `403` usually means wrong credentials/locale. Confirm Mosquitto is running.
 - **Entities show but the dashboard is blank/red:** a HACS card is missing — recheck
   the prerequisites and hard-refresh the browser. If you auto-deployed before installing
   the cards, install them and set `redeploy_dashboard: true` for one restart.
 - **Map empty:** confirm `device_tracker.alpine_a290_location` has a location (the
-  add-on must have polled at least once with GPS data).
+  app must have polled at least once with GPS data).

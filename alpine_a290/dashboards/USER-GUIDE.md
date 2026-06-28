@@ -1,13 +1,12 @@
 # Alpine A290 Dashboard — User Guide
 
-This guide explains what the dashboard shows. All data comes from the **Alpine A290 add-on**
-over MQTT (`sensor.alpine_a290_*`) — there are no scripts, automations, RAW/CLI sensors, or
-dependency on Home Assistant's `renault` integration. Two styles ship with the add-on: **standard**
+This guide explains what the dashboard shows. All data comes from the **Alpine A290 app**
+over MQTT (`sensor.alpine_a290_*`), with no dependency on Home Assistant's `renault` integration. Two styles ship with the app: **standard**
 (`front-end.txt`) and **Bubble** (`front-end-bubble.txt`); they show the same data with
 different cards. See [INSTALLATION.md](INSTALLATION.md) to deploy one (or `both`).
 
 > The Alpine A290 reports `batteryCapacity` as 0, so charge-energy figures are derived from
-> the `battery_capacity_kwh` you set on the add-on. `chargingInstantaneousPower` units can be
+> the `battery_capacity_kwh` you set on the app. `chargingInstantaneousPower` units can be
 > unreliable, and some fields (e.g. cabin temperature) the A290 simply doesn't expose.
 
 ## Standard dashboard
@@ -17,7 +16,7 @@ Three columns.
 ### Vehicle Status
 
 A render of the car that **swaps to a charge indicator when a plug is connected** — showing
-current SoC against the Min/Target SoC limits. Below it:
+current State of Charge (SoC — how full the battery is, as a %) against the Min/Target SoC limits. Below it:
 
 | Tile | Entity | Notes |
 | --- | --- | --- |
@@ -30,7 +29,7 @@ current SoC against the Min/Target SoC limits. Below it:
 | Charging Power | `…_charging_power` | kW |
 | Charging Time Remaining | `…_charging_time_remaining` | from the API |
 | Charging Flap | `…_charging_flap` | Closed / "Open: Plugged In" |
-| HVAC Status | `…_hvac_status` | |
+| HVAC Status | `…_hvac_status` | HVAC = the car's climate (heating / air-con) |
 | HVAC SoC Threshold | `…_hvac_soc_threshold` | battery % below which HVAC can't start |
 
 ### Last Activity · Location · Presets
@@ -45,18 +44,18 @@ current SoC against the Min/Target SoC limits. Below it:
 
 ### Remote Control · Last Charge
 
-- **Remote Control** — native MQTT buttons published by the add-on (no Home Assistant `renault` integration):
+- **Remote Control** — native MQTT buttons published by the app (no Home Assistant `renault` integration):
   - `button.alpine_a290_sound_horn`, `…_flash_lights`, `…_start_climate`, `…_stop_climate`,
     and `…_refresh_location`.
   - **No charge buttons:** Renault forbids remote charge-start/stop on the A290, so neither
     dashboard includes a charge tile.
-  - **Start Climate** preconditions to the add-on's `precondition_temperature` (default 20 °C);
+  - **Start Climate** preconditions to the app's `precondition_temperature` (default 20 °C);
     HVAC can lag if the car is asleep, and stop may be unreliable — both are Renault-side limits.
 - **Charge limits** — writable sliders, set on the car via `set_battery_soc`:
   `number.alpine_a290_charge_target_soc` (target, 55–100 %) and
   `number.alpine_a290_minimum_soc` (minimum, 15–45 %). Shown only when the car supports the
   `soc-levels` endpoint (the A290 does). These replace the Minimum/Target charge-level numbers from Home Assistant's `renault` integration.
-- **Last Charge** — captured by the add-on at the end of a session:
+- **Last Charge** — captured by the app at the end of a session:
   Start/End time, Start/End SoC, Start/End Energy, SoC Recovered (%), Energy Recovered (kWh),
   Duration, Average Power, and **Type** — which is either **Home** or **Rapid/Public**
   (decided by whether the average power exceeds a home-charger threshold).
@@ -81,4 +80,4 @@ the Start Charging tile.
 ---
 
 Spot an error or a tile that doesn't match your car? Open an issue on the
-[add-on repo](https://github.com/MatthewHobbs/a290-ha-addon).
+[app repo](https://github.com/MatthewHobbs/a290-ha-addon).
