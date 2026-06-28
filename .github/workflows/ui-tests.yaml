@@ -39,9 +39,9 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install deps (aiohttp + PyYAML + Playwright/Chromium)
+      - name: Install deps (aiohttp + PyYAML + Playwright/Chromium + Pillow)
         run: |
-          python3 -m pip install --quiet aiohttp PyYAML playwright
+          python3 -m pip install --quiet aiohttp PyYAML playwright pillow
           python3 -m playwright install --with-deps chromium
 
       - name: Render dashboards across the mobile device matrix
@@ -71,7 +71,14 @@ jobs:
           cp ui-tests/screenshots/alpine-bubble__iphone_15_pro.png docs/screenshots/bubble-iphone-15-pro.png
           cp ui-tests/screenshots/alpine-bubble__galaxy_s24.png docs/screenshots/bubble-galaxy-s24.png
           cp ui-tests/screenshots/alpine-bubble__smart_charging__iphone_15_pro.png docs/screenshots/smart-charging-iphone-15-pro.png
-          mogrify -resize 700x docs/screenshots/standard-iphone-15-pro.png docs/screenshots/standard-galaxy-s24.png
+          python3 -c "
+          from PIL import Image
+          for f in ['standard-iphone-15-pro.png', 'standard-galaxy-s24.png']:
+              p = 'docs/screenshots/' + f
+              im = Image.open(p)
+              if im.width > 700:
+                  im.resize((700, round(im.height * 700 / im.width))).save(p)
+          "
           if git diff --quiet -- docs/screenshots; then
             echo "Screenshots unchanged — nothing to commit."
             exit 0
