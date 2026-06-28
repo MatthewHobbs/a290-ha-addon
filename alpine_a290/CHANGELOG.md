@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.8.0
+
+- **Reliability: the add-on now auto-reconnects to MQTT** if the broker drops (bounded
+  1–120 s backoff) — it previously relied on a single connection (parity with the R5 add-on).
+- **Privacy: the car's GPS is rounded before publishing.** The location now goes on the
+  retained MQTT topic at a configurable precision (`gps_precision`, default **4 dp ≈ 11 m**)
+  instead of full precision, coarsening the exact home coordinates. Raise it for a more
+  precise map pin, lower it for more privacy.
+- **Internal: a contract test pins the renault-api fields the poller reads**, so a future
+  library bump that renames a model field fails CI instead of silently breaking a sensor.
+
 ## 1.7.0
 
 - **New: optional "Smart Charging" card on the dashboard.** If you control charging through a
