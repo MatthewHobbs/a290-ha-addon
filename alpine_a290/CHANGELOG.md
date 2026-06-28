@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.14.0
+
+- **Smart Charging pop-up polish (bubble dashboard).**
+  - **Smart Charge / Bump Charge** now match the dashboard's other command buttons — a compact
+    dark pill whose **icon lights up when on** (and dims when off), instead of a full blue
+    fill.
+  - The **off-peak badge** now shows **both** the current rate (green **"Now: Off-peak"** /
+    red **"Now: Peak rate"**) **and** the off-peak window times in **24-hour** (e.g.
+    `Off-peak 23:30–05:30`), read live from the sensor's attributes.
+- DOCS note: an **off-peak tariff** sensor (e.g. `…_off_peak`) is the best fit for
+  `charger_dispatching` — it tracks the price window, not just active car dispatches.
+
 ## 1.13.0
 
 - **Smart Charging pop-up refinements (bubble dashboard).**

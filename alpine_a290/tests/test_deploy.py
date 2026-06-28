@@ -167,15 +167,17 @@ def test_charger_popup_builds_native_controls(monkeypatch):
     # smart + bump share one horizontal-stack row (compact toggles)
     assert any(c.get("type") == "horizontal-stack" and len(c["cards"]) == 2 for c in pop["cards"])
     by_entity = _flat_popup_cards(pop)
-    assert by_entity["switch.smart"]["button_type"] == "switch"     # toggles
+    # toggles match the dashboard's other command buttons (dark pill + icon, not a blue fill)
+    assert by_entity["switch.smart"]["button_type"] == "name"
+    assert by_entity["switch.smart"]["button_action"]["tap_action"]["action"] == "toggle"
     assert by_entity["number.soc"]["button_type"] == "slider"       # charge target slider
     assert by_entity["number.soc"]["show_state"] is True            # shows the %
     assert "FFD60A" in by_entity["number.soc"]["styles"]            # 80% recommendation marker
     assert by_entity["select.ttime"]["card_type"] == "select"       # target time dropdown
-    # off-peak badge: two state-conditional cards (only the matching one shows)
-    conds = [c for c in pop["cards"] if c.get("type") == "conditional"]
-    assert {c["conditions"][0]["state"] for c in conds} == {"on", "off"}
-    assert any("Off-peak now" in c["card"]["name"] for c in conds)
+    # off-peak badge: a Mushroom template card showing the current rate + the window times
+    badge = next(c for c in pop["cards"] if c.get("type") == "custom:mushroom-template-card")
+    assert "Off-peak" in badge["primary"] and "Peak rate" in badge["primary"]
+    assert "next_start" in badge["secondary"] and "%H:%M" in badge["secondary"]
 
 
 def _flat_menu_names(menu):
