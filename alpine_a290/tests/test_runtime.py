@@ -43,7 +43,8 @@ class FakeVehicle:
 
     async def get_charge_schedule(self):
         return {"preconditioningTemperature": 21, "preconditioningHeatedStrgWheel": True,
-                "preconditioningHeatedLeftSeat": False, "preconditioningHeatedRightSeat": True}
+                "preconditioningHeatedLeftSeat": False, "preconditioningHeatedRightSeat": True,
+                "chargeModeRq": "scheduled_charge", "chargeTimeStart": "0230", "chargeDuration": 360}
 
     async def get_battery_soc(self):
         return ns(socTarget=80, socMin=20)
@@ -115,6 +116,8 @@ def test_poll_once_full(monkeypatch):
     assert data["charge_mode"] == "always"
     assert data["tyre_pressure_fl"] == 2.4
     assert data["heated_seat_passenger"] == "off"   # left seat, LHD
+    assert data["charge_schedule_mode"] == "Scheduled Charge"
+    assert data["scheduled_charge_start"] == "02:30" and data["scheduled_charge_duration"] == 360
     assert attrs["latitude"] == 51.5123 and attrs["longitude"] == -0.1235   # rounded to 4 dp
     assert attrs["gps_accuracy"] == 11                                       # ~11 m at 4 dp
 
