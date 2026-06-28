@@ -1,18 +1,21 @@
 name: UI Tests
 
 # Renders the bundled dashboards in a real Home Assistant across the top mobile device
-# sizes and fails on text truncation / broken cards. Path-filtered so it only runs when the
-# dashboards or the harness change (the rendering inputs).
+# sizes and fails on text truncation / broken cards. Path-filtered so it only runs when a
+# rendering input changes — the dashboards, the deploy-time card injection (app/deploy.py),
+# or the harness itself.
 on:
   push:
     branches: [main]
     paths:
       - 'alpine_a290/dashboards/**'
+      - 'alpine_a290/app/deploy.py'
       - 'ui-tests/**'
       - '.github/workflows/ui-tests.yaml'
   pull_request:
     paths:
       - 'alpine_a290/dashboards/**'
+      - 'alpine_a290/app/deploy.py'
       - 'ui-tests/**'
       - '.github/workflows/ui-tests.yaml'
   workflow_dispatch:
