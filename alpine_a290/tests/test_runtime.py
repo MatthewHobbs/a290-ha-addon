@@ -78,6 +78,14 @@ class FakeVehicle:
     async def refresh_location(self):
         pass
 
+    async def get_charges(self, start, end):
+        return ns(raw_data={"charges": [{
+            "chargeStartDate": "2026-06-21T00:00:00+00:00",
+            "chargeEndDate": "2026-06-21T03:00:00+00:00",
+            "chargeStartBatteryLevel": 35, "chargeEndBatteryLevel": 80,
+            "chargeBatteryLevelRecovered": 45, "chargeEnergyRecovered": 23.4,
+        }]})
+
 
 class FakeVSession:
     def __init__(self, vehicle, locale="en_GB"):
@@ -109,6 +117,33 @@ def test_poll_once_full(monkeypatch):
     assert data["heated_seat_passenger"] == "off"   # left seat, LHD
     assert attrs["latitude"] == 51.5123 and attrs["longitude"] == -0.1235   # rounded to 4 dp
     assert attrs["gps_accuracy"] == 11                                       # ~11 m at 4 dp
+
+
+def test_poll_once_uses_charges_endpoint_when_supported(monkeypatch):
+    monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
+    state = {}
+    data, _ = asyncio.run(
+        main.poll_once(FakeVSession(FakeVehicle()), state, 52.0, {"charges"}, "km"))
+    # Last Charge comes from the authoritative charges endpoint, not the (empty) inference
+    assert data["last_charge_end"] == "2026-06-21T03:00:00+00:00"
+    assert data["last_charge_recovered_pct"] == 45
+    assert data["last_charge_duration_min"] == 180          # 3 h from timestamps
+    assert state["real_last_charge"]["last_charge_end_soc"] == 80
+    assert state["charges_last_fetch"] == 1000.0            # throttle timestamp recorded
+
+
+class ChargesFailVehicle(FakeVehicle):
+    async def get_charges(self, start, end):
+        raise RuntimeError("charges forbidden")
+
+
+def test_poll_once_charges_failure_is_non_fatal(monkeypatch):
+    monkeypatch.setattr(main, "now_ts", lambda: 0.0)
+    # endpoint errors -> poll still succeeds, just no authoritative Last Charge
+    data, _ = asyncio.run(
+        main.poll_once(FakeVSession(ChargesFailVehicle()), {}, 52.0, {"charges"}, "km"))
+    assert data["battery_level"] == 60
+    assert "last_charge_end" not in data
 
 
 class FlakyVehicle(FakeVehicle):

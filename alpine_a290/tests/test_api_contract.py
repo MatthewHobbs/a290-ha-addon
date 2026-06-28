@@ -23,6 +23,15 @@ _BATTERY = {
 }
 _COCKPIT = {"totalMileage": 12345.6, "fuelAutonomy": None, "fuelQuantity": None}
 _LOCATION = {"lastUpdateTime": "2026-06-28T09:00:00Z", "gpsLatitude": 51.5, "gpsLongitude": -0.1}
+# get_charges returns an untyped model (raw_data only); the poller reads the per-session dicts
+# straight off raw_data["charges"]. This pins both that the schema still surfaces raw_data and
+# that _parse_charge_session reads the camelCase keys the Kamereon API actually returns.
+_CHARGES = {"charges": [{
+    "chargeStartDate": "2026-06-21T00:00:00+00:00", "chargeEndDate": "2026-06-21T03:00:00+00:00",
+    "chargeStartBatteryLevel": 35, "chargeEndBatteryLevel": 80,
+    "chargeBatteryLevelRecovered": 45, "chargeEnergyRecovered": 23.4,
+    "chargeStartInstantaneousPower": 7.4,
+}]}
 
 
 def test_battery_status_model_contract():
@@ -49,3 +58,15 @@ def test_location_model_contract():
     loc = schemas.KamereonVehicleLocationDataSchema.load(_LOCATION)
     assert loc.gpsLatitude == 51.5 and loc.gpsLongitude == -0.1
     assert loc.lastUpdateTime == "2026-06-28T09:00:00Z"
+
+
+def test_charges_model_contract():
+    import main
+    charges = schemas.KamereonVehicleChargesDataSchema.load(_CHARGES)
+    # renault-api exposes the charges list only via raw_data (the model itself is untyped)
+    assert charges.raw_data["charges"][0]["chargeEndBatteryLevel"] == 80
+    # and the poller turns that raw session into populated Last Charge fields
+    lc = main._parse_charge_session(charges.raw_data["charges"], 52.0)
+    assert lc["last_charge_end_soc"] == 80
+    assert lc["last_charge_recovered_pct"] == 45
+    assert lc["last_charge_duration_min"] == 180   # 3 h from start/end timestamps

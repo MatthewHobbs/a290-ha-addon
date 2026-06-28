@@ -147,3 +147,13 @@ won't see a control your A290 rejects):
 > is shown. **Refresh Location** isn't explicitly documented for the A290 in `renault-api`;
 > it falls back to the default endpoint and may return *forbidden* when pressed — harmless
 > if so, but it may simply not work.
+
+### Last Charge
+
+The **Last Charge** sensors (`…_last_charge_start`, `…_end`, `…_soc_recovered`,
+`…_energy_recovered`, `…_duration`, `…_average_power`, `…_type`, …) report your most recent
+completed charge. When the car exposes Renault's recent-charges history, the app reads that
+**authoritative per-session record** and uses it directly. If the history isn't available yet
+for a just-finished session, the app falls back to figures it works out live from the battery
+polls, then replaces them with the official record once Renault posts it — so the tiles are
+always populated and settle on the real numbers. No configuration is needed; it's automatic.
