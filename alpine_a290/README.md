@@ -1,7 +1,7 @@
 # Alpine A290
 
 A maintained Home Assistant app for the **Alpine A290** EV. It polls the
-Renault/Kamereon API and publishes `sensor.alpine_a290_*` / `binary_sensor.*` / `button.*` /
+[Renault/Kamereon API](https://github.com/hacf-fr/renault-api) and publishes `sensor.alpine_a290_*` / `binary_sensor.*` / `button.*` /
 `number.*` entities over **MQTT auto-discovery**. Credentials are entered once on the **Configuration** tab.
 
 - **Native controls** — lights, horn, climate/preconditioning, refresh location — plus
