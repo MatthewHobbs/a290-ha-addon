@@ -114,20 +114,6 @@ _CHARGE_TARGET_MARKER_STYLE = (
     f"left:{_CHARGE_TARGET_REC}%;width:3px;margin-left:-1px;background:#FFD60A;"
     "border-radius:2px;z-index:3;pointer-events:none;}"
 )
-# Off-peak (Octopus dispatching) badge. Bubble Card doesn't template the `name` field, so we
-# use two state-conditional cards (only the matching one shows): green "Off-peak now" while a
-# cheap dispatch is active, red "Peak rate" otherwise.
-def _dispatch_badge(entity, *, on):
-    colour, name, icon = (("#5BE36A", "Off-peak now", "mdi:leaf") if on
-                          else ("#FF6B6B", "Peak rate", "mdi:flash-alert"))
-    return {
-        "type": "conditional",
-        "conditions": [{"entity": entity, "state": "on" if on else "off"}],
-        "card": {"type": "custom:bubble-card", "card_type": "button", "button_type": "name",
-                 "entity": entity, "name": name, "icon": icon,
-                 "styles": f".bubble-name,.bubble-icon-container{{color:{colour} !important;}}",
-                 "tap_action": {"action": "more-info"}},
-    }
 
 
 def _charger_eid(env):
@@ -154,9 +140,42 @@ def _charger_card():
             "card_mod": _CHARGER_CARD_MOD}
 
 
-def _toggle_card(entity, name, icon):
-    return {"type": "custom:bubble-card", "card_type": "button", "button_type": "switch",
-            "entity": entity, "name": name, "icon": icon}
+def _toggle_card(entity, name, icon, on_colour):
+    """A compact dark-pill toggle that matches the dashboard's other command buttons: the icon
+    colours up when the switch is on and dims when off (Bubble Card evaluates `${...}` in
+    `styles`), and a tap toggles it."""
+    return {"type": "custom:bubble-card", "card_type": "button", "button_type": "name",
+            "entity": entity, "name": name, "icon": icon,
+            "button_action": {"tap_action": {"action": "toggle"}},
+            "styles": (".bubble-icon-container{color:${state === 'on' ? '"
+                       + on_colour + "' : '#777'} !important;}")}
+
+
+def _offpeak_badge(entity):
+    """Off-peak rate badge. A Mushroom template card (full Jinja) so it can show BOTH the live
+    rate and the cheap-window times: green "Off-peak" / red "Peak" for the current rate, with
+    the off-peak window (24-hour) as the sub-line."""
+    def fill(s):
+        return s.replace("@E@", entity)
+    return {
+        "type": "custom:mushroom-template-card",
+        "entity": entity,
+        "fill_container": True,
+        "multiline_secondary": True,
+        "icon": fill("{% if is_state('@E@','on') %}mdi:leaf{% else %}mdi:flash-alert{% endif %}"),
+        "icon_color": fill("{% if is_state('@E@','on') %}green{% else %}red{% endif %}"),
+        "primary": fill("Now: {% if is_state('@E@','on') %}Off-peak{% else %}Peak rate{% endif %}"),
+        "secondary": fill(
+            "{% set s = state_attr('@E@','current_start') or state_attr('@E@','next_start') %}"
+            "{% set e = state_attr('@E@','current_end') or state_attr('@E@','next_end') %}"
+            "{% if s and e %}Off-peak {{ as_timestamp(s)|timestamp_custom('%H:%M', true) }}"
+            "–{{ as_timestamp(e)|timestamp_custom('%H:%M', true) }}{% endif %}"),
+        "tap_action": {"action": "more-info"},
+        "card_mod": {"style": fill(
+            "ha-card{background:none !important;box-shadow:none !important;border:none !important;"
+            "width:100% !important;"
+            "--card-primary-color:{% if is_state('@E@','on') %}#5BE36A{% else %}#FF6B6B{% endif %};}")},
+    }
 
 
 def _charger_popup():
@@ -177,9 +196,9 @@ def _charger_popup():
     # Smart + Bump as compact toggles side-by-side; a lone one stays on its own row.
     toggles = []
     if smart:
-        toggles.append(_toggle_card(smart, "Smart Charge", "mdi:ev-station"))
+        toggles.append(_toggle_card(smart, "Smart Charge", "mdi:ev-station", "#33BEFA"))
     if bump:
-        toggles.append(_toggle_card(bump, "Bump Charge", "mdi:battery-plus-variant"))
+        toggles.append(_toggle_card(bump, "Bump Charge", "mdi:battery-plus-variant", "orange"))
     if len(toggles) == 2:
         cards.append({"type": "horizontal-stack", "cards": toggles})
     elif toggles:
@@ -194,8 +213,7 @@ def _charger_popup():
                       "entity": ttime, "name": "Target Time", "icon": "mdi:clock-outline",
                       "show_state": True})
     if dispatch:
-        cards.append(_dispatch_badge(dispatch, on=True))
-        cards.append(_dispatch_badge(dispatch, on=False))
+        cards.append(_offpeak_badge(dispatch))
     return {"type": "custom:bubble-card", "card_type": "pop-up", "hash": _CHARGER_HASH,
             "name": "Smart Charging", "icon": "mdi:ev-station", "button_type": "name",
             "bg_color": "#14171b", "bg_opacity": "85", "bg_blur": "6",

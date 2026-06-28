@@ -72,11 +72,12 @@ you have. Where they appear depends on the dashboard:
 - **Standard dashboard** — a **"Smart Charging"** card (a built-in `entities` card, no extra
   HACS card needed) is inserted **directly beneath the Climate/Charging Presets** section.
 - **Bubble dashboard** — a **"Smart Charging"** tab is added to the main menu, opening a
-  pop-up of native Bubble Card controls: smart- and bump-charge as **compact toggles on one
-  line**, a **charge-target slider** showing the live **%** with a marker at **80%** (Alpine's
-  recommended target) to drag to, a **target-time dropdown**, and — if `charger_dispatching`
-  is set — a green **"Off-peak now"** / red **"Peak rate"** badge from the Octopus dispatching
-  sensor.
+  pop-up: smart- and bump-charge as **compact toggles on one line** (styled like the other
+  command buttons — the icon lights up when on), a **charge-target slider** showing the live
+  **%** with a marker at **80%** (Alpine's recommended target) to drag to, a **target-time
+  dropdown**, and — if `charger_dispatching` is set — an **off-peak rate badge** showing the
+  current rate (green **"Now: Off-peak"** / red **"Now: Peak rate"**) plus the cheap-window
+  times in **24-hour** (e.g. `Off-peak 23:30–05:30`).
 
 Both are read-write — toggling a switch or moving the slider controls your charger directly.
 
