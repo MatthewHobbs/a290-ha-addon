@@ -197,16 +197,19 @@ def test_parse_charge_session_derives_missing_energy_from_soc():
     assert lc["last_charge_recovered_kwh"] == 10.0        # 20% of 50 kWh
 
 
-def test_is_newer_charge_newest_end_wins():
+def test_prefer_real_charge_matches_same_session_within_tolerance():
     real = {"last_charge_end": "2026-06-21T02:00:00+00:00"}
-    live_old = {"last_charge_end": "2026-06-20T02:00:00+00:00"}
-    live_new = {"last_charge_end": "2026-06-22T02:00:00+00:00"}
-    assert main._is_newer_charge(real, {}) is True        # nothing inferred yet -> use endpoint
-    assert main._is_newer_charge({}, live_old) is False   # no endpoint data -> keep inferred
-    assert main._is_newer_charge(real, live_old) is True  # endpoint session is newer
-    assert main._is_newer_charge(real, live_new) is False  # a just-ended live session is newer
+    assert main._prefer_real_charge(real, {}) is True        # nothing inferred yet -> use endpoint
+    assert main._prefer_real_charge({}, real) is False       # no endpoint data -> keep inferred
+    # endpoint's actual stop is a few minutes BEFORE the inferred (observed) stop -> same
+    # session, authoritative record still wins (the bug codex caught: strict >= rejected this)
+    live_observed_later = {"last_charge_end": "2026-06-21T02:05:00+00:00"}   # +5 min
+    assert main._prefer_real_charge(real, live_observed_later) is True
+    # a live session ending materially later (hours) is a fresh charge not yet posted -> keep it
+    live_fresh = {"last_charge_end": "2026-06-21T06:00:00+00:00"}            # +4 h
+    assert main._prefer_real_charge(real, live_fresh) is False
     # an unparseable endpoint date never displaces a live session
-    assert main._is_newer_charge({"last_charge_end": "garbage"}, live_old) is False
+    assert main._prefer_real_charge({"last_charge_end": "garbage"}, live_fresh) is False
 
 
 def test_due_for_charges_throttle(monkeypatch):

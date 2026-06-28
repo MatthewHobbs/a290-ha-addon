@@ -516,6 +516,12 @@ def update_charge_session(state, battery, capacity_kwh, charging):
 # session shows live immediately, then gets replaced by the authoritative record once posted.
 CHARGES_LOOKBACK_DAYS = 14
 CHARGES_REFRESH_SEC = 1800   # between charges reads; an ended session forces an immediate refetch
+# Renault's authoritative chargeEndDate is the *actual* stop time; the inferred fallback's end
+# is when this add-on first *observed* charging==false (up to a poll cycle + posting delay
+# later). Treat an endpoint session ending within this window of the inferred one as the SAME
+# session, so the authoritative record still wins; only a live session ending materially later
+# (a fresh charge the history hasn't posted yet) keeps the inferred values.
+CHARGE_MATCH_TOLERANCE_SEC = 3600
 
 
 def _epoch(s):
@@ -536,7 +542,7 @@ def _parse_charge_session(charges, capacity_kwh):
     done = [c for c in (charges or []) if isinstance(c, dict) and c.get("chargeEndDate")]
     if not done:
         return {}
-    c = max(done, key=lambda x: x.get("chargeEndDate") or "")
+    c = max(done, key=lambda x: _epoch(x.get("chargeEndDate")) or 0.0)
     start_soc = _num(c.get("chargeStartBatteryLevel"))
     end_soc = _num(c.get("chargeEndBatteryLevel"))
     rec_pct = _num(c.get("chargeBatteryLevelRecovered"))
@@ -565,9 +571,11 @@ def _parse_charge_session(charges, capacity_kwh):
     }
 
 
-def _is_newer_charge(real, live):
-    """True when endpoint session `real` should replace inferred session `live` (newest end
-    wins; an unparseable endpoint date never displaces a live session)."""
+def _prefer_real_charge(real, live):
+    """True when the authoritative endpoint session `real` should replace the inferred `live`.
+    The endpoint wins unless the inferred session ends *materially* later than the endpoint's
+    (more than CHARGE_MATCH_TOLERANCE_SEC) — i.e. a just-finished session the history hasn't
+    posted yet. An unparseable endpoint date never displaces a live session."""
     if not real:
         return False
     if not live:
@@ -575,7 +583,9 @@ def _is_newer_charge(real, live):
     re_, le = _epoch(real.get("last_charge_end")), _epoch(live.get("last_charge_end"))
     if re_ is None:
         return False
-    return le is None or re_ >= le
+    if le is None:
+        return True
+    return le - re_ <= CHARGE_MATCH_TOLERANCE_SEC
 
 
 def _due_for_charges(state):
@@ -588,8 +598,10 @@ def _due_for_charges(state):
 
 async def fetch_real_last_charge(vehicle, capacity_kwh):
     """Read recent charge sessions and return the latest completed one in last_charge_* shape."""
-    end = datetime.now(timezone.utc)
-    start = end - timedelta(days=CHARGES_LOOKBACK_DAYS)
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(days=CHARGES_LOOKBACK_DAYS)
+    end = now + timedelta(days=1)   # get_charges params are day-granular (%Y%m%d); query through
+                                    # tomorrow so a session that ended *today* is in-window
     res = await vehicle.get_charges(start, end)
     raw = getattr(res, "raw_data", None) or {}
     return _parse_charge_session(raw.get("charges"), capacity_kwh)
@@ -609,7 +621,7 @@ async def resolve_last_charge(vehicle, state, supported_eps, capacity_kwh, live_
         except Exception as err:  # noqa: BLE001
             LOG.warning("charges endpoint unavailable: %s", err)
     real_lc = state.get("real_last_charge", {})
-    return real_lc if _is_newer_charge(real_lc, live_lc) else live_lc
+    return real_lc if _prefer_real_charge(real_lc, live_lc) else live_lc
 
 
 async def resolve_account(client):
