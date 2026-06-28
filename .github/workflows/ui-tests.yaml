@@ -27,8 +27,13 @@ jobs:
   responsive:
     name: Dashboard responsive render (mobile matrix)
     runs-on: ubuntu-latest
+    permissions:
+      contents: write   # to push refreshed doc screenshots back to the PR branch
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+        with:
+          # The PR branch (so we can push refreshed screenshots back); empty on push/dispatch.
+          ref: ${{ github.head_ref }}
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
@@ -40,6 +45,8 @@ jobs:
           python3 -m playwright install --with-deps chromium
 
       - name: Render dashboards across the mobile device matrix
+        env:
+          UI_TESTS_DARK: "1"   # render dark (the truncation gate is colour-agnostic)
         run: bash ui-tests/run.sh
 
       - name: Upload device screenshots
@@ -49,3 +56,28 @@ jobs:
           name: dashboard-screenshots
           path: ui-tests/screenshots/
           if-no-files-found: warn
+
+      # Keep the committed docs screenshots fresh: on same-repo PRs, copy the just-rendered
+      # (dark) phone shots into docs/screenshots and push them back to the PR branch, so they
+      # ride in on the signed squash-merge. GITHUB_TOKEN pushes don't re-trigger CI -> no loop.
+      - name: Refresh committed docs screenshots
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          set -euo pipefail
+          cp ui-tests/screenshots/alpine-standard__iphone_15_pro.png docs/screenshots/standard-iphone-15-pro.png
+          cp ui-tests/screenshots/alpine-standard__galaxy_s24.png docs/screenshots/standard-galaxy-s24.png
+          cp ui-tests/screenshots/alpine-bubble__iphone_15_pro.png docs/screenshots/bubble-iphone-15-pro.png
+          cp ui-tests/screenshots/alpine-bubble__galaxy_s24.png docs/screenshots/bubble-galaxy-s24.png
+          cp ui-tests/screenshots/alpine-bubble__smart_charging__iphone_15_pro.png docs/screenshots/smart-charging-iphone-15-pro.png
+          mogrify -resize 700x docs/screenshots/standard-iphone-15-pro.png docs/screenshots/standard-galaxy-s24.png
+          if git diff --quiet -- docs/screenshots; then
+            echo "Screenshots unchanged — nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots
+          git commit -m "chore: refresh dashboard screenshots [skip ci]"
+          git push

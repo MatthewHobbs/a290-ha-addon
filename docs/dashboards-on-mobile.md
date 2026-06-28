@@ -29,5 +29,7 @@ pop-up "tab" on the bubble dashboard (below) and a matching block on the standar
 ![Smart Charging pop-up on the bubble dashboard](screenshots/smart-charging-iphone-15-pro.png)
 
 > Screenshots are produced by the **UI Tests** workflow ([`ui-tests/`](../ui-tests/)) in dark
-> mode with representative sample data (no real account/location data); the full per-device set
-> is uploaded as a build artifact on every run.
+> mode with representative sample data (no real account/location data). The full per-device set
+> is uploaded as a build artifact on every run, and the shots above are **auto-refreshed** on
+> any pull request that changes the dashboards (the workflow commits them back to the PR
+> branch), so they never go stale.
