@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.7.0
+
+- **New: optional "Smart Charging" card on the dashboard.** If you control charging through a
+  smart-charging integration (e.g. **Octopus Intelligent**, Ohme, Zappi, Wallbox), set the new
+  `charger_smart_charge` / `charger_bump_charge` / `charger_target_soc` / `charger_target_time`
+  options to your charger's entity ids and the deployed dashboard gains a **Smart Charging**
+  card showing those controls next to the car's data. It's a built-in `entities` card (no extra
+  HACS card needed), each blank option is skipped, and leaving them all blank (the default)
+  adds nothing — so existing setups are unchanged. Works with any charger integration; see
+  DOCS for the Octopus example. Set `redeploy_dashboard: true` once if you add the entities
+  after the dashboard already exists.
+
 ## 1.6.0
 
 UX pass — a fresh product + design review of the current dashboards, acted on in lockstep

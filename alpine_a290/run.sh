@@ -39,4 +39,11 @@ export A290_DEPLOY_DASHBOARD="$(bashio::config 'deploy_dashboard')"
 export A290_DASHBOARD_URL_PATH="$(bashio::config 'dashboard_url_path')"
 export A290_REDEPLOY_DASHBOARD="$(bashio::config 'redeploy_dashboard')"
 
+# Optional EV-charger entities for the dashboard's "Smart Charging" card (any charger
+# integration, e.g. Octopus Intelligent). Blank ones are skipped; all blank => no card.
+export A290_CHARGER_SMART_CHARGE="$(bashio::config 'charger_smart_charge')"
+export A290_CHARGER_BUMP_CHARGE="$(bashio::config 'charger_bump_charge')"
+export A290_CHARGER_TARGET_SOC="$(bashio::config 'charger_target_soc')"
+export A290_CHARGER_TARGET_TIME="$(bashio::config 'charger_target_time')"
+
 exec python3 -u /app/main.py
