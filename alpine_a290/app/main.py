@@ -44,6 +44,11 @@ TRACKER_STATE_TOPIC = f"{NODE}/location/state"
 AVAIL_TOPIC = f"{NODE}/availability"
 CMD_PREFIX = f"{NODE}/cmd/"
 STATE_FILE = os.environ.get("A290_STATE_FILE", "/data/state.json")
+# Decimal places the published GPS is rounded to before it goes on the retained MQTT topic
+# (privacy — coarsens an otherwise full-precision home location). 4 dp ≈ 11 m. Default 4.
+# Tolerate the option being absent on an upgraded install (bashio can export "" or "null").
+_GPS_P = os.environ.get("A290_GPS_PRECISION", "4").strip()
+GPS_PRECISION = max(1, min(6, int(_GPS_P))) if _GPS_P.isdigit() else 4
 
 DEVICE = {"identifiers": [NODE], "name": "Alpine A290", "manufacturer": "Alpine", "model": "A290"}
 VERSION = os.environ.get("A290_VERSION", "dev")
@@ -136,6 +141,11 @@ def _on_connect(client, userdata, flags, reason_code, properties=None):
     LOG.info("MQTT connected (rc=%s) — subscribed to commands, discovery (re)published", reason_code)
 
 
+def _on_disconnect(client, userdata, flags, reason_code, properties=None):
+    if reason_code != 0:
+        LOG.warning("MQTT disconnected (%s) — reconnecting", reason_code)
+
+
 def mqtt_connect():
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="alpine_a290_addon")
     if cfg("MQTT_USER"):
@@ -143,6 +153,8 @@ def mqtt_connect():
     client.will_set(AVAIL_TOPIC, "offline", retain=True)
     client.on_message = _on_message
     client.on_connect = _on_connect
+    client.on_disconnect = _on_disconnect
+    client.reconnect_delay_set(min_delay=1, max_delay=120)   # bounded backoff on broker drop
     LOG.info("Connecting to MQTT %s:%s", cfg("MQTT_HOST"), cfg("MQTT_PORT", "1883"))
     client.connect(cfg("MQTT_HOST"), int(cfg("MQTT_PORT", "1883") or "1883"), keepalive=60)
     client.loop_start()
@@ -669,7 +681,9 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
         data["gps_last_activity"] = getattr(loc, "lastUpdateTime", None)
         lat, lon = getattr(loc, "gpsLatitude", None), getattr(loc, "gpsLongitude", None)
         if lat is not None and lon is not None:
-            location_attrs = {"latitude": lat, "longitude": lon, "gps_accuracy": 10,
+            location_attrs = {"latitude": round(lat, GPS_PRECISION),
+                              "longitude": round(lon, GPS_PRECISION),
+                              "gps_accuracy": max(10, round(111_000 / 10 ** GPS_PRECISION)),
                               "last_update": getattr(loc, "lastUpdateTime", None)}
     except Exception as err:  # noqa: BLE001
         LOG.warning("location unavailable: %s", err)
