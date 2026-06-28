@@ -78,6 +78,7 @@ _CHARGER_ENTITIES = (
     ("A290_CHARGER_BUMP_CHARGE", "Bump Charge"),
     ("A290_CHARGER_TARGET_SOC", "Charge Target"),
     ("A290_CHARGER_TARGET_TIME", "Target Time"),
+    ("A290_CHARGER_DISPATCHING", "Off-Peak"),
 )
 _CHARGER_HASH = "#alpine-charging"
 # The heading the standard-dashboard card is inserted directly beneath.
@@ -104,6 +105,29 @@ _BUBBLE_SEP_STYLE = (
     'text-transform:uppercase;letter-spacing:2px;}'
     '.bubble-icon-container{color:#FFFF00 !important;}'
 )
+# Alpine's recommended charge target — drawn as a draggable-to reference line on the slider.
+# The marker is positioned by percent assuming a 0–100 number range (the common case); it's a
+# visual guide, not a hard stop.
+_CHARGE_TARGET_REC = 80
+_CHARGE_TARGET_MARKER_STYLE = (
+    ".bubble-range-slider::after{content:'';position:absolute;top:6px;bottom:6px;"
+    f"left:{_CHARGE_TARGET_REC}%;width:3px;margin-left:-1px;background:#FFD60A;"
+    "border-radius:2px;z-index:3;pointer-events:none;}"
+)
+# Off-peak (Octopus dispatching) badge. Bubble Card doesn't template the `name` field, so we
+# use two state-conditional cards (only the matching one shows): green "Off-peak now" while a
+# cheap dispatch is active, red "Peak rate" otherwise.
+def _dispatch_badge(entity, *, on):
+    colour, name, icon = (("#5BE36A", "Off-peak now", "mdi:leaf") if on
+                          else ("#FF6B6B", "Peak rate", "mdi:flash-alert"))
+    return {
+        "type": "conditional",
+        "conditions": [{"entity": entity, "state": "on" if on else "off"}],
+        "card": {"type": "custom:bubble-card", "card_type": "button", "button_type": "name",
+                 "entity": entity, "name": name, "icon": icon,
+                 "styles": f".bubble-name,.bubble-icon-container{{color:{colour} !important;}}",
+                 "tap_action": {"action": "more-info"}},
+    }
 
 
 def _charger_eid(env):
@@ -130,36 +154,48 @@ def _charger_card():
             "card_mod": _CHARGER_CARD_MOD}
 
 
+def _toggle_card(entity, name, icon):
+    return {"type": "custom:bubble-card", "card_type": "button", "button_type": "switch",
+            "entity": entity, "name": name, "icon": icon}
+
+
 def _charger_popup():
-    """Build the bubble-dashboard 'Smart Charging' pop-up of native Bubble Card controls
-    (toggles for smart/bump, a slider for the charge target, a tap-to-edit button for the
-    target time), or None when no charger entities are configured."""
+    """Build the bubble-dashboard 'Smart Charging' pop-up of native Bubble Card controls:
+    smart/bump-charge as compact toggles on one line, a charge-target slider (with the live %
+    and an 80% recommendation marker), a target-time dropdown, and an Octopus off-peak badge.
+    Returns None when no charger entities are configured."""
     smart = _charger_eid("A290_CHARGER_SMART_CHARGE")
     bump = _charger_eid("A290_CHARGER_BUMP_CHARGE")
     soc = _charger_eid("A290_CHARGER_TARGET_SOC")
     ttime = _charger_eid("A290_CHARGER_TARGET_TIME")
-    if not any((smart, bump, soc, ttime)):
+    dispatch = _charger_eid("A290_CHARGER_DISPATCHING")
+    if not any((smart, bump, soc, ttime, dispatch)):
         return None
     cards = [{"type": "custom:bubble-card", "card_type": "separator",
               "name": "Smart Charging", "icon": "mdi:ev-station",
               "styles": _BUBBLE_SEP_STYLE}]
+    # Smart + Bump as compact toggles side-by-side; a lone one stays on its own row.
+    toggles = []
     if smart:
-        cards.append({"type": "custom:bubble-card", "card_type": "button",
-                      "button_type": "switch", "entity": smart,
-                      "name": "Smart Charge", "icon": "mdi:ev-station"})
+        toggles.append(_toggle_card(smart, "Smart Charge", "mdi:ev-station"))
     if bump:
-        cards.append({"type": "custom:bubble-card", "card_type": "button",
-                      "button_type": "switch", "entity": bump,
-                      "name": "Bump Charge", "icon": "mdi:battery-plus-variant"})
+        toggles.append(_toggle_card(bump, "Bump Charge", "mdi:battery-plus-variant"))
+    if len(toggles) == 2:
+        cards.append({"type": "horizontal-stack", "cards": toggles})
+    elif toggles:
+        cards.append(toggles[0])
     if soc:
         cards.append({"type": "custom:bubble-card", "card_type": "button",
                       "button_type": "slider", "entity": soc, "name": "Charge Target",
-                      "icon": "mdi:battery-charging-high"})
+                      "icon": "mdi:battery-charging-high", "show_state": True,
+                      "styles": _CHARGE_TARGET_MARKER_STYLE})
     if ttime:
-        cards.append({"type": "custom:bubble-card", "card_type": "button",
-                      "button_type": "state", "entity": ttime, "name": "Target Time",
-                      "icon": "mdi:clock-outline",
-                      "tap_action": {"action": "more-info"}})
+        cards.append({"type": "custom:bubble-card", "card_type": "select",
+                      "entity": ttime, "name": "Target Time", "icon": "mdi:clock-outline",
+                      "show_state": True})
+    if dispatch:
+        cards.append(_dispatch_badge(dispatch, on=True))
+        cards.append(_dispatch_badge(dispatch, on=False))
     return {"type": "custom:bubble-card", "card_type": "pop-up", "hash": _CHARGER_HASH,
             "name": "Smart Charging", "icon": "mdi:ev-station", "button_type": "name",
             "bg_color": "#14171b", "bg_opacity": "85", "bg_blur": "6",
