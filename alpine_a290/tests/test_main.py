@@ -222,6 +222,37 @@ def test_due_for_charges_throttle(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
+# KCM charge-schedule summary (from the ev/settings payload we already fetch)
+# --------------------------------------------------------------------------- #
+def test_charge_schedule_fields_extracts_kcm_settings():
+    # chargeModeRq / chargeTimeStart / chargeDuration sit alongside the preconditioning fields
+    settings = {"preconditioningTemperature": 21, "chargeModeRq": "scheduled_charge",
+                "chargeTimeStart": "0420", "chargeDuration": 480}
+    out = main._charge_schedule_fields(settings)
+    assert out["charge_schedule_mode"] == "Scheduled Charge"   # underscores -> title case
+    assert out["scheduled_charge_start"] == "04:20"            # bare HHMM -> HH:MM
+    assert out["scheduled_charge_duration"] == 480
+    # keys line up with the catalog sensor object_ids (minus the a290_ prefix)
+    expected = {obj[len("a290_"):] for obj in main.SENSORS
+                if obj.endswith(("charge_schedule_mode", "scheduled_charge_start",
+                                 "scheduled_charge_duration"))}
+    assert set(out) == expected
+
+
+def test_charge_schedule_fields_absent_is_none():
+    out = main._charge_schedule_fields({"preconditioningTemperature": 21})
+    assert out == {"charge_schedule_mode": None, "scheduled_charge_start": None,
+                   "scheduled_charge_duration": None}
+
+
+def test_fmt_hhmm_only_reformats_bare_four_digits():
+    assert main._fmt_hhmm("0700") == "07:00"
+    assert main._fmt_hhmm("T07:00Z") == "T07:00Z"   # already formatted -> untouched
+    assert main._fmt_hhmm(None) is None
+    assert main._fmt_hhmm("") is None
+
+
+# --------------------------------------------------------------------------- #
 # plug stuck-detection
 # --------------------------------------------------------------------------- #
 def test_plug_suspect_disconnected_but_charging():

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.10.0
+
+- **New: scheduled-charging sensors.** Three new sensors surface the car's programmed charge
+  schedule — **Charge Schedule Mode** (e.g. Scheduled vs Always), **Scheduled Charge Start**
+  and **Scheduled Charge Duration** — read from the same settings the app already polls for
+  preconditioning, so no extra API calls and nothing new to configure. They show *unavailable*
+  on a car that doesn't expose a schedule.
+
 ## 1.9.0
 
 - **Accurate Last Charge from Renault's own records.** When the car exposes its recent-charges

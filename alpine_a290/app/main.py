@@ -275,6 +275,28 @@ def _find_precond(obj, _depth=0):
     return {}
 
 
+def _fmt_hhmm(v):
+    """A bare 'HHMM' charge time (the KCM format) -> 'HH:MM'; anything else returned as-is."""
+    if v is None:
+        return None
+    s = str(v).strip()
+    return f"{s[:2]}:{s[2:]}" if s.isdigit() and len(s) == 4 else (s or None)
+
+
+def _charge_schedule_fields(settings):
+    """KCM ev/settings charge-schedule summary — the chargeModeRq / chargeTimeStart /
+    chargeDuration siblings of the preconditioning* fields (field names per renault-api's KCM
+    charge-schedule CLI). Absent fields -> None, so a car that doesn't populate them just shows
+    the sensors as unavailable rather than erroring. No extra API call: reuses the poll's
+    existing get_charge_schedule() payload."""
+    mode = settings.get("chargeModeRq")
+    return {
+        "charge_schedule_mode": mode.replace("_", " ").title() if isinstance(mode, str) and mode else None,
+        "scheduled_charge_start": _fmt_hhmm(settings.get("chargeTimeStart")),
+        "scheduled_charge_duration": _num(settings.get("chargeDuration")),
+    }
+
+
 def _enum_label(enum_val, labels, raw):
     """Friendly label for a decoded enum; fall back to a prettified name, then raw."""
     if enum_val is not None:
@@ -769,6 +791,7 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
         rhd = locale.lower() in RHD_LOCALES
         data["heated_seat_driver"] = _bool_on(right if rhd else left)
         data["heated_seat_passenger"] = _bool_on(left if rhd else right)
+        data.update(_charge_schedule_fields(p))
     except Exception as err:  # noqa: BLE001
         LOG.warning("ev/settings unavailable: %s", err)
     try:
