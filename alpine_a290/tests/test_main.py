@@ -554,6 +554,34 @@ def test_debug_redact_masks_ids_and_secret_values_but_keeps_telemetry():
     assert out["note"] == "vehicle *** parked"
 
 
+def test_debug_redact_masks_lifecycle_privacy_buildspec_and_token_keys():
+    """Quasi-identifying lifecycle/privacy fields, the build-spec `assets` block, and
+    token-ish field names are masked by key regardless of value type/shape."""
+    out = main._debug_redact(
+        {
+            "deliveryDate": "2024-03-01",
+            "firstRegistrationDate": "2024-03-15",
+            "vehicleId": 1234567,
+            "privacyMode": "off",
+            "privacyModeUpdateDate": "2024-04-01",
+            "svtFlag": False,
+            "svtBlockFlag": False,
+            "batteryCode": "BC-XYZ",
+            "assets": [{"renditions": [{"url": "https://3dv.renault.com/VCD/abc"}]}],
+            "accessToken": "ey.real.token",
+            "refreshToken": "ey.refresh",
+            "gigyaCookieValue": "cookie",
+            "batteryLevel": 80,             # telemetry — must survive
+        },
+        secrets=[],
+    )
+    for key in ("deliveryDate", "firstRegistrationDate", "vehicleId", "privacyMode",
+                "privacyModeUpdateDate", "svtFlag", "svtBlockFlag", "batteryCode",
+                "assets", "accessToken", "refreshToken", "gigyaCookieValue"):
+        assert out[key] == "***", key
+    assert out["batteryLevel"] == 80
+
+
 # --------------------------------------------------------------------------- #
 # cached login session
 # --------------------------------------------------------------------------- #
