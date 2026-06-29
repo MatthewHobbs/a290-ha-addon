@@ -79,7 +79,11 @@ def test_charger_cards_match_dashboard_style(monkeypatch):
 def test_charger_cards_include_offpeak_badge(monkeypatch):
     monkeypatch.setenv("A290_CHARGER_DISPATCHING", "binary_sensor.disp")
     cards = deploy._charger_cards()
-    assert any(c.get("type") == "custom:mushroom-template-card" for c in cards)
+    badge = next(c for c in cards if c.get("type") == "custom:mushroom-template-card")
+    # the rate state is conveyed by text (primary) + icon shape, not colour alone
+    assert "Off-peak" in badge["primary"] and "Peak rate" in badge["primary"]
+    # the window sub-line has a non-empty fallback so it never renders blank
+    assert "{% else %}Schedule unavailable{% endif %}" in badge["secondary"]
 
 
 def test_fetch_dashboard_adds_charger_block_when_configured(tmp_path, monkeypatch):

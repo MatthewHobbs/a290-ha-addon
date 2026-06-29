@@ -218,7 +218,10 @@ def _offpeak_badge(entity, *, preset_style=False):
             "{% set s = state_attr('@E@','current_start') or state_attr('@E@','next_start') %}"
             "{% set e = state_attr('@E@','current_end') or state_attr('@E@','next_end') %}"
             "{% if s and e %}Off-peak {{ as_timestamp(s)|timestamp_custom('%H:%M', true) }}"
-            "–{{ as_timestamp(e)|timestamp_custom('%H:%M', true) }}{% endif %}"),
+            "–{{ as_timestamp(e)|timestamp_custom('%H:%M', true) }}"
+            # Fallback so the sub-line is never blank when the charger exposes no window
+            # attributes — keeps a textual cue instead of a broken-looking empty secondary.
+            "{% else %}Schedule unavailable{% endif %}"),
         "tap_action": {"action": "more-info"},
         "card_mod": {"style": style},
     }
