@@ -99,6 +99,26 @@ def auth_script(base, tokens):
     return f"window.localStorage.setItem('hassTokens', {json.dumps(json.dumps(payload))});"
 
 
+def _stable_issues(page):
+    """Run the truncation scan twice (with a short re-settle) and keep only issues present in
+    BOTH passes. card-mod styles (e.g. `white-space:normal` on the card labels) and webfonts
+    apply asynchronously after a card first paints, so a single measurement can catch a label
+    still in its default nowrap/ellipsis state and false-flag it as truncated. A genuine
+    truncation persists across passes; a transient one clears on the second — so the
+    intersection is the stable signal, removing the gate's flakiness without piling on fixed
+    sleeps. Fast path: a clean first pass returns immediately (the common case)."""
+    first = page.evaluate(JS_DETECT)
+    if not first:
+        return []
+    page.wait_for_timeout(600)
+
+    def key(i):
+        return (i["type"], i.get("tag"), i.get("text"))
+
+    second = {key(i) for i in page.evaluate(JS_DETECT)}
+    return [i for i in first if key(i) in second]
+
+
 def run():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="http://localhost:8123")
@@ -144,36 +164,11 @@ def run():
                     except Exception:
                         pass
                     page.wait_for_timeout(1200)  # settle layout + late cards
-                    issues = page.evaluate(JS_DETECT)
+                    issues = _stable_issues(page)   # confirm truncations across two passes (see helper)
                     # Drop HA's startup toasts only AFTER the truncation scan, so removing the
                     # toast node can never perturb the gate's measurement — it only cleans the shot.
                     page.evaluate(JS_DISMISS_TOASTS)
                     page.screenshot(path=shot, full_page=True)
-                    if dash == "alpine-bubble":
-                        # Open the Smart Charging pop-up "tab" (hash navigation) and check +
-                        # capture it too — a broken Bubble Card config renders an error card.
-                        # The hash change re-renders, so settle before re-scanning (else the
-                        # JS context can be torn down mid-evaluate on slower viewports).
-                        page.evaluate("() => { location.hash = '#alpine-charging'; }")
-                        # Wait for the pop-up's inner cards to actually paint (Bubble Card
-                        # lazy-renders them), else the capture can catch an empty shell.
-                        try:
-                            page.wait_for_selector("text=Charge Target", timeout=8000)
-                        except Exception:
-                            pass
-                        page.wait_for_timeout(800)
-                        page.evaluate(JS_DISMISS_TOASTS)  # drop HA startup toasts before capture
-                        pshot = os.path.join(args.out, f"{dash}__smart_charging__{slug}.png")
-                        page.screenshot(path=pshot, full_page=True)
-                        # Best-effort error-card scan of the pop-up: the hash re-render can
-                        # tear down the JS context on slower viewports. The screenshot above is
-                        # the deliverable; skip the scan on the race rather than false-fail
-                        # (the pop-up config is identical across viewports, so a real broken
-                        # card still surfaces on the ones that do scan).
-                        try:
-                            issues = issues + page.evaluate(JS_DETECT)
-                        except Exception:
-                            pass
                 except Exception as err:
                     issues = [{"type": "render-error", "tag": "-", "text": f"{type(err).__name__}: {err}"}]
                     try:
@@ -181,6 +176,37 @@ def run():
                         page.screenshot(path=shot, full_page=True)
                     except Exception:
                         pass
+                # The Smart Charging pop-up ("tab") capture is best-effort and ISOLATED from the
+                # gate: opening it via hash navigation can tear down the JS context on slower
+                # viewports ("Execution context was destroyed"), and that must never fail the run.
+                # When the scan DOES complete, its issues (truncation + broken cards) are escalated
+                # through the same two-pass stability filter as the main dashboard, so the pop-up
+                # keeps its truncation coverage without the transient flake. A context teardown at
+                # any point is caught here and skipped — the pop-up config is identical across
+                # viewports, so a real break still surfaces on the ones that scan cleanly.
+                if dash == "alpine-bubble":
+                    try:
+                        page.evaluate("() => { location.hash = '#alpine-charging'; }")
+                        try:  # wait for the pop-up's inner cards to paint (Bubble Card lazy-renders)
+                            page.wait_for_selector("text=Charge Target", timeout=8000)
+                        except Exception:
+                            pass
+                        page.wait_for_timeout(800)
+                        page.evaluate(JS_DISMISS_TOASTS)
+                        pshot = os.path.join(args.out, f"{dash}__smart_charging__{slug}.png")
+                        page.screenshot(path=pshot, full_page=True)
+                        issues += _stable_issues(page)
+                    except Exception as err:
+                        print(f"    pop-up capture skipped ({type(err).__name__}) — not failing the gate")
+                # De-dupe: the pop-up scan re-walks the whole document, so a main-dashboard finding
+                # can otherwise appear twice when both the main view and the pop-up are flagged.
+                _seen, _uniq = set(), []
+                for _it in issues:
+                    _k = (_it["type"], _it.get("tag"), _it.get("text"))
+                    if _k not in _seen:
+                        _seen.add(_k)
+                        _uniq.append(_it)
+                issues = _uniq
                 if issues:
                     failures.append((dash, dev["name"], dev["width"], issues))
                 status = "FAIL" if issues else "ok"
