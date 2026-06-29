@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.16.0
+
+- **Base image moved off end-of-life Alpine 3.19 to current Alpine 3.24** (HA base image
+  `3.24`). Alpine 3.19 stopped receiving security updates in Nov 2025; 3.24 is supported
+  until June 2028. This bumps the add-on's Python runtime from **3.11 to 3.14**. The pinned
+  dependencies (`renault-api==0.5.12`, `paho-mqtt==2.1.0`, `PyYAML==6.0.3`) are unchanged and
+  install/run cleanly on 3.14. No user-facing behaviour change — purely the runtime base.
+- CI now tests on Python 3.14 to match the new runtime.
+
 ## 1.15.1
 
 - **Privacy: `debug_dump` redaction now covers more personal fields.** In addition to your
