@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.16.2
+
+- **Off-peak badge no longer shows a blank sub-line.** When your charger entity doesn't expose
+  off-peak window times, the badge's secondary line now reads "Schedule unavailable" instead of
+  rendering empty. (The rate itself — "Off-peak" / "Peak rate" — was already shown as text plus
+  a distinct icon, so state was never colour-only.)
+
 ## 1.16.1
 
 - **Dashboard deploy can no longer hang indefinitely.** The HA WebSocket client now wraps each
