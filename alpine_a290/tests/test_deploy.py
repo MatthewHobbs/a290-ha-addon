@@ -426,6 +426,35 @@ def test_ws_raises_on_failed_result():
     asyncio.run(scenario())
 
 
+def test_ws_cmd_times_out_on_wedged_socket(monkeypatch):
+    """A socket that never delivers the matching result must not hang the deploy: _cmd wraps
+    each receive in asyncio.wait_for, so a wedged frame raises TimeoutError instead of blocking
+    forever. The per-receive timeout is shortened here so the test is fast and fails cleanly
+    (rather than hanging) if the guard is ever removed."""
+    import pytest
+
+    class WS:
+        async def send_json(self, payload):
+            pass
+
+        async def receive_json(self):
+            # Delivers a valid result, but only after longer than the (shortened) timeout —
+            # so with the guard the wait_for fires first; without it, _cmd would return.
+            await asyncio.sleep(0.5)
+            return {"id": 1, "type": "result", "success": True, "result": None}
+
+    real_wait_for = asyncio.wait_for
+    monkeypatch.setattr(deploy.asyncio, "wait_for",
+                        lambda aw, timeout: real_wait_for(aw, timeout=0.05))
+
+    async def scenario():
+        api = deploy._WS(None, WS(), "token")
+        with pytest.raises((asyncio.TimeoutError, TimeoutError)):
+            await api.dashboards()
+
+    asyncio.run(scenario())
+
+
 def test_ws_auth_failure_raises():
     import pytest
 
