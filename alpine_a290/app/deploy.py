@@ -4,6 +4,7 @@ Reads the bundled dashboard YAML, rewrites its /local image refs to jsDelivr CDN
 (served from this repo), registers the Zen Dots font, and creates + pushes the dashboard
 via HA's WebSocket API. Create-once (left alone unless redeploy_dashboard); never fatal.
 """
+import asyncio
 import logging
 import os
 import re
@@ -360,7 +361,8 @@ class _WS:
         payload["id"] = self._id
         await self._ws.send_json(payload)
         while True:
-            msg = await self._ws.receive_json()
+            # Per-receive timeout so an unexpected event/close frame can't hang the deploy.
+            msg = await asyncio.wait_for(self._ws.receive_json(), timeout=15)
             if msg.get("id") == self._id and msg.get("type") == "result":
                 if not msg.get("success", False):
                     raise RuntimeError(f"{payload['type']} failed: {msg.get('error')}")
