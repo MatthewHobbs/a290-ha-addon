@@ -71,7 +71,7 @@ ui-tests) is run with `ui-tests/run.sh` — it boots a throwaway HA container, s
 and uses Playwright across ~10 phone viewports to fail on any text truncation or
 `hui-error-card`. Run it whenever you touch `alpine_a290/dashboards/` or `ui-tests/`.
 
-Ruff config (`ruff.toml`): line-length 120, target py311, `select = E,F,W,B,I`,
+Ruff config (`ruff.toml`): line-length 120, target py314, `select = E,F,W,B,I`,
 `ignore = E501,B008`.
 
 ## Reviews — Claude + codex, compared
@@ -96,8 +96,10 @@ tagged and published. A version-bump / runtime PR is therefore **not** considere
 by CI alone — build and boot the image locally and observe the changed behaviour first:
 
 ```sh
+# The base image is defined once in alpine_a290/build.yaml (the single source of truth that
+# Supervisor + CI + release all read); derive it here rather than hardcoding the tag.
 docker buildx build --platform linux/amd64 \
-  --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.19 \
+  --build-arg BUILD_FROM="$(grep -E '^[[:space:]]*amd64:' alpine_a290/build.yaml | awk '{print $2}')" \
   -t a290-local alpine_a290
 # then run with a stub /data/options.json and curl http://localhost:<port>/healthz, check logs, etc.
 ```
