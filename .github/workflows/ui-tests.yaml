@@ -28,12 +28,11 @@ jobs:
     name: Dashboard responsive render (mobile matrix)
     runs-on: ubuntu-latest
     steps:
+      # Default checkout: for a PR this renders the merge ref (the PR's dashboard/deploy.py
+      # changes). This job holds NO secrets — committing the refreshed screenshots back to the
+      # PR branch is done by the separate, trusted "Refresh screenshots" workflow (workflow_run),
+      # which never runs the PR's code with the PAT.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
-        with:
-          # Same-repo PRs: check out the real branch head so the refresh step can push to it.
-          # Forks / pushes: leave empty so checkout uses the default ref (the fork's branch
-          # doesn't exist here — overriding it would fail before the tests run).
-          ref: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.head_ref || '' }}
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
@@ -50,6 +49,9 @@ jobs:
           UI_TESTS_DARK: "1"   # render dark (the truncation gate is colour-agnostic)
         run: bash ui-tests/run.sh
 
+      # The refreshed docs screenshots are committed by the separate "Refresh screenshots"
+      # workflow (refresh-screenshots.yaml), which downloads this artifact. Uploaded always so
+      # a failed render still surfaces the partial shots for debugging.
       - name: Upload device screenshots
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
@@ -57,44 +59,3 @@ jobs:
           name: dashboard-screenshots
           path: ui-tests/screenshots/
           if-no-files-found: warn
-
-      # Keep the committed docs screenshots fresh: on same-repo PRs, copy the just-rendered
-      # (dark) phone shots into docs/screenshots and commit them to the PR branch via the GitHub
-      # GraphQL API (createCommitOnBranch -> a web-flow *signed* commit, so it satisfies the
-      # "require signed commits" rule without a signing key in CI). Needs a SCREENSHOT_PAT
-      # secret (fine-grained, contents:write) so the commit also triggers the required checks;
-      # dormant (cleanly skips) without it. A loop guard stops the re-triggered run committing.
-      - name: Refresh committed docs screenshots
-        # Non-fatal: a screenshot refresh must never block a dashboard PR.
-        continue-on-error: true
-        if: >-
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          BRANCH: ${{ github.head_ref }}
-          SCREENSHOT_PAT: ${{ secrets.SCREENSHOT_PAT }}
-        run: |
-          set -euo pipefail
-          if [ -z "${SCREENSHOT_PAT:-}" ]; then
-            echo "No SCREENSHOT_PAT secret — auto-refresh disabled (add the secret to enable)."
-            exit 0
-          fi
-          if git log -1 --pretty=%B | grep -q '\[refresh-shots\]'; then
-            echo "Last commit is an auto-refresh — skipping to avoid a loop."
-            exit 0
-          fi
-          cp ui-tests/screenshots/alpine-standard__iphone_15_pro.png docs/screenshots/standard-iphone-15-pro.png
-          cp ui-tests/screenshots/alpine-standard__galaxy_s24.png docs/screenshots/standard-galaxy-s24.png
-          cp ui-tests/screenshots/alpine-bubble__iphone_15_pro.png docs/screenshots/bubble-iphone-15-pro.png
-          cp ui-tests/screenshots/alpine-bubble__galaxy_s24.png docs/screenshots/bubble-galaxy-s24.png
-          cp ui-tests/screenshots/alpine-bubble__smart_charging__iphone_15_pro.png docs/screenshots/smart-charging-iphone-15-pro.png
-          python3 -c "
-          from PIL import Image
-          for f in ['standard-iphone-15-pro.png', 'standard-galaxy-s24.png']:
-              p = 'docs/screenshots/' + f
-              im = Image.open(p)
-              if im.width > 700:
-                  im.resize((700, round(im.height * 700 / im.width))).save(p)
-          "
-          python3 ui-tests/commit_screenshots.py
