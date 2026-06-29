@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.15.1
+
+- **Privacy: `debug_dump` redaction now covers more personal fields.** In addition to your
+  VIN/account id/credentials/contact fields and GPS, the dump now masks vehicle **delivery
+  and registration dates**, the **privacy-mode** setting, `vehicleId`/`batteryCode`, the
+  stolen-vehicle-tracking flags, and the **`assets` block** (whose render URLs embedded the
+  car's build-spec code). Added defense-in-depth masking of token/credential field names too.
+- **Docs:** the `debug_dump` description now states redaction is best-effort and that the
+  whole dump should be treated as personal data — share privately, don't paste publicly.
+
 ## 1.15.0
 
 - **Standard dashboard Smart Charging now matches the rest of the dashboard.** Replaced the

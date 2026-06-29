@@ -714,6 +714,15 @@ _DEBUG_REDACT_KEYS = {
     "phone", "mobile", "email", "firstname", "lastname", "gigyaid", "personid", "accountid",
     "iccid", "imei", "contractid", "address", "postcode", "zipcode", "city", "country",
     "gpslatitude", "gpslongitude", "latitude", "longitude",
+    # Vehicle-lifecycle / privacy / build-spec — quasi-identifying or owner-private. The
+    # `assets` block carries 3dv.renault.com render URLs that embed the build-spec (VCD)
+    # code in the path; mask the whole subtree (it has no sensor-mapping diagnostic value).
+    "deliverydate", "firstregistrationdate", "vehicleid", "batterycode",
+    "privacymode", "privacymodeupdatedate", "svtflag", "svtblockflag", "assets",
+    # Defense-in-depth: token/credential field names. The endpoint allowlist + logger floor
+    # already keep tokens out of the dump; this guards a future token-bearing payload too.
+    "token", "accesstoken", "refreshtoken", "idtoken", "jwt", "authorization", "apikey",
+    "secret", "password", "gigyacookievalue",
 }
 _DEBUG_STATE = {"dumped": False}
 
