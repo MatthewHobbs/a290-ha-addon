@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.16.1
+
+- **Dashboard deploy can no longer hang indefinitely.** The HA WebSocket client now wraps each
+  receive in a 15s per-receive timeout, so an unexpected event/close frame raises a timeout
+  instead of blocking the deploy forever. (Brings the A290 in line with the R5 add-on.)
+
 ## 1.16.0
 
 - **Base image moved off end-of-life Alpine 3.19 to current Alpine 3.24** (HA base image
