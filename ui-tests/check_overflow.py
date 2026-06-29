@@ -52,6 +52,22 @@ JS_DETECT = r"""
 }
 """
 
+# Remove Home Assistant's transient startup toasts (e.g. "Starting radio_browser. Not
+# everything will be available until it is finished" from default_config) so they don't leak
+# into the captured documentation screenshots. The toast host (notification-manager) lives in
+# home-assistant's shadow root; clear it (and any stray ha-toast/snackbar) before each capture.
+JS_DISMISS_TOASTS = r"""
+() => {
+  const roots = [document];
+  const ha = document.querySelector('home-assistant');
+  if (ha && ha.shadowRoot) roots.push(ha.shadowRoot);
+  for (const r of roots) {
+    try { r.querySelectorAll('notification-manager, ha-toast, mwc-snackbar').forEach(e => e.remove()); }
+    catch (e) {}
+  }
+}
+"""
+
 # True once a custom card (or an error card) is present in the (pierced) tree.
 JS_RENDERED = r"""
 () => {
@@ -129,6 +145,9 @@ def run():
                         pass
                     page.wait_for_timeout(1200)  # settle layout + late cards
                     issues = page.evaluate(JS_DETECT)
+                    # Drop HA's startup toasts only AFTER the truncation scan, so removing the
+                    # toast node can never perturb the gate's measurement — it only cleans the shot.
+                    page.evaluate(JS_DISMISS_TOASTS)
                     page.screenshot(path=shot, full_page=True)
                     if dash == "alpine-bubble":
                         # Open the Smart Charging pop-up "tab" (hash navigation) and check +
@@ -143,6 +162,7 @@ def run():
                         except Exception:
                             pass
                         page.wait_for_timeout(800)
+                        page.evaluate(JS_DISMISS_TOASTS)  # drop HA startup toasts before capture
                         pshot = os.path.join(args.out, f"{dash}__smart_charging__{slug}.png")
                         page.screenshot(path=pshot, full_page=True)
                         # Best-effort error-card scan of the pop-up: the hash re-render can
@@ -157,6 +177,7 @@ def run():
                 except Exception as err:
                     issues = [{"type": "render-error", "tag": "-", "text": f"{type(err).__name__}: {err}"}]
                     try:
+                        page.evaluate(JS_DISMISS_TOASTS)
                         page.screenshot(path=shot, full_page=True)
                     except Exception:
                         pass
