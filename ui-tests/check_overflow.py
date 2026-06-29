@@ -144,8 +144,10 @@ def run():
                     except Exception:
                         pass
                     page.wait_for_timeout(1200)  # settle layout + late cards
-                    page.evaluate(JS_DISMISS_TOASTS)  # drop HA startup toasts before scan + capture
                     issues = page.evaluate(JS_DETECT)
+                    # Drop HA's startup toasts only AFTER the truncation scan, so removing the
+                    # toast node can never perturb the gate's measurement — it only cleans the shot.
+                    page.evaluate(JS_DISMISS_TOASTS)
                     page.screenshot(path=shot, full_page=True)
                     if dash == "alpine-bubble":
                         # Open the Smart Charging pop-up "tab" (hash navigation) and check +
