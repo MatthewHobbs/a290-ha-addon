@@ -1,0 +1,55 @@
+name: HA cadence watch
+
+# Weekly check of the Home Assistant developer + release blogs for changes that affect this
+# add-on (base image / Python / Supervisor / add-on rules / deprecations / security), filing a
+# labelled backlog issue per relevant post. Relevance is judged by Claude against the add-on
+# context; de-duped by an embedded post-URL marker. Dormant (no-op) without ANTHROPIC_API_KEY.
+# See .github/scripts/ha_cadence_watch.py. Implements the HA-cadence rule in CLAUDE.md.
+on:
+  schedule:
+    - cron: "0 7 * * 1"   # Mondays 07:00 UTC
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Assess + log only, file no issues"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ha-cadence-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Scan HA blogs for backlog items
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Ensure labels exist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh label create "ha-cadence" --color FBCA04 --force \
+            --description "HA release-cadence backlog item (auto-filed from the HA blogs)"
+          gh label create "severity:high"   --color B60205 --force --description "HA-cadence: high"
+          gh label create "severity:medium" --color D93F0B --force --description "HA-cadence: medium"
+          gh label create "severity:low"    --color 0E8A16 --force --description "HA-cadence: low"
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.14"
+
+      - name: Scan blogs + file backlog issues
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python3 .github/scripts/ha_cadence_watch.py \
+            ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run && '--dry-run' || '' }}
