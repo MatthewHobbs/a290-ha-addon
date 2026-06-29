@@ -100,19 +100,14 @@ jobs:
         with:
           persist-credentials: false
 
-      # Single source of truth for the base image: alpine_a290/build.yaml (what Supervisor
-      # reads). Derive the per-arch base here instead of hardcoding the tag, so a base bump
-      # touches one file. matrix.arch ∈ {aarch64, amd64} — the keys present in build.yaml.
-      - name: Resolve base image from build.yaml
-        id: base
-        run: echo "from=$(grep -E '^[[:space:]]*${{ matrix.arch }}:' alpine_a290/build.yaml | awk '{print $2}')" >> "$GITHUB_OUTPUT"
-
+      # The base image is pinned in the Dockerfile (FROM ghcr.io/home-assistant/base:<tag>, a
+      # multi-arch image), so no BUILD_FROM build-arg / build.yaml is needed — the builder picks
+      # the right platform per matrix arch.
       - name: Build image
         uses: home-assistant/builder/actions/build-image@4de35182ce1e329181bffcbcc84d33db5e2c7e10  # 2026.06.0
         with:
           arch: ${{ matrix.arch }}
           build-args: |
-            BUILD_FROM=${{ steps.base.outputs.from }}
             BUILD_VERSION=${{ needs.prepare.outputs.version }}
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
           context: "./alpine_a290"
