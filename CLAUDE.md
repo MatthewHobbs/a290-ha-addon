@@ -71,7 +71,7 @@ ui-tests) is run with `ui-tests/run.sh` — it boots a throwaway HA container, s
 and uses Playwright across ~10 phone viewports to fail on any text truncation or
 `hui-error-card`. Run it whenever you touch `alpine_a290/dashboards/` or `ui-tests/`.
 
-Ruff config (`ruff.toml`): line-length 120, target py311, `select = E,F,W,B,I`,
+Ruff config (`ruff.toml`): line-length 120, target py314, `select = E,F,W,B,I`,
 `ignore = E501,B008`.
 
 ## Reviews — Claude + codex, compared
