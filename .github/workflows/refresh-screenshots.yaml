@@ -1,0 +1,88 @@
+name: Refresh screenshots
+
+# Privileged companion to "UI Tests". Commits the freshly-rendered docs screenshots back to the
+# PR branch (a web-flow-signed commit via the GraphQL API, authored by SCREENSHOT_PAT).
+#
+# It runs via `workflow_run`, so the workflow definition AND the scripts it runs come from the
+# DEFAULT branch (trusted) — never from the PR. It only *downloads* the render artifact (data)
+# and runs the repo's own `ui-tests/commit_screenshots.py`; it never executes the PR's version of
+# run.sh / seed.py / check_overflow.py / deploy.py. That's the whole point: the PAT can't be
+# exfiltrated by a malicious same-repo PR branch editing a script that runs in the same job.
+#
+# Note: a `workflow_run` workflow only takes effect once it is on the default branch, so this
+# file's first real execution is the next dashboard PR after it merges.
+on:
+  workflow_run:
+    workflows: ["UI Tests"]
+    types: [completed]
+
+permissions:
+  actions: read     # download the render artifact from the triggering run
+  contents: read
+
+jobs:
+  refresh:
+    name: Commit refreshed screenshots
+    runs-on: ubuntu-latest
+    # Same-repo PRs only (forks never receive the secret); only when the render succeeded; and
+    # skip the auto-refresh's own commit so it can't loop.
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      !contains(github.event.workflow_run.head_commit.message, '[refresh-shots]')
+    steps:
+      # Default ref = the default branch (trusted): this is main's commit_screenshots.py + resize.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+
+      - name: Check for the refresh PAT
+        id: pat
+        env:
+          SCREENSHOT_PAT: ${{ secrets.SCREENSHOT_PAT }}
+        run: |
+          if [ -z "${SCREENSHOT_PAT:-}" ]; then
+            echo "No SCREENSHOT_PAT secret — auto-refresh disabled (add the secret to enable)."
+            echo "have=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "have=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download rendered screenshots
+        if: steps.pat.outputs.have == '1'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
+        with:
+          name: dashboard-screenshots
+          path: ui-tests/screenshots
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        if: steps.pat.outputs.have == '1'
+        with:
+          python-version: "3.14"
+
+      - name: Copy + resize the phone shots, then commit them to the PR branch
+        if: steps.pat.outputs.have == '1'
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          SCREENSHOT_PAT: ${{ secrets.SCREENSHOT_PAT }}
+        run: |
+          set -euo pipefail
+          # Pinned: this job holds the PAT and parses PR-rendered PNGs, so keep its deps fixed.
+          python3 -m pip install --quiet "pillow==12.2.0"
+          cp ui-tests/screenshots/alpine-standard__iphone_15_pro.png docs/screenshots/standard-iphone-15-pro.png
+          cp ui-tests/screenshots/alpine-standard__galaxy_s24.png docs/screenshots/standard-galaxy-s24.png
+          cp ui-tests/screenshots/alpine-bubble__iphone_15_pro.png docs/screenshots/bubble-iphone-15-pro.png
+          cp ui-tests/screenshots/alpine-bubble__galaxy_s24.png docs/screenshots/bubble-galaxy-s24.png
+          cp ui-tests/screenshots/alpine-bubble__smart_charging__iphone_15_pro.png docs/screenshots/smart-charging-iphone-15-pro.png
+          python3 -c "
+          from PIL import Image
+          for f in ['standard-iphone-15-pro.png', 'standard-galaxy-s24.png']:
+              p = 'docs/screenshots/' + f
+              im = Image.open(p)
+              if im.width > 700:
+                  im.resize((700, round(im.height * 700 / im.width))).save(p)
+          "
+          python3 ui-tests/commit_screenshots.py
