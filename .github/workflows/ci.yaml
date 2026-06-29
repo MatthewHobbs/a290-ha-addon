@@ -62,7 +62,8 @@ jobs:
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
         with:
-          python-version: "3.11"
+          # Match the add-on runtime: HA base 3.24 ships Python 3.14 (apk python3).
+          python-version: "3.14"
 
       - name: Install deps
         run: python3 -m pip install --quiet -r alpine_a290/app/requirements.txt pytest pytest-cov
@@ -103,4 +104,4 @@ jobs:
         with:
           context: ./alpine_a290
           push: false
-          build-args: BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.19
+          build-args: BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.24

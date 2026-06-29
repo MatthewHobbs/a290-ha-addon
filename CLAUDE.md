@@ -97,7 +97,7 @@ by CI alone — build and boot the image locally and observe the changed behavio
 
 ```sh
 docker buildx build --platform linux/amd64 \
-  --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.19 \
+  --build-arg BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.24 \
   -t a290-local alpine_a290
 # then run with a stub /data/options.json and curl http://localhost:<port>/healthz, check logs, etc.
 ```
