@@ -1,5 +1,8 @@
-ARG BUILD_FROM
-FROM ${BUILD_FROM}
+# Base image pinned here — the single source of truth. Since Supervisor 2026.04 no longer
+# provides BUILD_FROM by default (and build.yaml's build_from is deprecated), the HA add-on
+# standard is an explicit, pinned, multi-arch FROM. ghcr.io/home-assistant/base:3.24 is the
+# current HA base (Alpine 3.24 / Python 3.14) and is multi-arch (amd64 + aarch64).
+FROM ghcr.io/home-assistant/base:3.24
 
 # Single source of truth for the version: the HA builder passes BUILD_VERSION from
 # config.yaml's `version:`. Exposed to the app as A290_VERSION (see main.py).

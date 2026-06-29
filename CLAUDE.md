@@ -96,11 +96,10 @@ tagged and published. A version-bump / runtime PR is therefore **not** considere
 by CI alone — build and boot the image locally and observe the changed behaviour first:
 
 ```sh
-# The base image is defined once in alpine_a290/build.yaml (the single source of truth that
-# Supervisor + CI + release all read); derive it here rather than hardcoding the tag.
-docker buildx build --platform linux/amd64 \
-  --build-arg BUILD_FROM="$(grep -E '^[[:space:]]*amd64:' alpine_a290/build.yaml | awk '{print $2}')" \
-  -t a290-local alpine_a290
+# The base image is pinned in alpine_a290/Dockerfile (FROM ghcr.io/home-assistant/base:<tag>,
+# the single source of truth) — no --build-arg needed (build.yaml/BUILD_FROM were removed when
+# Supervisor 2026.04 dropped the BUILD_FROM default).
+docker buildx build --platform linux/amd64 -t a290-local alpine_a290
 # then run with a stub /data/options.json and curl http://localhost:<port>/healthz, check logs, etc.
 ```
 
