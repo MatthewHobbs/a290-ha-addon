@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.16.3
+
+- **Bundled `tempio` rebuilt to clear inherited CVEs.** The stock `/usr/bin/tempio` in the HA
+  base image was compiled against an old `golang.org/x/crypto` on a stale Go toolchain, so
+  vulnerability scanners flagged it for a batch of CVEs (all in the unused `crypto/ssh` path,
+  plus Go stdlib — never reached at runtime). The add-on now rebuilds `tempio` from a pinned
+  upstream commit on a current Go toolchain with `x/crypto >= 0.52.0` and overwrites the base
+  copy. Verified: trivy reports 0 CVEs on the result. No behaviour change — purely supply-chain
+  hygiene of the shipped image.
+
 ## 1.16.2
 
 - **Off-peak badge no longer shows a blank sub-line.** When your charger entity doesn't expose
