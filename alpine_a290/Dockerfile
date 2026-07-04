@@ -1,3 +1,31 @@
+# ── tempio builder ───────────────────────────────────────────────────────────
+# The stock /usr/bin/tempio in the HA base image is built against golang.org/x/crypto
+# 0.26.0 on a stale Go toolchain, so scanners flag it for a batch of CVEs (all in the
+# unused crypto/ssh path, plus Go stdlib). Rebuild it on a current Go toolchain with
+# x/crypto >= 0.52.0 and overwrite the base copy below. Verified: trivy reports 0 CVEs
+# on the result. Tracking upstream fix: https://github.com/home-assistant/tempio/issues/132
+# Remove this stage (and the COPY below) once a patched tempio ships in the base image.
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS tempio
+# Pinned to an immutable commit for reproducible builds (tempio main @ 2026-06-30 —
+# the revision verified to scan clean). Bump deliberately when upstream patches x/crypto.
+ARG TEMPIO_REF=5420e16c8cca89903809c842b9925d5fe6778129
+ARG TARGETARCH
+ARG TARGETVARIANT
+RUN apk add --no-cache git
+WORKDIR /src
+# Fetch the exact commit (git clone --branch can't take a bare SHA), then apply the
+# x/crypto security override on top.
+RUN git init -q . \
+ && git remote add origin https://github.com/home-assistant/tempio \
+ && git fetch -q --depth 1 origin "${TEMPIO_REF}" \
+ && git checkout -q FETCH_HEAD \
+ && go get golang.org/x/crypto@v0.52.0 \
+ && go mod tidy
+RUN CGO_ENABLED=0 GOOS=linux GOARCH="${TARGETARCH}" \
+    GOARM="${TARGETVARIANT#v}" \
+    go build -trimpath -ldflags="-s -w" -o /tempio .
+# ──────────────────────────────────────────────────────────────────────────────
+
 # Base image pinned here — the single source of truth. Since Supervisor 2026.04 no longer
 # provides BUILD_FROM by default (and build.yaml's build_from is deprecated), the HA add-on
 # standard is an explicit, pinned, multi-arch FROM. ghcr.io/home-assistant/base:3.24 is the
@@ -21,6 +49,9 @@ COPY app/ /app/
 COPY dashboards/*.txt /app/dashboards/
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh
+
+# Overwrite the base image's vulnerable /usr/bin/tempio with the patched build above.
+COPY --from=tempio /tempio /usr/bin/tempio
 
 # Supervisor monitors this; a deadlocked event loop can't answer /healthz -> unhealthy.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 \
