@@ -22,7 +22,7 @@ RUN git init -q . \
  && go get golang.org/x/crypto@v0.52.0 \
  && go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux GOARCH="${TARGETARCH}" \
-    GOARM="$(echo "${TARGETVARIANT}" | tr -d v)" \
+    GOARM="${TARGETVARIANT#v}" \
     go build -trimpath -ldflags="-s -w" -o /tempio .
 # ──────────────────────────────────────────────────────────────────────────────
 
