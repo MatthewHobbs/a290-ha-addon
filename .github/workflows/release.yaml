@@ -1,7 +1,7 @@
 name: Release
 
 # Build the add-on image for every architecture, and on a push to main:
-#   * publish the multi-arch image to GHCR (Cosign-signed, keyless OIDC), and
+#   * publish the multi-arch image to GHCR, and
 #   * create a `v<version>` git tag + GitHub Release when config.yaml's version is new.
 # On pull requests it BUILDS only (no push) as a sanity check — nothing is published
 # and no tag is created until the change is merged to main.
@@ -90,7 +90,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
-      id-token: write   # Cosign keyless signing (OIDC)
+      id-token: write
       packages: write   # push to GHCR
     strategy:
       fail-fast: false
@@ -168,4 +168,4 @@ jobs:
           gh release create "${tag}" \
             --target "${GITHUB_SHA}" \
             --title "${tag}" \
-            --notes "Multi-arch image published & Cosign-signed: \`${IMAGE}:${VERSION}\`."
+            --notes "Multi-arch image published: \`${IMAGE}:${VERSION}\`."
