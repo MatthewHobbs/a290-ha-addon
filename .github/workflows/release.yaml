@@ -111,6 +111,11 @@ jobs:
           arch: ${{ matrix.arch }}
           build-args: |
             BUILD_VERSION=${{ needs.prepare.outputs.version }}
+          # Disable the builder's keyless Cosign signing. It defaults on and needs
+          # `id-token: write`, which this job deliberately does NOT grant (provenance is attested
+          # in the `manifest` job, the single source of image verification). Left enabled it
+          # fails `cosign sign` with `expired_token` and takes the whole release down.
+          cosign: "false"
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
           context: "./alpine_a290"
           image: ${{ matrix.image }}
@@ -142,6 +147,9 @@ jobs:
         uses: home-assistant/builder/actions/publish-multi-arch-manifest@4de35182ce1e329181bffcbcc84d33db5e2c7e10  # 2026.06.0
         with:
           architectures: ${{ needs.prepare.outputs.architectures }}
+          # Disable the builder's Cosign manifest signing too — image verification is provided by
+          # the build-provenance attestation below, not Cosign (see the build job).
+          cosign: "false"
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
           image-name: ${{ needs.prepare.outputs.image_name }}
           # Version tag only — no mutable `latest` (see the build job for the rationale).
