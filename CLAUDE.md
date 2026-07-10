@@ -71,6 +71,13 @@ ui-tests) is run with `ui-tests/run.sh` — it boots a throwaway HA container, s
 and uses Playwright across ~10 phone viewports to fail on any text truncation or
 `hui-error-card`. Run it whenever you touch `alpine_a290/dashboards/` or `ui-tests/`.
 
+The harness **pins its render inputs** in `ui-tests/run.sh` so the gate is deterministic — HA
+image `2026.7.1`, mushroom `v5.1.1`, button-card `v7.0.1`, card-mod `v4.2.1`. A floating
+`:stable`/`@latest`/`@master` previously drifted under the gate and made it flake (marginal
+sub-pixel truncations on one high-DPR device that vanished on the next run). Bump all four
+**together and deliberately** when tracking upstream; the gate confirms the new combo renders
+clean. Keep them identical to the r5 twin's `ui-tests/run.sh` (lockstep).
+
 Ruff config (`ruff.toml`): line-length 120, target py314, `select = E,F,W,B,I`,
 `ignore = E501,B008`.
 
