@@ -221,6 +221,157 @@ def test_due_for_charges_throttle(monkeypatch):
                                   "charges_dirty": True}) is True          # session just ended
 
 
+def test_prefer_real_charge_boundary_and_unparseable_live():
+    real = {"last_charge_end": "2026-06-21T02:00:00+00:00"}
+    re_ep = main._epoch(real["last_charge_end"])
+    # exactly on the tolerance boundary (live ends CHARGE_MATCH_TOLERANCE_SEC after real) -> same session
+    at_boundary = {"last_charge_end": main.iso(re_ep + main.CHARGE_MATCH_TOLERANCE_SEC)}
+    assert main._prefer_real_charge(real, at_boundary) is True
+    # one second past the boundary -> a materially-later fresh session, keep the inferred one
+    past = {"last_charge_end": main.iso(re_ep + main.CHARGE_MATCH_TOLERANCE_SEC + 1)}
+    assert main._prefer_real_charge(real, past) is False
+    # an unparseable INFERRED end can't out-date the endpoint -> endpoint wins (the le-is-None branch)
+    assert main._prefer_real_charge(real, {"last_charge_end": "garbage"}) is True
+
+
+# --------------------------------------------------------------------------- #
+# resolve_last_charge — the async orchestrator around the charges endpoint
+# --------------------------------------------------------------------------- #
+_A_SESSION = {"chargeStartDate": "2026-06-21T00:00:00+00:00",
+              "chargeEndDate": "2026-06-21T03:00:00+00:00",
+              "chargeStartBatteryLevel": 35, "chargeEndBatteryLevel": 80}
+
+
+def _charges_vehicle(sessions, counter=None):
+    import types as _t
+
+    class V:
+        async def get_charges(self, start, end):
+            if counter is not None:
+                counter["n"] += 1
+            return _t.SimpleNamespace(raw_data={"charges": sessions})
+    return V()
+
+
+def test_resolve_last_charge_reads_caches_and_throttles(monkeypatch):
+    import asyncio
+    monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
+    calls = {"n": 0}
+    vehicle = _charges_vehicle([_A_SESSION], calls)
+    state = {}
+
+    async def scenario():
+        # first call: endpoint is due -> fetched, cached, and preferred over the empty inference
+        out1 = await main.resolve_last_charge(vehicle, state, {"charges"}, 52.0, {})
+        assert out1["last_charge_end"] == "2026-06-21T03:00:00+00:00"
+        assert state["real_last_charge"]["last_charge_end_soc"] == 80
+        assert state["charges_last_fetch"] == 1000.0 and state["charges_dirty"] is False
+        # second call within the throttle window: NOT re-fetched, served from cache
+        out2 = await main.resolve_last_charge(vehicle, state, {"charges"}, 52.0, {})
+        assert out2["last_charge_end"] == "2026-06-21T03:00:00+00:00"
+        assert calls["n"] == 1
+
+    asyncio.run(scenario())
+
+
+def test_resolve_last_charge_endpoint_error_keeps_prior_value(monkeypatch):
+    import asyncio
+    monkeypatch.setattr(main, "now_ts", lambda: 5000.0)
+
+    class BoomVehicle:
+        async def get_charges(self, start, end):
+            raise RuntimeError("charges endpoint 500")
+
+    # a previously-cached authoritative session must survive a transient endpoint failure
+    state = {"real_last_charge": {"last_charge_end": "2026-06-20T10:00:00+00:00"}}
+
+    async def scenario():
+        out = await main.resolve_last_charge(BoomVehicle(), state, {"charges"}, 52.0, {})
+        # no raise; cached value retained; still preferred over empty inference
+        assert out["last_charge_end"] == "2026-06-20T10:00:00+00:00"
+        assert state["real_last_charge"]["last_charge_end"] == "2026-06-20T10:00:00+00:00"
+
+    asyncio.run(scenario())
+
+
+def test_resolve_last_charge_skips_endpoint_when_unsupported():
+    import asyncio
+
+    async def scenario():
+        # endpoint not supported -> never called, inferred value returned unchanged
+        live = {"last_charge_end": "2026-06-19T09:00:00+00:00"}
+        out = await main.resolve_last_charge(object(), {}, set(), 52.0, live)
+        assert out is live
+
+    asyncio.run(scenario())
+
+
+def test_opt_flag_parses_values_and_defaults(monkeypatch):
+    monkeypatch.setenv("A290_FLAG", "true")
+    assert main._opt_flag("A290_FLAG", False) is True
+    for v in ("false", "0", "off"):
+        monkeypatch.setenv("A290_FLAG", v)
+        assert main._opt_flag("A290_FLAG", True) is False
+    for v in ("", "null", "  "):          # bashio can export these on an upgraded install
+        monkeypatch.setenv("A290_FLAG", v)
+        assert main._opt_flag("A290_FLAG", True) is True     # -> default
+    monkeypatch.delenv("A290_FLAG", raising=False)
+    assert main._opt_flag("A290_FLAG", True) is True         # unset -> default
+
+
+def test_epoch_none_for_empty_or_non_string():
+    assert main._epoch(None) is None
+    assert main._epoch("") is None
+    assert main._epoch(12345) is None
+    assert main._epoch("not-a-date") is None
+
+
+def test_redact_masks_configured_secrets(monkeypatch):
+    monkeypatch.setenv("A290_VIN", "VF1AAAABBBB12345")
+    monkeypatch.setenv("A290_ACCOUNT_ID", "acct-9911")
+    monkeypatch.setenv("A290_USERNAME", "me@example.com")
+    monkeypatch.setenv("A290_PASSWORD", "hunter2")
+    # an aiohttp-style error embedding the request URL (which carries the VIN + account id)
+    err = RuntimeError("500, message='Server error', "
+                       "url='https://api.example/accounts/acct-9911/vehicles/VF1AAAABBBB12345/charges'")
+    out = main.redact(err)
+    assert "VF1AAAABBBB12345" not in out and "acct-9911" not in out
+    assert out.count("***") == 2 and "message='Server error'" in out   # non-secret text kept
+    # empty/absent secrets never mask (would otherwise blank random text)
+    monkeypatch.delenv("A290_VIN", raising=False)
+    monkeypatch.delenv("A290_ACCOUNT_ID", raising=False)
+    monkeypatch.delenv("A290_USERNAME", raising=False)
+    monkeypatch.delenv("A290_PASSWORD", raising=False)
+    assert main.redact("nothing secret here") == "nothing secret here"
+
+
+def test_redact_masks_auto_discovered_account_id(monkeypatch):
+    # account_id left blank -> discovered at runtime; it still embeds in the Kamereon URL and
+    # must be redacted even though it was never a configured (env) value.
+    monkeypatch.delenv("A290_ACCOUNT_ID", raising=False)
+    monkeypatch.setattr(main, "_DISCOVERED_ACCOUNT_ID", "acct-discovered-42")
+    out = main.redact("404 url='https://api/accounts/acct-discovered-42/vehicles/V/charges'")
+    assert "acct-discovered-42" not in out and "***" in out
+
+
+def test_redact_masks_supervisor_token(monkeypatch):
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "supervis-tok-abc")
+    assert "supervis-tok-abc" not in main.redact("ws error with token supervis-tok-abc")
+
+
+def test_redacting_filter_scrubs_log_records(monkeypatch):
+    import logging
+    monkeypatch.setenv("A290_VIN", "VF1FILTERVIN")
+    monkeypatch.setattr(main, "_DISCOVERED_ACCOUNT_ID", "acct-flt")
+    rec = logging.LogRecord("x", logging.ERROR, __file__, 1,
+                            "poll failed: %s",
+                            ("url=/accounts/acct-flt/vehicles/VF1FILTERVIN/charges",), None)
+    assert main._RedactingFilter().filter(rec) is True
+    msg = rec.getMessage()
+    assert "VF1FILTERVIN" not in msg and "acct-flt" not in msg
+    assert msg.count("***") == 2 and rec.args == ()
+
+
 # --------------------------------------------------------------------------- #
 # KCM charge-schedule summary (from the ev/settings payload we already fetch)
 # --------------------------------------------------------------------------- #

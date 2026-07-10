@@ -28,6 +28,19 @@ def test_cdnify_points_at_the_addon_repo():
     assert "a290-ha-addon" in out and "alpine_a290/dashboards" in out
 
 
+def test_redact_scrubs_supervisor_token_and_secrets(monkeypatch):
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "supertok-abc123")
+    monkeypatch.setenv("A290_VIN", "VF1DEPLOYVIN")
+    err = RuntimeError("ws auth failed with token supertok-abc123 for VF1DEPLOYVIN")
+    out = deploy._redact(err)
+    assert "supertok-abc123" not in out and "VF1DEPLOYVIN" not in out
+    assert out.count("***") == 2
+    # nothing configured -> passthrough (never blanks arbitrary text)
+    monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
+    monkeypatch.delenv("A290_VIN", raising=False)
+    assert deploy._redact("plain error") == "plain error"
+
+
 def test_fetch_dashboard_reads_bundled_yaml_and_cdnifies(tmp_path, monkeypatch):
     import asyncio
 
