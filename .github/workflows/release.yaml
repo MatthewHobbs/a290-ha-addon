@@ -175,11 +175,20 @@ jobs:
         env:
           IMAGE_REF: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}:${{ needs.prepare.outputs.version }}
         run: |
+          set -euo pipefail
           # The manifest-list (index) digest is, by definition, the sha256 of the raw index
           # bytes — compute it directly. (`--format '{{.Manifest.Digest}}'` is version-fragile:
           # on the runner's buildx that template silently falls back to the verbose default
           # output instead of the digest, which fails the regex below.)
-          digest="sha256:$(docker buildx imagetools inspect "$IMAGE_REF" --raw | sha256sum | cut -d' ' -f1)"
+          # Capture first (pipefail + the -z guard below): a failed inspect must NOT fall through
+          # to `sha256sum` hashing an empty stream, which would yield the valid-looking
+          # e3b0c442… empty-input hash and attest the wrong subject.
+          raw="$(docker buildx imagetools inspect "$IMAGE_REF" --raw)"
+          if [[ -z "$raw" ]]; then
+            echo "::error::imagetools inspect returned no data for ${IMAGE_REF}"
+            exit 1
+          fi
+          digest="sha256:$(printf '%s' "$raw" | sha256sum | cut -d' ' -f1)"
           if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "::error::could not resolve a valid digest for ${IMAGE_REF} (got '${digest}')"
             exit 1
