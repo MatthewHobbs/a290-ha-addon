@@ -175,8 +175,11 @@ jobs:
         env:
           IMAGE_REF: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}:${{ needs.prepare.outputs.version }}
         run: |
-          # `.Manifest.Digest` is the manifest-list (index) digest for the multi-arch tag.
-          digest=$(docker buildx imagetools inspect "$IMAGE_REF" --format '{{.Manifest.Digest}}')
+          # The manifest-list (index) digest is, by definition, the sha256 of the raw index
+          # bytes — compute it directly. (`--format '{{.Manifest.Digest}}'` is version-fragile:
+          # on the runner's buildx that template silently falls back to the verbose default
+          # output instead of the digest, which fails the regex below.)
+          digest="sha256:$(docker buildx imagetools inspect "$IMAGE_REF" --raw | sha256sum | cut -d' ' -f1)"
           if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
             echo "::error::could not resolve a valid digest for ${IMAGE_REF} (got '${digest}')"
             exit 1
