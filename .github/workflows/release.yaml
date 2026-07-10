@@ -265,10 +265,22 @@ jobs:
           IS_NEW: ${{ needs.prepare.outputs.is_new }}
           SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
           IMAGE_REF: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}:${{ needs.prepare.outputs.version }}
+          PREPARE_RESULT: ${{ needs.prepare.result }}
           BUILD_RESULT: ${{ needs.build.result }}
           MANIFEST_RESULT: ${{ needs.manifest.result }}
         run: |
           set -euo pipefail
+          # Fail CLOSED. This job uses always(), so it also runs when prepare/build failed — in
+          # which case IS_NEW is empty and must NOT be read as a safe "no bump". If we can't
+          # determine or trust the release state, block the merge rather than wave it through.
+          if [[ "$PREPARE_RESULT" != "success" ]]; then
+            echo "::error::prepare did not succeed ($PREPARE_RESULT) — cannot determine whether this is a version bump; blocking merge."
+            exit 1
+          fi
+          if [[ "$BUILD_RESULT" != "success" ]]; then
+            echo "::error::the image build did not succeed ($BUILD_RESULT); blocking merge."
+            exit 1
+          fi
           if [[ "$IS_NEW" != "true" ]]; then
             echo "No version bump — config.yaml version is already released; nothing to publish. Merge is safe."
             exit 0
@@ -277,8 +289,8 @@ jobs:
             echo "::error::This PR bumps the version but comes from a fork, which cannot publish to GHCR. Re-run the bump from a branch in this repository so the image is published before merge."
             exit 1
           fi
-          if [[ "$BUILD_RESULT" != "success" || "$MANIFEST_RESULT" != "success" ]]; then
-            echo "::error::Version is new but the image was not published (build=$BUILD_RESULT, manifest=$MANIFEST_RESULT). Merging would advertise a version with no image."
+          if [[ "$MANIFEST_RESULT" != "success" ]]; then
+            echo "::error::Version is new but the manifest was not published (manifest=$MANIFEST_RESULT). Merging would advertise a version with no image."
             exit 1
           fi
           # Belt-and-suspenders: the tag must actually resolve on the registry now.
