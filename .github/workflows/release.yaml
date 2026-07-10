@@ -1,13 +1,21 @@
 name: Release
 
-# Build the add-on image for every architecture, and on a push to main:
-#   * publish the multi-arch image to GHCR,
-#   * attest its build provenance — keyless Sigstore signing via GitHub OIDC, pushed to
-#     the registry alongside the image (verify with
-#     `gh attestation verify oci://<image>:<version> --owner MatthewHobbs`), and
-#   * create a `v<version>` git tag + GitHub Release when config.yaml's version is new.
-# On pull requests it BUILDS only (no push) as a sanity check — nothing is published
-# and no tag is created until the change is merged to main.
+# Publishes the add-on image so that `config.yaml`'s version on main is NEVER advertised to
+# Home Assistant before its image exists on GHCR (a Supervisor resolves the add-on image by
+# `version`, so a version on main with no image behind it makes every install 404 on update).
+#
+# To guarantee that, the image is published on the PR that bumps the version — BEFORE the merge:
+#   * On a same-repo PR whose config.yaml version is new (no `v<version>` tag yet): build every
+#     arch, push them, and publish the multi-arch manifest to GHCR. The `Release image published`
+#     gate then confirms `<image>:<version>` is pullable and is a REQUIRED check, so the bump
+#     cannot merge until its image is live. (No attestation/tag on the PR.)
+#   * On push to main: rebuild from the merged commit (the tag is already occupied by the PR
+#     image, so there is no 404 window), republish, then attest build provenance — keyless
+#     Sigstore via GitHub OIDC, pushed to GHCR (verify with
+#     `gh attestation verify oci://<image>:<version> --owner MatthewHobbs`) — and create the
+#     `v<version>` git tag + GitHub Release. Provenance is thus always attested from main.
+# A PR that does not bump the version publishes nothing; the gate passes as a no-op.
+# Fork PRs cannot push to GHCR, so a version bump must come from a branch in this repo.
 
 on:
   push:
@@ -129,17 +137,22 @@ jobs:
             io.hass.name=${{ needs.prepare.outputs.name }}
             io.hass.description=${{ needs.prepare.outputs.description }}
             ${{ needs.prepare.outputs.url && format('io.hass.url={0}', needs.prepare.outputs.url) || '' }}
-          push: ${{ github.event_name == 'push' && needs.prepare.outputs.is_new == 'true' }}
+          # Push a new version's image on BOTH the merge (push to main) and the same-repo PR that
+          # bumps it — the PR push is what makes `<image>:<version>` exist before merge, closing
+          # the phantom-version window. Fork PRs can't write to GHCR, so they build only.
+          push: ${{ needs.prepare.outputs.is_new == 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
           version: ${{ needs.prepare.outputs.version }}
 
   manifest:
     name: Publish multi-arch manifest
     needs: [prepare, build]
-    if: ${{ github.event_name == 'push' && needs.prepare.outputs.is_new == 'true' }}
+    # Publish the multi-arch index on the merge AND on the same-repo version-bump PR (so the
+    # image exists before merge). The attestation + tag steps below stay main-only.
+    if: ${{ needs.prepare.outputs.is_new == 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      id-token: write      # OIDC token for keyless build-provenance attestation
+      id-token: write      # OIDC token for keyless build-provenance attestation (push to main)
       packages: write      # push the multi-arch manifest + the attestation to GHCR
       attestations: write  # publish the build-provenance attestation
     steps:
@@ -164,14 +177,19 @@ jobs:
       # Supervisor pulls for `image: ghcr.io/matthewhobbs/alpine_a290` (no `{arch}` placeholder →
       # Docker resolves the platform from the index), so it is the subject a consumer verifies.
       - name: Log in to GHCR
+        if: ${{ github.event_name == 'push' }}
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4.2.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Provenance is attested only from main (push), so the released image always traces to a
+      # commit on main — never a pre-merge PR build (which is transient and gets overwritten by
+      # the rebuild below).
       - name: Resolve published manifest digest
         id: digest
+        if: ${{ github.event_name == 'push' }}
         env:
           IMAGE_REF: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}:${{ needs.prepare.outputs.version }}
         run: |
@@ -197,6 +215,7 @@ jobs:
           echo "::notice::Resolved ${IMAGE_REF} → ${digest}"
 
       - name: Attest build provenance
+        if: ${{ github.event_name == 'push' }}
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3
         with:
           subject-name: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}
@@ -229,3 +248,51 @@ jobs:
             --target "${GITHUB_SHA}" \
             --title "${tag}" \
             --notes "Multi-arch image published: \`${IMAGE}:${VERSION}\` — build provenance attested (keyless, GitHub OIDC) and pushed to the registry. Verify: \`gh attestation verify oci://${IMAGE}:${VERSION} --owner MatthewHobbs\`."
+
+  release-gate:
+    name: Release image published
+    # The merge gate. Make this a REQUIRED status check on main: a version-bump PR then cannot
+    # merge until its image is live on GHCR, so main never advertises a version that 404s.
+    # Runs on every PR and always reports (a no-op success when the version is unchanged), so it
+    # never leaves a required check pending. `always()` so it evaluates even if build/manifest
+    # were skipped for a non-bump PR.
+    needs: [prepare, build, manifest]
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm the image exists before merge
+        env:
+          IS_NEW: ${{ needs.prepare.outputs.is_new }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          IMAGE_REF: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}:${{ needs.prepare.outputs.version }}
+          PREPARE_RESULT: ${{ needs.prepare.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          MANIFEST_RESULT: ${{ needs.manifest.result }}
+        run: |
+          set -euo pipefail
+          # Fail CLOSED. This job uses always(), so it also runs when prepare/build failed — in
+          # which case IS_NEW is empty and must NOT be read as a safe "no bump". If we can't
+          # determine or trust the release state, block the merge rather than wave it through.
+          if [[ "$PREPARE_RESULT" != "success" ]]; then
+            echo "::error::prepare did not succeed ($PREPARE_RESULT) — cannot determine whether this is a version bump; blocking merge."
+            exit 1
+          fi
+          if [[ "$BUILD_RESULT" != "success" ]]; then
+            echo "::error::the image build did not succeed ($BUILD_RESULT); blocking merge."
+            exit 1
+          fi
+          if [[ "$IS_NEW" != "true" ]]; then
+            echo "No version bump — config.yaml version is already released; nothing to publish. Merge is safe."
+            exit 0
+          fi
+          if [[ "$SAME_REPO" != "true" ]]; then
+            echo "::error::This PR bumps the version but comes from a fork, which cannot publish to GHCR. Re-run the bump from a branch in this repository so the image is published before merge."
+            exit 1
+          fi
+          if [[ "$MANIFEST_RESULT" != "success" ]]; then
+            echo "::error::Version is new but the manifest was not published (manifest=$MANIFEST_RESULT). Merging would advertise a version with no image."
+            exit 1
+          fi
+          # Belt-and-suspenders: the tag must actually resolve on the registry now.
+          docker buildx imagetools inspect "$IMAGE_REF" >/dev/null
+          echo "Image ${IMAGE_REF} is published and pullable — merging will not 404."
