@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.17.1
+
+- **`publish_location: false` now also removes the Refresh Location button.** With location
+  opted out, the retained tracker/GPS topics were already cleared, but the **Refresh Location**
+  action button (and its `alpine_a290/cmd/refresh_location` command) stayed live — so an
+  opted-out install could still trigger a location refresh. The button is now cleared and the
+  command ignored while `publish_location` is off, so the opt-out is complete. (Mirrored in R5.)
+
 ## 1.17.0
 
 - **Location is now fully opt-out — new `publish_location` option (default on).** Set

@@ -842,3 +842,42 @@ def test_supports_handles_sync_and_async():
         assert await main._supports(AsyncV(), "x") is True
 
     asyncio.run(scenario())
+
+
+def test_refresh_location_button_cleared_when_location_disabled(monkeypatch):
+    class C:
+        def __init__(self):
+            self.pub = {}
+
+        def publish(self, t, p, retain=False):
+            self.pub[t] = p
+
+    (cmd,) = tuple(main.LOCATION_CMDS)                 # the location-refresh command suffix
+    btn_topic = f"{main.DISCOVERY_PREFIX}/button/{main.NODE}/{cmd}/config"
+    eps = set(main.OPTIONAL_ENDPOINTS) | {main.REFRESH_LOCATION_EP}
+
+    # location on: the refresh-location button is published
+    monkeypatch.setattr(main, "PUBLISH_LOCATION", True)
+    c = C()
+    main.publish_discovery(c, eps, "km")
+    assert "command_topic" in c.pub[btn_topic]
+
+    # location off: the button is cleared even though the endpoint is supported
+    monkeypatch.setattr(main, "PUBLISH_LOCATION", False)
+    c = C()
+    main.publish_discovery(c, eps, "km")
+    assert c.pub[btn_topic] == ""
+
+
+def test_run_command_rejects_refresh_location_when_location_disabled(monkeypatch):
+    monkeypatch.setattr(main, "PUBLISH_LOCATION", False)
+    called = {"n": 0}
+
+    async def fake_login(ws, locale):
+        called["n"] += 1
+        return object()
+
+    monkeypatch.setattr(main, "_login_vehicle", fake_login)
+    (cmd,) = tuple(main.LOCATION_CMDS)
+    asyncio.run(main.run_command(cmd))
+    assert called["n"] == 0            # rejected before any login/dispatch
