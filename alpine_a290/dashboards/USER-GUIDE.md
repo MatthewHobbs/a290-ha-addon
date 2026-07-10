@@ -63,7 +63,7 @@ current State of Charge (SoC — how full the battery is, as a %) against the Mi
 ### Health
 
 Three problem indicators: `binary_sensor.alpine_a290_api_auth_failure` (bad credentials /
-locale), `…_data_stale` (no successful poll within `stale_hours`), and `…_plug_suspect`
+locale), `…_data_stale` (no successful poll within `stale_hours`), and `…_plug_state_suspect`
 (plug state disagrees with movement/charging — e.g. "Connected" but driven).
 
 ### Test mode (optional)

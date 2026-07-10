@@ -66,7 +66,12 @@ jobs:
           python-version: "3.14"
 
       - name: Install deps
-        run: python3 -m pip install --quiet -r alpine_a290/app/requirements.txt pytest pytest-cov
+        # requirements.txt is hash-pinned, so pip enters --require-hashes mode and every
+        # requirement in that command must be hashed — install the app deps on their own, then
+        # the (unhashed) test tooling separately.
+        run: |
+          python3 -m pip install --quiet -r alpine_a290/app/requirements.txt
+          python3 -m pip install --quiet pytest pytest-cov
 
       - name: pytest
         run: python3 -m pytest alpine_a290/tests -q --cov=alpine_a290/app --cov-report=term-missing --cov-fail-under=95

@@ -1,7 +1,10 @@
 name: Release
 
 # Build the add-on image for every architecture, and on a push to main:
-#   * publish the multi-arch image to GHCR, and
+#   * publish the multi-arch image to GHCR,
+#   * attest its build provenance — keyless Sigstore signing via GitHub OIDC, pushed to
+#     the registry alongside the image (verify with
+#     `gh attestation verify oci://<image>:<version> --owner MatthewHobbs`), and
 #   * create a `v<version>` git tag + GitHub Release when config.yaml's version is new.
 # On pull requests it BUILDS only (no push) as a sanity check — nothing is published
 # and no tag is created until the change is merged to main.
@@ -90,8 +93,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
-      id-token: write
-      packages: write   # push to GHCR
+      packages: write   # push to GHCR (per-arch images); attestation happens in `manifest`
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prepare.outputs.build_matrix) }}
@@ -112,9 +114,11 @@ jobs:
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
           context: "./alpine_a290"
           image: ${{ matrix.image }}
+          # Only the immutable version tag — no mutable `latest`. A mid-matrix failure would
+          # leave `latest` pointing at mixed-version arches; Supervisor resolves the add-on
+          # image by config.yaml `version`, never by `latest`.
           image-tags: |
             ${{ needs.prepare.outputs.version }}
-            latest
           labels: |
             io.hass.type=addon
             io.hass.name=${{ needs.prepare.outputs.name }}
@@ -129,8 +133,10 @@ jobs:
     if: ${{ github.event_name == 'push' && needs.prepare.outputs.is_new == 'true' }}
     runs-on: ubuntu-latest
     permissions:
-      id-token: write
-      packages: write
+      contents: read
+      id-token: write      # OIDC token for keyless build-provenance attestation
+      packages: write      # push the multi-arch manifest + the attestation to GHCR
+      attestations: write  # publish the build-provenance attestation
     steps:
       - name: Publish multi-arch manifest
         uses: home-assistant/builder/actions/publish-multi-arch-manifest@4de35182ce1e329181bffcbcc84d33db5e2c7e10  # 2026.06.0
@@ -138,10 +144,44 @@ jobs:
           architectures: ${{ needs.prepare.outputs.architectures }}
           container-registry-password: ${{ secrets.GITHUB_TOKEN }}
           image-name: ${{ needs.prepare.outputs.image_name }}
+          # Version tag only — no mutable `latest` (see the build job for the rationale).
           image-tags: |
             ${{ needs.prepare.outputs.version }}
-            latest
           registry-prefix: ${{ needs.prepare.outputs.registry_prefix }}
+
+      # Attest build provenance for the published multi-arch image. `build-image` /
+      # `publish-multi-arch-manifest` do NOT expose the pushed digest as a step output (unlike
+      # `docker/build-push-action`, which the polygonal exemplar relies on), so resolve the
+      # manifest-list digest from the registry and attest that. The manifest list is what a
+      # Supervisor pulls for `image: ghcr.io/matthewhobbs/alpine_a290` (no `{arch}` placeholder →
+      # Docker resolves the platform from the index), so it is the subject a consumer verifies.
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve published manifest digest
+        id: digest
+        env:
+          IMAGE_REF: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}:${{ needs.prepare.outputs.version }}
+        run: |
+          # `.Manifest.Digest` is the manifest-list (index) digest for the multi-arch tag.
+          digest=$(docker buildx imagetools inspect "$IMAGE_REF" --format '{{.Manifest.Digest}}')
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::could not resolve a valid digest for ${IMAGE_REF} (got '${digest}')"
+            exit 1
+          fi
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          echo "::notice::Resolved ${IMAGE_REF} → ${digest}"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a  # v3
+        with:
+          subject-name: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          push-to-registry: true
 
   tag:
     name: Tag release
@@ -168,4 +208,4 @@ jobs:
           gh release create "${tag}" \
             --target "${GITHUB_SHA}" \
             --title "${tag}" \
-            --notes "Multi-arch image published: \`${IMAGE}:${VERSION}\`."
+            --notes "Multi-arch image published: \`${IMAGE}:${VERSION}\` — build provenance attested (keyless, GitHub OIDC) and pushed to the registry. Verify: \`gh attestation verify oci://${IMAGE}:${VERSION} --owner MatthewHobbs\`."

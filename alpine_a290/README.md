@@ -8,9 +8,12 @@ A maintained Home Assistant app for the **Alpine A290** EV. It polls the
   **writable charge-limit sliders** (Minimum / Charge-Target SoC). You do **not** need Home
   Assistant's `renault` integration. *(Remote charge-start is forbidden by Renault on the
   A290 — a platform limit, not a missing feature.)*
+- **Location is opt-out** — `device_tracker.alpine_a290_location` publishes by default
+  (coarsened per `gps_precision`); set `publish_location: false` to fetch none and clear any
+  previously-retained GPS from the broker, for a zero location footprint.
 - **Ready-made dashboards** bundled in: set `deploy_dashboard` and the app installs a
   **standard** or **Bubble Card** dashboard for you (both phone-verified in CI).
-- **Pre-built, Cosign-signed image** pulled by the Supervisor — no slow on-device build.
+- **Pre-built multi-arch image** pulled by the Supervisor — no slow on-device build.
 
 See **[DOCS.md](DOCS.md)** for the full option/entity reference and setup, and the
 [repository README](https://github.com/MatthewHobbs/a290-ha-addon) for the **HACS frontend
