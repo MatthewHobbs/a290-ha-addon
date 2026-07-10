@@ -1,11 +1,13 @@
 name: Alpine A290
-version: "1.16.3"
+version: "1.17.0"
 slug: alpine_a290
 description: Polls your Alpine A290 (Renault/Kamereon API) and publishes its data to Home Assistant via MQTT auto-discovery. Credentials are entered once on the Configuration page.
 url: https://github.com/MatthewHobbs/a290-ha-addon/tree/main/alpine_a290
-# Pre-built multi-arch image published to GHCR by .github/workflows/release.yaml
-# (Cosign-signed). With this set, the Supervisor pulls the image instead of building
-# it on the user's device. The GHCR package must be public.
+# Pre-built multi-arch image published to GHCR by .github/workflows/release.yaml, with a
+# keyless (GitHub OIDC) build-provenance attestation pushed alongside it. With this set, the
+# Supervisor pulls the image instead of building it on the user's device. The GHCR package
+# must be public. Verify: gh attestation verify oci://ghcr.io/matthewhobbs/alpine_a290:<ver>
+# --owner MatthewHobbs
 image: ghcr.io/matthewhobbs/alpine_a290
 arch:
   - aarch64
@@ -30,6 +32,7 @@ options:
   poll_interval: 300
   battery_capacity_kwh: "52"
   stale_hours: 6
+  publish_location: true
   gps_precision: 4
   precondition_temperature: 20
   log_level: info
@@ -51,6 +54,7 @@ schema:
   poll_interval: int(60,3600)
   battery_capacity_kwh: list(52|40)
   stale_hours: int(1,48)
+  publish_location: bool
   gps_precision: int(1,6)
   precondition_temperature: float(16,27)
   log_level: list(trace|debug|info|notice|warning|error|fatal)

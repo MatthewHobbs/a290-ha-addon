@@ -30,7 +30,10 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH="${TARGETARCH}" \
 # provides BUILD_FROM by default (and build.yaml's build_from is deprecated), the HA add-on
 # standard is an explicit, pinned, multi-arch FROM. ghcr.io/home-assistant/base:3.24 is the
 # current HA base (Alpine 3.24 / Python 3.14) and is multi-arch (amd64 + aarch64).
-FROM ghcr.io/home-assistant/base:3.24
+# Pinned by digest as well as tag so the base can't be repointed under a rebuild — the tag is
+# kept for readability; the @sha256 is the immutable manifest-list (index) digest. Bump both
+# together (resolve with `docker buildx imagetools inspect ghcr.io/home-assistant/base:<tag>`).
+FROM ghcr.io/home-assistant/base:3.24@sha256:94ff231402a5e7ad2a82e261ad5fa4ffae7d7bb095c3febb2edbdf309c9b6aca
 
 # Single source of truth for the version: the HA builder passes BUILD_VERSION from
 # config.yaml's `version:`. Exposed to the app as A290_VERSION (see main.py).
@@ -40,8 +43,12 @@ ENV A290_VERSION=${BUILD_VERSION}
 # renault-api needs Python 3 + a few build deps for its crypto/aiohttp wheels.
 RUN apk add --no-cache python3 py3-pip
 
+# requirements.txt is a fully-resolved, hash-pinned lockfile (generated from requirements.in
+# with `uv pip compile --generate-hashes --python-version 3.14 --python-platform linux`), so
+# the whole dependency tree — not just the 3 top-level pins — is reproducible and integrity-
+# checked. --require-hashes makes pip refuse any package whose artifact hash doesn't match.
 COPY app/requirements.txt /app/requirements.txt
-RUN pip3 install --no-cache-dir --break-system-packages -r /app/requirements.txt
+RUN pip3 install --no-cache-dir --break-system-packages --require-hashes -r /app/requirements.txt
 
 COPY app/ /app/
 # Bundle just the deployable dashboard YAMLs; their images load via CDN, so the ~5 MB of

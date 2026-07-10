@@ -2,6 +2,12 @@
 sensors, icons, optional endpoints, control buttons). Object_ids are prefixed "a290_"; the
 discovery value_template strips that prefix."""
 
+# The per-model object_id prefix. Every object_id below starts with it, and main.py strips it
+# (obj[len(OBJ_PREFIX):]) to derive the MQTT value_template key / command suffix. This is the
+# ONE place the prefix is defined — the r5 twin sets "r5_" here and nothing else in the shared
+# poll/publish loop changes (previously it was a hard-coded `obj[5:]` magic number at 5 sites).
+OBJ_PREFIX = "a290_"
+
 SENSORS = {
     "a290_battery_level":        ("Battery Level", "battery", "%", "measurement"),
     "a290_range":                ("Range", "distance", "km", "measurement"),

@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.17.0
+
+- **Location is now fully opt-out — new `publish_location` option (default on).** Set
+  `publish_location: false` and the add-on fetches no GPS, publishes no `device_tracker`, and
+  **clears any previously-retained location** off the MQTT broker (the retained tracker config
+  and the two `alpine_a290/location/*` topics are wiped). Privacy-minded users can now run with
+  **zero location footprint** on the broker. `gps_precision` still coarsens the fix when location
+  is on.
+- **Error messages are redacted before they're logged or served.** Renault/Kamereon request URLs
+  embed the VIN and account id, so an ordinary transient API/HTTP error string could previously
+  carry them into the container log and the status panel's `/api/state`. Those error strings are
+  now scrubbed (VIN / account id / credentials masked) on every log and panel path — not just the
+  `debug_dump` path. Auth failures are also detected by HTTP status (401/403), not only message
+  text.
+- **Real build-provenance attestation on the published image.** The release workflow now attaches
+  a keyless (GitHub OIDC) Sigstore build-provenance attestation to the multi-arch image and pushes
+  it to GHCR alongside the image — so the image a Supervisor pulls can be cryptographically
+  verified: `gh attestation verify oci://ghcr.io/matthewhobbs/alpine_a290:<version> --owner
+  MatthewHobbs`. The mutable `latest` tag is no longer published (Supervisor resolves by version).
+  This replaces the previously-advertised-but-never-implemented "Cosign-signed" claim with a real,
+  verifiable one.
+- **Reproducible, integrity-checked dependency builds.** The image now installs from a
+  fully-resolved, hash-pinned lockfile (`requirements.txt`, generated from `requirements.in`) with
+  `pip --require-hashes`, so the *entire* dependency tree — not just the three top-level pins — is
+  reproducible and tamper-evident. The base image is additionally pinned by digest.
+- **Docs:** new "Personal data this add-on processes" section, a status-panel trust-boundary note
+  (co-tenant containers can read telemetry — but no credentials or raw GPS — from `/api/state`),
+  and an MQTT command-topic ACL recommendation.
+
 ## 1.16.3
 
 - **Bundled `tempio` rebuilt to clear inherited CVEs.** The stock `/usr/bin/tempio` in the HA
@@ -208,12 +237,13 @@ with the R5 add-on.
 
 ## 1.4.7
 
-- **Pre-built, signed images — faster, more reliable installs.** The add-on is now published
-  as a **multi-arch image** (`amd64` + `aarch64`) to **GHCR**, built and **Cosign-signed**
-  (keyless OIDC) by a new `release` workflow on every version-bump merge to `main`. The
-  Supervisor now **pulls** the image (via the new `image:` in `config.yaml`) instead of
-  **building it on your device** — no more slow on-device builds or SD-card wear. Each release
-  also gets a **`v<version>` git tag + GitHub Release**.
+- **Pre-built images — faster, more reliable installs.** The add-on is now published
+  as a **multi-arch image** (`amd64` + `aarch64`) to **GHCR** by a new `release` workflow on
+  every version-bump merge to `main`. The Supervisor now **pulls** the image (via the new
+  `image:` in `config.yaml`) instead of **building it on your device** — no more slow
+  on-device builds or SD-card wear. Each release also gets a **`v<version>` git tag + GitHub
+  Release**. *(Corrected 2026-07-10: this entry originally also claimed the image was
+  Cosign-signed; no signing/attestation step actually existed — see #49/#50.)*
 
 ## 1.4.6
 
