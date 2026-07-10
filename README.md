@@ -102,9 +102,11 @@ key needed.
   available energy, outside temperature, HVAC (climate) status/threshold, preconditioning,
   charge target/min State of Charge (SoC — how full the battery is, as a %), mileage,
   last-charge stats, GPS/HVAC last-activity, and health (`api_auth_failure`, `data_stale`,
-  `plug_suspect`). Tyre pressure and charge mode are forbidden by Renault on the A290 and
-  are not published.
-- **Location:** `device_tracker.alpine_a290_location`.
+  `plug_state_suspect`). Tyre pressure and charge mode are forbidden by Renault on the A290
+  and are not published.
+- **Location:** `device_tracker.alpine_a290_location` — on by default (coarsened per
+  `gps_precision`); set `publish_location: false` to fetch none and clear any
+  previously-retained GPS from the broker, for a zero location footprint.
 - **Native controls (no Home Assistant `renault` integration):**
   `button.alpine_a290_sound_horn`, `…_flash_lights`, `…_start_climate`, `…_stop_climate`,
   `…_refresh_location` — each gated on what the platform supports (charge-start is

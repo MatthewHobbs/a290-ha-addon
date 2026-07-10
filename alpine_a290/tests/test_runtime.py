@@ -163,6 +163,9 @@ class FlakyVehicle(FakeVehicle):
     async def get_hvac_status(self):
         raise RuntimeError("hvac down")
 
+    async def get_hvac_settings(self):
+        raise RuntimeError("hvac-settings down")
+
     async def get_charge_schedule(self):
         raise RuntimeError("settings down")
 
@@ -201,6 +204,45 @@ def test_poll_once_optional_endpoint_failures(monkeypatch):
     assert attrs is None                 # location fetch raised
     assert "tyre_pressure_fl" not in data
     assert "charge_mode" not in data
+
+
+def test_poll_once_skips_location_when_publish_disabled(monkeypatch):
+    monkeypatch.setattr(main, "now_ts", lambda: 0.0)
+    monkeypatch.setattr(main, "PUBLISH_LOCATION", False)
+
+    class NoLocVehicle(FakeVehicle):
+        async def get_location(self):
+            raise AssertionError("get_location must not be called when location is disabled")
+
+    data, attrs = asyncio.run(
+        main.poll_once(FakeVSession(NoLocVehicle()), {}, 52.0, set(), "km"))
+    assert attrs is None                       # nothing published
+    assert "gps_last_activity" not in data     # and no location-derived field set
+
+
+def test_publish_discovery_location_enabled_vs_disabled(monkeypatch):
+    class C:
+        def __init__(self):
+            self.pub = {}
+
+        def publish(self, t, p, retain=False):
+            self.pub[t] = p
+
+    tracker_topic = f"{main.DISCOVERY_PREFIX}/device_tracker/{main.NODE}/location/config"
+
+    # enabled (default): a populated device_tracker config is published
+    monkeypatch.setattr(main, "PUBLISH_LOCATION", True)
+    c = C()
+    main.publish_discovery(c, set(main.OPTIONAL_ENDPOINTS), "km")
+    assert '"source_type": "gps"' in c.pub[tracker_topic]
+
+    # disabled: the tracker is cleared AND the retained GPS topics are wiped off the broker
+    monkeypatch.setattr(main, "PUBLISH_LOCATION", False)
+    c = C()
+    main.publish_discovery(c, set(main.OPTIONAL_ENDPOINTS), "km")
+    assert c.pub[tracker_topic] == ""
+    assert c.pub[main.ATTR_TOPIC] == ""
+    assert c.pub[main.TRACKER_STATE_TOPIC] == ""
 
 
 def test_setup_logging_clamps_library_loggers(monkeypatch):
@@ -551,6 +593,9 @@ def test_resolve_account_autodiscovers(monkeypatch):
                                 ns(accountType="MYRENAULT", accountId="acct-2")])
 
     assert asyncio.run(main.resolve_account(Client())) == "acct-2"
+    # the discovered id is captured so redact() can mask it in later error URLs
+    assert main._DISCOVERED_ACCOUNT_ID == "acct-2"
+    assert "acct-2" not in main.redact("boom /accounts/acct-2/vehicles/V/x")
 
 
 def test_login_vehicle(monkeypatch):
@@ -707,6 +752,19 @@ def test_main_handles_failing_poll(monkeypatch):
 
     _wire_main(monkeypatch, poll)
     asyncio.run(main.main())
+
+
+def test_main_redacts_secret_in_error_snapshot(monkeypatch):
+    async def poll(vs, state, cap, sup, du):
+        # an error carrying the VIN (as a real Kamereon URL error would)
+        raise RuntimeError("403 at https://api/accounts/A/vehicles/SECRETVIN123/charges")
+
+    _wire_main(monkeypatch, poll)
+    monkeypatch.setenv("A290_VIN", "SECRETVIN123")
+    asyncio.run(main.main())
+    # the status-panel snapshot (served unauth to co-tenant containers) must not carry the VIN
+    assert "SECRETVIN123" not in main._LATEST.get("error", "")
+    assert "***" in main._LATEST.get("error", "")
 
 
 def test_main_exits_on_missing_config(monkeypatch):
