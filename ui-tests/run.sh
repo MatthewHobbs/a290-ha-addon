@@ -9,7 +9,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 BASE="http://localhost:8123"
 CID="$BASE/"
 PY="${PYTHON:-python3}"
-HA_IMAGE="${HA_IMAGE:-ghcr.io/home-assistant/home-assistant:stable}"
+# Pinned (not :stable) so the render is deterministic — a floating tag made the truncation
+# gate flake as HA/card versions moved under it. Bump deliberately alongside the card pins below.
+HA_IMAGE="${HA_IMAGE:-ghcr.io/home-assistant/home-assistant:2026.7.1}"
 CONFIG="$(mktemp -d)"
 
 cleanup() {
@@ -21,9 +23,12 @@ trap cleanup EXIT
 
 echo "==> Vendor custom cards into the HA www/ (same-origin, no CORS issues)"
 mkdir -p "$CONFIG/www/cards"
-curl -fsSL "https://github.com/piitaya/lovelace-mushroom/releases/latest/download/mushroom.js" -o "$CONFIG/www/cards/mushroom.js"
-curl -fsSL "https://github.com/custom-cards/button-card/releases/latest/download/button-card.js" -o "$CONFIG/www/cards/button-card.js"
-curl -fsSL "https://cdn.jsdelivr.net/gh/thomasloven/lovelace-card-mod@master/card-mod.js" -o "$CONFIG/www/cards/card-mod.js"
+# Pinned to fixed releases (not @latest / @master) so the rendered layout is reproducible; a
+# floating card version shifting the shadow DOM is what tripped the marginal truncation gate.
+# Bump these deliberately (together with HA_IMAGE) when tracking upstream.
+curl -fsSL "https://github.com/piitaya/lovelace-mushroom/releases/download/v5.1.1/mushroom.js" -o "$CONFIG/www/cards/mushroom.js"
+curl -fsSL "https://github.com/custom-cards/button-card/releases/download/v7.0.1/button-card.js" -o "$CONFIG/www/cards/button-card.js"
+curl -fsSL "https://cdn.jsdelivr.net/gh/thomasloven/lovelace-card-mod@v4.2.1/card-mod.js" -o "$CONFIG/www/cards/card-mod.js"
 
 # Vendor the dashboards' background/render images so /local/backgrounds/<file> resolves
 # (the live add-on rewrites these to the CDN via deploy._cdnify; the harness serves them
