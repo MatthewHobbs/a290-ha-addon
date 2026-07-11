@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.18.0
+
+- **Internal: adopt the shared `renault-mqtt` package.** The code this add-on runs in common
+  with its Renault 5 sibling (config/redaction, MQTT discovery, charge-session reconciliation,
+  the API debug dump, and the pure parse/format helpers) now lives in one installed package
+  instead of being duplicated in each repo. No user-facing behaviour change — every entity,
+  `object_id`, MQTT topic, and command topic is identical to 1.17.1 (verified by a byte-for-byte
+  discovery diff); purely a maintainability move so fixes land once for both add-ons.
+
 ## 1.17.1
 
 - **`publish_location: false` now also removes the Refresh Location button.** With location
