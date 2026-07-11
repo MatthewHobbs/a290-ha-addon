@@ -216,6 +216,13 @@ used for preconditioning — not a control): `…_charge_schedule_mode`,
 (the days + times the cabin is set to be ready, e.g. `Mon 07:00, Fri 08:30`). These show
 *unavailable* when no schedule is set.
 
+**Charge limits** are exposed as two writable sliders (set via `set_battery_soc`, published
+only when the car supports the `soc-levels` endpoint): `number.alpine_a290_soc_min_target`
+(15–45 %) and `number.alpine_a290_soc_max_target` (55–100 %). These are **`number.` sliders,
+not `sensor.`s** — if you upgraded from an early version that published them as sensors, delete
+the leftover `sensor.alpine_a290_soc_*_target` entities HA shows as *unavailable* (Settings →
+Devices & Services → Entities → filter *Unavailable*).
+
 ### Control buttons
 
 The app publishes a button for each remote action the car supports (it probes
@@ -244,3 +251,4 @@ completed charge. When the car exposes Renault's recent-charges history, the app
 for a just-finished session, the app falls back to figures it works out live from the battery
 polls, then replaces them with the official record once Renault posts it — so the tiles are
 always populated and settle on the real numbers. No configuration is needed; it's automatic.
+On a fresh install these read *unknown* until the A290 completes its first charge.
