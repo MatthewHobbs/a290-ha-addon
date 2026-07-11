@@ -102,11 +102,9 @@ ACTION_BUTTONS = {
 # match object_id[5:]); a press writes via set_battery_soc(). Gated on SOC_ENDPOINT support,
 # so a model that rejects the write never ships the control. (name, icon, min, max, step)
 SOC_ENDPOINT = "soc-levels"
-# Authoritative recent-charge-sessions endpoint (renault_api get_charges). Supported by the
-# A290 (A5E1AE) and R5 (R5E1VE) in _VEHICLE_ENDPOINTS; probed at startup so a model that
-# forbids it falls back to the live-inferred Last Charge instead. (charge-history is forbidden
-# on both, so only charges is used.)
-CHARGES_ENDPOINT = "charges"
+# (CHARGES_ENDPOINT — the authoritative recent-charge-sessions endpoint — moved to
+# renault_ha_core.charge with the reconciliation logic; it's identical across models. main.py
+# imports it from there for the endpoint-support probe.)
 # The refresh-location action endpoint. Names the ACTION_BUTTONS entry that triggers a GPS
 # refresh; the poller gates both the discovery button and the command on it (and on the
 # location opt-out), so it's shared between the control layer and the MQTT discovery layer.

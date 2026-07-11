@@ -5,7 +5,7 @@ dashboard tile: the Last Charge data-key contract, plug-suspect detection, enum
 decoding, schedule summaries and unit conversion.
 """
 import catalog
-import charge
+from renault_ha_core import charge
 import main
 import pytest
 from renault_api.kamereon.enums import ChargeState
