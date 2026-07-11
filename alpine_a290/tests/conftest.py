@@ -18,10 +18,10 @@ def _isolate_module_globals():
     pytest-xdist). Restoring here keeps each test isolated regardless of order.
     `config._DISCOVERED_ACCOUNT_ID` is the same concern for the redaction seam (set by
     resolve_account, read by redact)."""
-    import config
     import debug
     import main
     import mqtt
+    from renault_ha_core import config
     dict_globals = ((main, "_LATEST"), (mqtt, "_MQTT_CTX"), (debug, "_DEBUG_STATE"))
     scalar_globals = ((config, "_DISCOVERED_ACCOUNT_ID"),)
     saved_dicts = {(mod, name): copy.deepcopy(getattr(mod, name)) for mod, name in dict_globals}
