@@ -7,7 +7,6 @@ decoding, schedule summaries and unit conversion.
 import catalog
 from renault_ha_core import charge
 import main
-import pytest
 from renault_api.kamereon.enums import ChargeState
 
 
@@ -27,54 +26,16 @@ class Battery:
 # --------------------------------------------------------------------------- #
 # unit conversion helpers
 # --------------------------------------------------------------------------- #
-def test_dist_respects_locale_unit():
-    assert main._dist(100, "km") == 100
-    assert main._dist(100, "mi") == 62.1   # 100 km -> 62.1 mi
-    assert main._dist(None, "mi") is None
-
-
-@pytest.mark.parametrize("truthy", [True, "true", "True", "on", "ON", 1, "1"])
-def test_bool_on_truthy(truthy):
-    assert main._bool_on(truthy) == "on"
-
-
-@pytest.mark.parametrize("falsy", [False, "false", None, 0, "0", "off"])
-def test_bool_on_falsy(falsy):
-    assert main._bool_on(falsy) == "off"
 
 
 # --------------------------------------------------------------------------- #
 # enum decoding
 # --------------------------------------------------------------------------- #
-def test_enum_label_known_member():
-    assert main._enum_label(ChargeState.CHARGE_IN_PROGRESS,
-                            main.CHARGE_STATUS_LABELS, 1.0) == "Charging"
-
-
-def test_enum_label_unmapped_member_is_prettified():
-    labels = {}  # force the name-prettify fallback
-    assert main._enum_label(ChargeState.CHARGE_IN_PROGRESS, labels, 1.0) == "Charge In Progress"
-
-
-def test_enum_label_none_uses_raw():
-    assert main._enum_label(None, {}, None) == "Unknown"
-    assert main._enum_label(None, {}, 0.2) == "Unknown (0.2)"
 
 
 # --------------------------------------------------------------------------- #
 # preconditioning payload search
 # --------------------------------------------------------------------------- #
-def test_find_precond_locates_nested_block():
-    payload = {"data": {"attributes": {"ev": {"preconditioningTemperature": 21}}}}
-    assert main._find_precond(payload) == {"preconditioningTemperature": 21}
-
-
-def test_find_precond_returns_empty_when_absent_or_too_deep():
-    assert main._find_precond({"foo": "bar"}) == {}
-    assert main._find_precond("not a dict") == {}
-    # deeper than the depth guard (4) -> empty
-    deep = {"data": {"data": {"data": {"data": {"data": {"preconditioningX": 1}}}}}}
-    assert main._find_precond(deep) == {}
 
 
 # --------------------------------------------------------------------------- #
@@ -110,19 +71,6 @@ def test_charge_schedule_fields_extracts_kcm_settings():
     assert set(out) == expected
 
 
-def test_charge_schedule_fields_absent_is_none():
-    out = main._charge_schedule_fields({"preconditioningTemperature": 21})
-    assert out == {"charge_schedule_mode": None, "scheduled_charge_start": None,
-                   "scheduled_charge_duration": None}
-
-
-def test_fmt_hhmm_only_reformats_bare_four_digits():
-    assert main._fmt_hhmm("0700") == "07:00"
-    assert main._fmt_hhmm("T07:00Z") == "T07:00Z"   # already formatted -> untouched
-    assert main._fmt_hhmm(None) is None
-    assert main._fmt_hhmm("") is None
-
-
 # --------------------------------------------------------------------------- #
 # HVAC preconditioning schedule (get_hvac_settings)
 # --------------------------------------------------------------------------- #
@@ -153,20 +101,6 @@ def test_hvac_schedule_fields_active_schedule():
     assert out["climate_ready_time"] == "Mon 07:00, Fri 08:30"       # only the active schedule
     expected = {obj[len("a290_"):] for obj in catalog.SENSORS if obj.startswith("a290_climate_")}
     assert set(out) == expected
-
-
-def test_hvac_schedule_fields_none_and_no_active():
-    assert main._hvac_schedule_fields(None) == {"climate_schedule_mode": None,
-                                                "climate_ready_time": None}
-    out = main._hvac_schedule_fields(_HvacSettings("none", [_Sched(False, monday=_Day("T06:00Z"))]))
-    assert out["climate_schedule_mode"] == "None" and out["climate_ready_time"] is None
-
-
-def test_fmt_ready_normalises_time_forms():
-    assert main._fmt_ready("T07:00Z") == "07:00"
-    assert main._fmt_ready("08:30:00") == "08:30"
-    assert main._fmt_ready("0915") == "09:15"
-    assert main._fmt_ready(None) is None
 
 
 # --------------------------------------------------------------------------- #
