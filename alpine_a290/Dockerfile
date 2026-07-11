@@ -50,6 +50,27 @@ RUN apk add --no-cache python3 py3-pip
 COPY app/requirements.txt /app/requirements.txt
 RUN pip3 install --no-cache-dir --break-system-packages --require-hashes -r /app/requirements.txt
 
+# Shared a290/r5 core (renault-ha-core) — the code both add-ons run in common, held once and
+# consumed here instead of hand-mirrored between the sibling repos (a290#56). Installed in its
+# own step, AFTER the hash-locked requirements.txt and with --no-deps, so that lockfile stays
+# the single hash-checked source of truth for the third-party tree; the core carries no new
+# runtime deps of its own. Pinned by immutable commit SHA (the tag is kept for readability) —
+# the same reproducibility discipline as the tempio rebuild above. Bump deliberately when a core
+# change should ship; the build + container-verify gate confirms the new core boots clean.
+# renault-ha-core v0.1.0
+ARG CORE_REF=87d2af6d74461807fd239be71a1e49c7017cb6e3
+# git clones the pinned ref; py3-setuptools is the build backend for core's wheel. Both come from
+# the apk repo (pinned by the base-image @sha256 digest above), and --no-build-isolation makes pip
+# use that setuptools instead of fetching an unpinned one from PyPI — so the core install adds no
+# unpinned build-time network dependency, preserving the --require-hashes reproducibility guarantee.
+# --no-deps because core's runtime deps are already satisfied by the hash-locked tree. The whole
+# toolchain is a virtual package purged in the same layer, so none of it ships in the final image —
+# no size bloat, no extra CVE surface for the Trivy scan.
+RUN apk add --no-cache --virtual .core-build git py3-setuptools \
+ && pip3 install --no-cache-dir --break-system-packages --no-build-isolation --no-deps \
+      "renault-ha-core @ git+https://github.com/MatthewHobbs/renault-ha-core@${CORE_REF}" \
+ && apk del .core-build
+
 COPY app/ /app/
 # Bundle just the deployable dashboard YAMLs; their images load via CDN, so the ~5 MB of
 # image assets stay in the repo and out of the container.

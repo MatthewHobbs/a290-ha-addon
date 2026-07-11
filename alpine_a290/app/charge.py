@@ -14,7 +14,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from catalog import CHARGES_ENDPOINT
-from util import _num, iso, now_ts
+from renault_ha_core.util import _num, iso, now_ts
 
 LOG = logging.getLogger("alpine_a290")
 
