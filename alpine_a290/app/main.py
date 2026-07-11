@@ -13,7 +13,6 @@ import logging
 import os
 import signal
 import sys
-import time
 from datetime import datetime, timedelta, timezone
 
 import aiohttp
@@ -38,6 +37,7 @@ from config import _opt_flag, _RedactingFilter, cfg, redact
 from debug import maybe_dump_api
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.renault_client import RenaultClient
+from util import _num, iso, now_ts
 
 LOG = logging.getLogger("alpine_a290")
 
@@ -111,14 +111,6 @@ def setup_logging():
         handler.addFilter(redactor)
     for noisy in ("renault_api", "renault_api.kamereon", "renault_api.gigya"):
         logging.getLogger(noisy).setLevel(max(level, logging.INFO))
-
-
-def now_ts():
-    return time.time()
-
-
-def iso(ts):
-    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat() if ts else None
 
 
 def load_state():
@@ -265,13 +257,6 @@ def publish_discovery(client, supported_eps, dist_unit):
 
 
 KM_TO_MI = 0.621371
-
-
-def _num(v):
-    try:
-        return round(float(v), 2)
-    except (TypeError, ValueError):
-        return None
 
 
 def _mi(km):
