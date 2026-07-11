@@ -61,7 +61,7 @@ def test_location_model_contract():
 
 
 def test_charges_model_contract():
-    import charge
+    from renault_ha_core import charge
     charges = schemas.KamereonVehicleChargesDataSchema.load(_CHARGES)
     # renault-api exposes the charges list only via raw_data (the model itself is untyped)
     assert charges.raw_data["charges"][0]["chargeEndBatteryLevel"] == 80

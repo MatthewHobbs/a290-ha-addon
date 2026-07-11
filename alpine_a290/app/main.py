@@ -20,7 +20,6 @@ import mqtt
 from aiohttp import web
 from catalog import (
     ACTION_BUTTONS,
-    CHARGES_ENDPOINT,
     ENV_PREFIX,
     NUMBERS,
     OBJ_PREFIX,
@@ -28,12 +27,12 @@ from catalog import (
     REFRESH_LOCATION_EP,
     SOC_ENDPOINT,
 )
-from charge import resolve_last_charge, update_charge_session
 from debug import maybe_dump_api
 from mqtt import ATTR_TOPIC, AVAIL_TOPIC, STATE_TOPIC, TRACKER_STATE_TOPIC
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.renault_client import RenaultClient
 from renault_ha_core import config
+from renault_ha_core.charge import CHARGES_ENDPOINT, resolve_last_charge, update_charge_session
 from renault_ha_core.config import _RedactingFilter, cfg, redact
 from renault_ha_core.util import _num, iso, now_ts
 
