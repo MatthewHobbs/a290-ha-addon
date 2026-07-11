@@ -3,7 +3,7 @@ server, account resolution, and one happy + one failing iteration of main()."""
 import asyncio
 import types
 
-import charge
+from renault_ha_core import charge
 import debug
 import main
 import mqtt
