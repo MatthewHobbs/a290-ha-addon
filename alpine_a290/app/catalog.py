@@ -14,6 +14,15 @@ OBJ_PREFIX = "a290_"
 # "R5_" here. The ONE place the env prefix is defined.
 ENV_PREFIX = "A290_"
 
+# Per-model MQTT identity, injected into the shared core via mqtt.configure(catalog). NODE is the
+# HA discovery node + topic root; DEVICE is the HA device block (its name drives the entity_id
+# slug — HA ignores object_id); MQTT_KEEPALIVE is the broker keepalive. DIST_UNIT_OBJS names the
+# sensors whose unit follows the locale (mi/km) instead of a fixed one. The r5 twin sets its own.
+NODE = "alpine_a290"
+DEVICE = {"identifiers": [NODE], "name": "Alpine A290", "manufacturer": "Alpine", "model": "A290"}
+MQTT_KEEPALIVE = 60
+DIST_UNIT_OBJS = ("a290_range", "a290_mileage")
+
 SENSORS = {
     "a290_battery_level":        ("Battery Level", "battery", "%", "measurement"),
     "a290_range":                ("Range", "distance", "km", "measurement"),

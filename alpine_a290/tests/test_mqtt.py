@@ -8,7 +8,7 @@ _LOOP (main wires real ones at startup)."""
 import json
 
 import catalog
-import mqtt
+from renault_ha_core import mqtt
 
 
 class StubClient:
