@@ -34,7 +34,7 @@ from debug import maybe_dump_api
 from mqtt import ATTR_TOPIC, AVAIL_TOPIC, STATE_TOPIC, TRACKER_STATE_TOPIC
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.renault_client import RenaultClient
-from util import _num, iso, now_ts
+from renault_ha_core.util import _num, iso, now_ts
 
 LOG = logging.getLogger("alpine_a290")
 

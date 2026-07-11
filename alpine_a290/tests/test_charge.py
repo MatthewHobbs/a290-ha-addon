@@ -12,7 +12,7 @@ import types
 import catalog
 import charge
 import pytest
-import util
+from renault_ha_core import util
 
 
 class Battery:
