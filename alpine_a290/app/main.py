@@ -40,6 +40,7 @@ from renault_mqtt.parse import (
     _enum_label,
     _find_precond,
     _hvac_schedule_fields,
+    available_energy,
 )
 from renault_mqtt.util import _num, iso, now_ts
 
@@ -346,7 +347,7 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
         "battery_temperature": battery.batteryTemperature,
         "charging_power": _num(getattr(battery, "chargingInstantaneousPower", None)),
         "charging_remaining": getattr(battery, "chargingRemainingTime", None),
-        "available_energy": _num(getattr(battery, "batteryAvailableEnergy", None)),
+        "available_energy": available_energy(getattr(battery, "batteryAvailableEnergy", None), battery.batteryLevel, capacity_kwh),
         "plug_status": _enum_label(plug, PLUG_STATUS_LABELS, getattr(battery, "plugStatus", None)),
         "charging_flap": "Open: Plugged In" if plug == PlugState.PLUGGED else "Closed",
         "charging_status": "Charging" if charging else charging_status_label(battery),
