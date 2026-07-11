@@ -6,7 +6,7 @@ import types
 from renault_ha_core import charge
 from renault_ha_core import debug
 import main
-import mqtt
+from renault_ha_core import mqtt
 import pytest
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_ha_core import config
