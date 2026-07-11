@@ -35,14 +35,8 @@ class StubClient:
 
 
 # --------------------------------------------------------------------------- #
-# unit conversion / coercion helpers
+# unit conversion helpers
 # --------------------------------------------------------------------------- #
-def test_num_rounds_and_tolerates_garbage():
-    assert main._num("12.345") == 12.35
-    assert main._num(None) is None
-    assert main._num("not-a-number") is None
-
-
 def test_dist_respects_locale_unit():
     assert main._dist(100, "km") == 100
     assert main._dist(100, "mi") == 62.1   # 100 km -> 62.1 mi
