@@ -17,6 +17,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import aiohttp
+import config
 import deploy
 import paho.mqtt.client as mqtt
 from aiohttp import web
@@ -33,6 +34,7 @@ from catalog import (
     SENSORS,
     SOC_ENDPOINT,
 )
+from config import _config_secrets, _opt_flag, _RedactingFilter, cfg, redact
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.renault_client import RenaultClient
 
@@ -51,16 +53,6 @@ CMD_PREFIX = f"{NODE}/cmd/"
 _P = len(OBJ_PREFIX)
 STATE_FILE = os.environ.get("A290_STATE_FILE", "/data/state.json")
 
-
-def _opt_flag(name, default):
-    """Read a boolean add-on option, tolerating bashio exporting '', 'null', or unset on an
-    upgraded install (in which case the default applies)."""
-    v = os.environ.get(name)
-    if v is None or v.strip().lower() in ("", "null"):
-        return default
-    return v.strip().lower() in ("true", "1", "on")
-
-
 # Publish the car's GPS as a device_tracker + retained location topics? Default on. When off,
 # no location is fetched or published and any previously-retained GPS topics are cleared, so a
 # privacy-minded user can run the add-on with no location footprint on the broker at all.
@@ -78,10 +70,6 @@ DEVICE = {"identifiers": [NODE], "name": "Alpine A290", "manufacturer": "Alpine"
 VERSION = os.environ.get("A290_VERSION", "dev")
 
 _LOOP = None
-# The account id auto-discovered by resolve_account() when A290_ACCOUNT_ID is left blank. Held
-# here so redact() can mask it in error strings (the Kamereon URL embeds it) even though it was
-# never a configured value.
-_DISCOVERED_ACCOUNT_ID = None
 
 HOME_POWER_MAX_KW = 7.4
 CHARGE_STATUS_LABELS = {
@@ -110,10 +98,6 @@ PLUG_KM_DELTA = 1
 PLUG_SOC_DROP = 2
 PLUG_MIN_AGE = 600
 PLUG_MAX_AGE = 12 * 3600
-
-
-def cfg(name, default=""):
-    return os.environ.get(name, default)
 
 
 def setup_logging():
@@ -738,8 +722,7 @@ async def resolve_account(client):
     person = await client.get_person()
     for account in person.accounts:
         if account.accountType == "MYRENAULT":
-            global _DISCOVERED_ACCOUNT_ID
-            _DISCOVERED_ACCOUNT_ID = account.accountId   # so redact() can mask it (URL embeds it)
+            config._DISCOVERED_ACCOUNT_ID = account.accountId   # so redact() can mask it (URL embeds it)
             LOG.info("Auto-discovered MYRENAULT account")
             return account.accountId
     raise RuntimeError("No MYRENAULT account found and A290_ACCOUNT_ID not set")
@@ -779,42 +762,6 @@ _DEBUG_STATE = {"dumped": False}
 
 def debug_enabled():
     return cfg("A290_DEBUG_DUMP", "false").strip().lower() in ("true", "1", "on")
-
-
-def _config_secrets():
-    """The sensitive values to scrub from anything logged or served: VIN, account_id (the
-    configured one AND the auto-discovered one — users are told to leave account_id blank, so
-    the discovered value is the common case), username, password, and the Supervisor token.
-    The Kamereon request URL embeds the VIN + account_id, so an aiohttp error string (which
-    includes the URL) carries them — see redact()."""
-    return [v for v in (cfg("A290_VIN"), cfg("A290_ACCOUNT_ID"), _DISCOVERED_ACCOUNT_ID,
-                        cfg("A290_USERNAME"), cfg("A290_PASSWORD"),
-                        os.environ.get("SUPERVISOR_TOKEN")) if v]
-
-
-def redact(text):
-    """Mask the configured secrets in an arbitrary string before it is logged or placed in the
-    status-panel snapshot. API/HTTP error strings embed the request URL (…/accounts/<account_id>
-    /vehicles/<vin>/…), so an ordinary transient failure would otherwise leak the VIN/account_id
-    to the container log and to GET /api/state. Best-effort substring masking."""
-    s = str(text)
-    for secret in _config_secrets():
-        if secret and secret in s:
-            s = s.replace(secret, "***")
-    return s
-
-
-class _RedactingFilter(logging.Filter):
-    """Redacts configured secrets from EVERY log record — ours and the renault-api library's —
-    at the root handler. A central net so no current or future logging path (any of the
-    per-endpoint poll warnings, a library line that prints a request URL, etc.) can leak the
-    VIN / account id / token embedded in an API URL. Complements the explicit redact() at the
-    error/snapshot paths; idempotent, so double-redaction is harmless."""
-
-    def filter(self, record):
-        record.msg = redact(record.getMessage())
-        record.args = ()
-        return True
 
 
 def _debug_redact(obj, secrets):
