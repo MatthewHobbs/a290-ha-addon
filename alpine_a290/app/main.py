@@ -27,13 +27,13 @@ from catalog import (
     REFRESH_LOCATION_EP,
     SOC_ENDPOINT,
 )
-from debug import maybe_dump_api
 from mqtt import ATTR_TOPIC, AVAIL_TOPIC, STATE_TOPIC, TRACKER_STATE_TOPIC
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.renault_client import RenaultClient
 from renault_ha_core import config
 from renault_ha_core.charge import CHARGES_ENDPOINT, resolve_last_charge, update_charge_session
 from renault_ha_core.config import _RedactingFilter, cfg, redact
+from renault_ha_core.debug import maybe_dump_api
 from renault_ha_core.util import _num, iso, now_ts
 
 # Inject this model's env-var prefix into the shared core's redaction net before anything is
