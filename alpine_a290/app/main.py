@@ -15,8 +15,8 @@ import signal
 import sys
 
 import aiohttp
+import catalog
 import deploy
-import mqtt
 from aiohttp import web
 from catalog import (
     ACTION_BUTTONS,
@@ -27,10 +27,9 @@ from catalog import (
     REFRESH_LOCATION_EP,
     SOC_ENDPOINT,
 )
-from mqtt import ATTR_TOPIC, AVAIL_TOPIC, STATE_TOPIC, TRACKER_STATE_TOPIC
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.renault_client import RenaultClient
-from renault_ha_core import config
+from renault_ha_core import config, mqtt
 from renault_ha_core.charge import CHARGES_ENDPOINT, resolve_last_charge, update_charge_session
 from renault_ha_core.config import _RedactingFilter, cfg, redact
 from renault_ha_core.debug import maybe_dump_api
@@ -40,6 +39,9 @@ from renault_ha_core.util import _num, iso, now_ts
 # logged, so config.redact / _config_secrets mask this add-on's configured VIN / account_id /
 # username / password. Set at import time (the add-on's own suite asserts the wiring).
 config.ENV_PREFIX = ENV_PREFIX
+# Hand the shared MQTT seam this model's catalog + identity (NODE / DEVICE / topics / discovery
+# tables). Must follow the ENV_PREFIX injection above — configure() reads PUBLISH_LOCATION under it.
+mqtt.configure(catalog)
 
 LOG = logging.getLogger("alpine_a290")
 
@@ -598,12 +600,12 @@ async def main():
             state["last_success"] = now_ts()
             data["api_auth_failure"] = "off"
             data["data_stale"] = "off"
-            client.publish(STATE_TOPIC, json.dumps(data), retain=True)
+            client.publish(mqtt.STATE_TOPIC, json.dumps(data), retain=True)
             _LATEST.update(ok=True, last_poll=iso(now_ts()), data=data)
             if location_attrs:
-                client.publish(ATTR_TOPIC, json.dumps(location_attrs), retain=True)
-                client.publish(TRACKER_STATE_TOPIC, "online", retain=True)
-            client.publish(AVAIL_TOPIC, "online", retain=True)
+                client.publish(mqtt.ATTR_TOPIC, json.dumps(location_attrs), retain=True)
+                client.publish(mqtt.TRACKER_STATE_TOPIC, "online", retain=True)
+            client.publish(mqtt.AVAIL_TOPIC, "online", retain=True)
             save_state(state)
             LOG.info("Published: %s%% battery, plug=%s, charging=%s, suspect=%s",
                      data.get("battery_level"), data.get("plug_status"),
@@ -619,11 +621,11 @@ async def main():
                 any(s in str(err).lower() for s in ("login", "password", "credential", "401", "403"))
             if auth or fails % 3 == 0:
                 await vsession.invalidate()
-            client.publish(STATE_TOPIC, json.dumps({
+            client.publish(mqtt.STATE_TOPIC, json.dumps({
                 "api_auth_failure": "on" if auth else "off",
                 "data_stale": "on" if stale else "off",
             }), retain=True)
-            client.publish(AVAIL_TOPIC, "online", retain=True)
+            client.publish(mqtt.AVAIL_TOPIC, "online", retain=True)
             _LATEST.update(ok=False, last_poll=iso(now_ts()), error=redact(err))
             _LATEST["data"].update(api_auth_failure="on" if auth else "off",
                                    data_stale="on" if stale else "off")
@@ -637,7 +639,7 @@ async def main():
     LOG.info("Shutting down")
     await vsession.close()
     await health.cleanup()
-    client.publish(AVAIL_TOPIC, "offline", retain=True)
+    client.publish(mqtt.AVAIL_TOPIC, "offline", retain=True)
     client.loop_stop()
     client.disconnect()
 

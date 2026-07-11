@@ -20,7 +20,7 @@ def _isolate_module_globals():
     resolve_account, read by redact)."""
     from renault_ha_core import debug
     import main
-    import mqtt
+    from renault_ha_core import mqtt
     from renault_ha_core import config
     dict_globals = ((main, "_LATEST"), (mqtt, "_MQTT_CTX"), (debug, "_DEBUG_STATE"))
     scalar_globals = ((config, "_DISCOVERED_ACCOUNT_ID"),)
