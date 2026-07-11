@@ -131,6 +131,23 @@ def test_poll_once_full(monkeypatch):
     assert data["climate_schedule_mode"] == "Scheduled" and data["climate_ready_time"] == "Mon 07:15"
     assert attrs["latitude"] == 51.5123 and attrs["longitude"] == -0.1235   # rounded to 4 dp
     assert attrs["gps_accuracy"] == 11                                       # ~11 m at 4 dp
+    assert data["available_energy"] == 30.0                                  # reported by the car
+
+
+def test_poll_once_available_energy_falls_back_to_soc_estimate(monkeypatch):
+    monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
+
+    class NoEnergyBattery(FakeBattery):
+        def __init__(self, **kw):
+            super().__init__(**kw)
+            del self.batteryAvailableEnergy          # car doesn't report it (e.g. the R5)
+
+    class V(FakeVehicle):
+        async def get_battery_status(self):
+            return NoEnergyBattery()
+
+    data, _ = asyncio.run(main.poll_once(FakeVSession(V()), {}, 52.0, set(), "km"))
+    assert data["available_energy"] == 31.2          # 60 % SoC × 52 kWh, not unknown
 
 
 def test_poll_once_uses_charges_endpoint_when_supported(monkeypatch):
