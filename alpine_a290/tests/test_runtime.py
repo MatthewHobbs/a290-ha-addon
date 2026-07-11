@@ -4,7 +4,7 @@ import asyncio
 import types
 
 from renault_ha_core import charge
-import debug
+from renault_ha_core import debug
 import main
 import mqtt
 import pytest
