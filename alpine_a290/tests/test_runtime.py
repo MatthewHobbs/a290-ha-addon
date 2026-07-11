@@ -3,6 +3,7 @@ server, account resolution, and one happy + one failing iteration of main()."""
 import asyncio
 import types
 
+import charge
 import config
 import debug
 import main
@@ -133,6 +134,7 @@ def test_poll_once_full(monkeypatch):
 
 def test_poll_once_uses_charges_endpoint_when_supported(monkeypatch):
     monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
+    monkeypatch.setattr(charge, "now_ts", lambda: 1000.0)   # charges_last_fetch is stamped in charge's ns
     state = {}
     data, _ = asyncio.run(
         main.poll_once(FakeVSession(FakeVehicle()), state, 52.0, {"charges"}, "km"))

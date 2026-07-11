@@ -61,12 +61,12 @@ def test_location_model_contract():
 
 
 def test_charges_model_contract():
-    import main
+    import charge
     charges = schemas.KamereonVehicleChargesDataSchema.load(_CHARGES)
     # renault-api exposes the charges list only via raw_data (the model itself is untyped)
     assert charges.raw_data["charges"][0]["chargeEndBatteryLevel"] == 80
     # and the poller turns that raw session into populated Last Charge fields
-    lc = main._parse_charge_session(charges.raw_data["charges"], 52.0)
+    lc = charge._parse_charge_session(charges.raw_data["charges"], 52.0)
     assert lc["last_charge_end_soc"] == 80
     assert lc["last_charge_recovered_pct"] == 45
     assert lc["last_charge_duration_min"] == 180   # 3 h from start/end timestamps
