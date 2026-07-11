@@ -101,6 +101,10 @@ SOC_ENDPOINT = "soc-levels"
 # forbids it falls back to the live-inferred Last Charge instead. (charge-history is forbidden
 # on both, so only charges is used.)
 CHARGES_ENDPOINT = "charges"
+# The refresh-location action endpoint. Names the ACTION_BUTTONS entry that triggers a GPS
+# refresh; the poller gates both the discovery button and the command on it (and on the
+# location opt-out), so it's shared between the control layer and the MQTT discovery layer.
+REFRESH_LOCATION_EP = "actions/refresh-location"
 NUMBERS = {
     "a290_soc_min":    ("Minimum SoC",       "mdi:battery-arrow-down", 15, 45,  5),
     "a290_soc_target": ("Charge Target SoC", "mdi:battery-arrow-up",   55, 100, 5),
