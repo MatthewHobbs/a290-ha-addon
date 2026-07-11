@@ -15,16 +15,18 @@ def _isolate_module_globals():
     `_MQTT_CTX`, `_LATEST`, and `_DEBUG_STATE` are process-global dicts that several tests
     mutate in place; without this, a test that writes them leaks state into whatever runs next
     (order-dependent, and unsafe once tests run in parallel under pytest-xdist). Restoring here
-    keeps each test isolated regardless of order."""
+    keeps each test isolated regardless of order. `config._DISCOVERED_ACCOUNT_ID` is the same
+    concern for the redaction seam (set by resolve_account, read by redact)."""
+    import config
     import main
-    dict_globals = ("_MQTT_CTX", "_LATEST", "_DEBUG_STATE")
-    scalar_globals = ("_DISCOVERED_ACCOUNT_ID",)
-    saved_dicts = {name: copy.deepcopy(getattr(main, name)) for name in dict_globals}
-    saved_scalars = {name: getattr(main, name) for name in scalar_globals}
+    dict_globals = ((main, "_MQTT_CTX"), (main, "_LATEST"), (main, "_DEBUG_STATE"))
+    scalar_globals = ((config, "_DISCOVERED_ACCOUNT_ID"),)
+    saved_dicts = {(mod, name): copy.deepcopy(getattr(mod, name)) for mod, name in dict_globals}
+    saved_scalars = {(mod, name): getattr(mod, name) for mod, name in scalar_globals}
     yield
-    for name, value in saved_dicts.items():
-        target = getattr(main, name)
+    for (mod, name), value in saved_dicts.items():
+        target = getattr(mod, name)
         target.clear()
         target.update(value)
-    for name, value in saved_scalars.items():
-        setattr(main, name, value)
+    for (mod, name), value in saved_scalars.items():
+        setattr(mod, name, value)

@@ -3,6 +3,7 @@ server, account resolution, and one happy + one failing iteration of main()."""
 import asyncio
 import types
 
+import config
 import main
 import pytest
 from renault_api.kamereon.enums import ChargeState, PlugState
@@ -594,8 +595,8 @@ def test_resolve_account_autodiscovers(monkeypatch):
 
     assert asyncio.run(main.resolve_account(Client())) == "acct-2"
     # the discovered id is captured so redact() can mask it in later error URLs
-    assert main._DISCOVERED_ACCOUNT_ID == "acct-2"
-    assert "acct-2" not in main.redact("boom /accounts/acct-2/vehicles/V/x")
+    assert config._DISCOVERED_ACCOUNT_ID == "acct-2"
+    assert "acct-2" not in config.redact("boom /accounts/acct-2/vehicles/V/x")
 
 
 def test_login_vehicle(monkeypatch):
