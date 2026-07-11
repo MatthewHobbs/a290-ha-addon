@@ -1,11 +1,10 @@
 """Unit tests for the Alpine A290 poller.
 
 Focus on the pure logic that has bitten us before or would silently break a
-dashboard tile: the discovery-template/data-key contract, charge-session maths,
-plug-suspect detection, enum decoding and unit conversion.
+dashboard tile: the Last Charge data-key contract, plug-suspect detection, enum
+decoding, schedule summaries and unit conversion.
 """
-import json
-
+import catalog
 import charge
 import main
 import pytest
@@ -23,16 +22,6 @@ class Battery:
 
     def get_charging_status(self):
         return self._status
-
-
-class StubClient:
-    """Captures MQTT publishes so we can assert on discovery payloads."""
-
-    def __init__(self):
-        self.pub = {}
-
-    def publish(self, topic, payload, retain=False):
-        self.pub[topic] = payload
 
 
 # --------------------------------------------------------------------------- #
@@ -115,7 +104,7 @@ def test_charge_schedule_fields_extracts_kcm_settings():
     assert out["scheduled_charge_start"] == "04:20"            # bare HHMM -> HH:MM
     assert out["scheduled_charge_duration"] == 480
     # keys line up with the catalog sensor object_ids (minus the a290_ prefix)
-    expected = {obj[len("a290_"):] for obj in main.SENSORS
+    expected = {obj[len("a290_"):] for obj in catalog.SENSORS
                 if obj.endswith(("charge_schedule_mode", "scheduled_charge_start",
                                  "scheduled_charge_duration"))}
     assert set(out) == expected
@@ -162,7 +151,7 @@ def test_hvac_schedule_fields_active_schedule():
     out = main._hvac_schedule_fields(settings)
     assert out["climate_schedule_mode"] == "Scheduled Value"
     assert out["climate_ready_time"] == "Mon 07:00, Fri 08:30"       # only the active schedule
-    expected = {obj[len("a290_"):] for obj in main.SENSORS if obj.startswith("a290_climate_")}
+    expected = {obj[len("a290_"):] for obj in catalog.SENSORS if obj.startswith("a290_climate_")}
     assert set(out) == expected
 
 
@@ -222,50 +211,9 @@ def test_last_charge_data_keys_match_sensor_object_ids(monkeypatch):
     lc = charge.update_charge_session(state, Battery(80, 0.0, 40.0), 52.0, charging=False)
 
     produced = set(lc)
-    expected = {obj[len("a290_"):] for obj in main.SENSORS if "last_charge" in obj}
+    expected = {obj[len("a290_"):] for obj in catalog.SENSORS if "last_charge" in obj}
     assert produced == expected
     assert not any(k.startswith("a290_") for k in produced)
-
-
-def test_sensor_value_templates_strip_the_prefix():
-    c = StubClient()
-    main.publish_discovery(c, set(main.OPTIONAL_ENDPOINTS), "km")
-    for obj in main.SENSORS:
-        payload = c.pub.get(f"homeassistant/sensor/{main.NODE}/{obj}/config")
-        assert payload, f"{obj} not published"
-        conf = json.loads(payload)
-        assert conf["value_template"] == "{{ value_json.%s }}" % obj[len("a290_"):]
-
-
-def test_binary_sensor_value_templates_strip_the_prefix():
-    c = StubClient()
-    main.publish_discovery(c, set(main.OPTIONAL_ENDPOINTS), "km")
-    for obj in main.BINARY_SENSORS:
-        payload = c.pub.get(f"homeassistant/binary_sensor/{main.NODE}/{obj}/config")
-        assert payload, f"{obj} not published"
-        conf = json.loads(payload)
-        assert conf["value_template"] == "{{ value_json.%s }}" % obj[len("a290_"):]
-
-
-def test_distance_device_class_dropped_only_for_miles():
-    c = StubClient()
-    main.publish_discovery(c, set(main.OPTIONAL_ENDPOINTS), "km")
-    for obj in ("a290_range", "a290_mileage"):
-        conf = json.loads(c.pub[f"homeassistant/sensor/{main.NODE}/{obj}/config"])
-        assert conf.get("device_class") == "distance" and conf["unit_of_measurement"] == "km"
-
-    c = StubClient()
-    main.publish_discovery(c, set(main.OPTIONAL_ENDPOINTS), "mi")
-    for obj in ("a290_range", "a290_mileage"):
-        conf = json.loads(c.pub[f"homeassistant/sensor/{main.NODE}/{obj}/config"])
-        assert "device_class" not in conf and conf["unit_of_measurement"] == "mi"
-
-
-def test_optional_sensors_cleared_when_unsupported():
-    c = StubClient()
-    main.publish_discovery(c, set(), "km")   # nothing supported
-    for obj in main.OPTIONAL_ENDPOINTS["pressure"]:
-        assert c.pub[f"homeassistant/sensor/{main.NODE}/{obj}/config"] == ""
 
 
 # --------------------------------------------------------------------------- #
@@ -289,17 +237,6 @@ def test_command_actions_call_real_renault_api_methods():
         assert hasattr(RenaultVehicle, probe.called), f"{name} -> nonexistent {probe.called}"
 
 
-def test_charge_start_button_cleared_others_published():
-    c = StubClient()
-    supported = {ep for _n, _i, ep in main.ACTION_BUTTONS.values()
-                 if ep != "actions/charge-start"}
-    main.publish_discovery(c, supported, "mi")
-    base = f"homeassistant/button/{main.NODE}"
-    assert c.pub[f"{base}/charge_start/config"] == ""              # forbidden -> cleared
-    assert json.loads(c.pub[f"{base}/horn/config"])["name"] == "Sound Horn"
-    assert json.loads(c.pub[f"{base}/climate_start/config"])["icon"] == "mdi:air-conditioner"
-
-
 def test_precondition_temp_default(monkeypatch):
     monkeypatch.delenv("A290_PRECONDITION_TEMPERATURE", raising=False)
     assert main._precondition_temp() == 20.0
@@ -308,77 +245,13 @@ def test_precondition_temp_default(monkeypatch):
 # --------------------------------------------------------------------------- #
 # writable charge-limit numbers
 # --------------------------------------------------------------------------- #
-def test_numbers_published_when_soc_supported():
-    c = StubClient()
-    main.publish_discovery(c, {main.SOC_ENDPOINT}, "mi")
-    base = f"homeassistant/number/{main.NODE}"
-    for obj, (name, _icon, mn, mx, step) in main.NUMBERS.items():
-        short = obj[len("a290_"):]
-        conf = json.loads(c.pub[f"{base}/{short}/config"])
-        assert conf["name"] == name
-        assert conf["command_topic"] == f"{main.CMD_PREFIX}{short}"
-        assert conf["value_template"] == "{{ value_json.%s }}" % short
-        assert (conf["min"], conf["max"], conf["step"]) == (mn, mx, step)
-        assert conf["device_class"] == "battery" and conf["unit_of_measurement"] == "%"
-
-
-def test_numbers_cleared_when_soc_unsupported():
-    c = StubClient()
-    main.publish_discovery(c, set(), "mi")   # soc-levels not supported
-    base = f"homeassistant/number/{main.NODE}"
-    for obj in main.NUMBERS:
-        assert c.pub[f"{base}/{obj[len('a290_'):]}/config"] == ""
-
-
-def test_retired_soc_sensors_are_cleared():
-    c = StubClient()
-    main.publish_discovery(c, {main.SOC_ENDPOINT}, "mi")
-    for obj in ("a290_soc_min", "a290_soc_target"):
-        assert c.pub[f"homeassistant/sensor/{main.NODE}/{obj}/config"] == ""
-
-
 def test_number_cmds_match_numbers():
     assert main.NUMBER_CMDS == {obj[len("a290_"):] for obj in main.NUMBERS}
 
 
 # --------------------------------------------------------------------------- #
-# command dispatch + startup detection failure
+# startup detection failure
 # --------------------------------------------------------------------------- #
-class _Msg:
-    def __init__(self, topic, payload=b""):
-        self.topic = topic
-        self.payload = payload
-
-
-def test_on_message_dispatches_known_command(monkeypatch):
-    recorded = []
-
-    def fake_run_command(cmd, payload=""):   # sync fake: records at call time
-        recorded.append((cmd, payload))
-        async def _noop():
-            return None
-        return _noop()
-
-    scheduled = []
-
-    def fake_schedule(coro, loop):
-        scheduled.append(coro)
-        coro.close()                     # avoid 'never awaited' warning
-
-    monkeypatch.setattr(main, "run_command", fake_run_command)
-    monkeypatch.setattr(main, "_LOOP", object())
-    monkeypatch.setattr(main.asyncio, "run_coroutine_threadsafe", fake_schedule)
-
-    main._on_message(None, None, _Msg(f"{main.CMD_PREFIX}horn"))
-    assert recorded == [("horn", "")]
-
-    main._on_message(None, None, _Msg(f"{main.CMD_PREFIX}soc_target", b"80"))
-    assert recorded[-1] == ("soc_target", "80")
-
-    main._on_message(None, None, _Msg("unrelated/topic"))   # non-command -> ignored
-    assert len(recorded) == 2
-
-
 def test_detect_supported_degrades_and_invalidates_on_login_failure(monkeypatch):
     import asyncio
 

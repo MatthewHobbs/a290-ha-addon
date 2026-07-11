@@ -12,8 +12,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 def _isolate_module_globals():
     """Snapshot and restore main.py's mutable module-level singletons around every test.
 
-    `_MQTT_CTX`, `_LATEST` (main) and `_DEBUG_STATE` (debug) are process-global dicts that
-    several tests mutate in place; without this, a test that writes them leaks state into
+    `_LATEST` (main), `_MQTT_CTX` (mqtt) and `_DEBUG_STATE` (debug) are process-global dicts
+    that several tests mutate in place; without this, a test that writes them leaks state into
     whatever runs next (order-dependent, and unsafe once tests run in parallel under
     pytest-xdist). Restoring here keeps each test isolated regardless of order.
     `config._DISCOVERED_ACCOUNT_ID` is the same concern for the redaction seam (set by
@@ -21,7 +21,8 @@ def _isolate_module_globals():
     import config
     import debug
     import main
-    dict_globals = ((main, "_MQTT_CTX"), (main, "_LATEST"), (debug, "_DEBUG_STATE"))
+    import mqtt
+    dict_globals = ((main, "_LATEST"), (mqtt, "_MQTT_CTX"), (debug, "_DEBUG_STATE"))
     scalar_globals = ((config, "_DISCOVERED_ACCOUNT_ID"),)
     saved_dicts = {(mod, name): copy.deepcopy(getattr(mod, name)) for mod, name in dict_globals}
     saved_scalars = {(mod, name): getattr(mod, name) for mod, name in scalar_globals}
