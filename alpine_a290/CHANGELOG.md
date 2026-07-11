@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.18.1
+
+- **Available Energy now populated even when the car omits it.** The A290's battery data
+  frequently doesn't include `batteryAvailableEnergy`, which left the *Available Energy* sensor
+  unknown. It now falls back to an estimate from the battery SoC × your configured
+  `battery_capacity_kwh` when the car sends no value. (Shared fix via the renault-mqtt package;
+  mirrored in the R5.)
+
 ## 1.18.0
 
 - **Internal: adopt the shared `renault-mqtt` package.** The code this add-on runs in common
