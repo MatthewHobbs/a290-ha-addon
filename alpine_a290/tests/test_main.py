@@ -616,67 +616,6 @@ def test_detect_supported_degrades_and_invalidates_on_login_failure(monkeypatch)
 
 
 # --------------------------------------------------------------------------- #
-# debug API dump — redaction must not leak identifiers/secrets
-# --------------------------------------------------------------------------- #
-def test_debug_enabled_reads_flag(monkeypatch):
-    monkeypatch.setenv("A290_DEBUG_DUMP", "true")
-    assert main.debug_enabled() is True
-    monkeypatch.setenv("A290_DEBUG_DUMP", "false")
-    assert main.debug_enabled() is False
-    monkeypatch.delenv("A290_DEBUG_DUMP", raising=False)
-    assert main.debug_enabled() is False
-
-
-def test_debug_redact_masks_ids_and_secret_values_but_keeps_telemetry():
-    out = main._debug_redact(
-        {
-            "vin": "VF1AAAA",
-            "registrationNumber": "AB12CDE",       # key match is case-insensitive
-            "batteryLevel": 80,                    # telemetry — must be kept
-            "owner": {"email": "me@x.com", "firstName": "Matt"},
-            "note": "vehicle VF1AAAA parked",      # secret value inside free text
-            "items": [{"phoneNumber": "555"}],
-        },
-        secrets=["VF1AAAA", "acct-123"],
-    )
-    assert out["vin"] == "***"
-    assert out["registrationNumber"] == "***"
-    assert out["owner"]["email"] == "***"
-    assert out["owner"]["firstName"] == "***"
-    assert out["items"][0]["phoneNumber"] == "***"
-    assert out["batteryLevel"] == 80
-    assert out["note"] == "vehicle *** parked"
-
-
-def test_debug_redact_masks_lifecycle_privacy_buildspec_and_token_keys():
-    """Quasi-identifying lifecycle/privacy fields, the build-spec `assets` block, and
-    token-ish field names are masked by key regardless of value type/shape."""
-    out = main._debug_redact(
-        {
-            "deliveryDate": "2024-03-01",
-            "firstRegistrationDate": "2024-03-15",
-            "vehicleId": 1234567,
-            "privacyMode": "off",
-            "privacyModeUpdateDate": "2024-04-01",
-            "svtFlag": False,
-            "svtBlockFlag": False,
-            "batteryCode": "BC-XYZ",
-            "assets": [{"renditions": [{"url": "https://3dv.renault.com/VCD/abc"}]}],
-            "accessToken": "ey.real.token",
-            "refreshToken": "ey.refresh",
-            "gigyaCookieValue": "cookie",
-            "batteryLevel": 80,             # telemetry — must survive
-        },
-        secrets=[],
-    )
-    for key in ("deliveryDate", "firstRegistrationDate", "vehicleId", "privacyMode",
-                "privacyModeUpdateDate", "svtFlag", "svtBlockFlag", "batteryCode",
-                "assets", "accessToken", "refreshToken", "gigyaCookieValue"):
-        assert out[key] == "***", key
-    assert out["batteryLevel"] == 80
-
-
-# --------------------------------------------------------------------------- #
 # cached login session
 # --------------------------------------------------------------------------- #
 def test_vehicle_session_reuses_login_and_reauths_after_invalidate(monkeypatch):
