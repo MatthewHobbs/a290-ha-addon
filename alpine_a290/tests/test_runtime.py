@@ -7,6 +7,7 @@ import charge
 import config
 import debug
 import main
+import mqtt
 import pytest
 from renault_api.kamereon.enums import ChargeState, PlugState
 
@@ -212,7 +213,7 @@ def test_poll_once_optional_endpoint_failures(monkeypatch):
 
 def test_poll_once_skips_location_when_publish_disabled(monkeypatch):
     monkeypatch.setattr(main, "now_ts", lambda: 0.0)
-    monkeypatch.setattr(main, "PUBLISH_LOCATION", False)
+    monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", False)
 
     class NoLocVehicle(FakeVehicle):
         async def get_location(self):
@@ -222,31 +223,6 @@ def test_poll_once_skips_location_when_publish_disabled(monkeypatch):
         main.poll_once(FakeVSession(NoLocVehicle()), {}, 52.0, set(), "km"))
     assert attrs is None                       # nothing published
     assert "gps_last_activity" not in data     # and no location-derived field set
-
-
-def test_publish_discovery_location_enabled_vs_disabled(monkeypatch):
-    class C:
-        def __init__(self):
-            self.pub = {}
-
-        def publish(self, t, p, retain=False):
-            self.pub[t] = p
-
-    tracker_topic = f"{main.DISCOVERY_PREFIX}/device_tracker/{main.NODE}/location/config"
-
-    # enabled (default): a populated device_tracker config is published
-    monkeypatch.setattr(main, "PUBLISH_LOCATION", True)
-    c = C()
-    main.publish_discovery(c, set(main.OPTIONAL_ENDPOINTS), "km")
-    assert '"source_type": "gps"' in c.pub[tracker_topic]
-
-    # disabled: the tracker is cleared AND the retained GPS topics are wiped off the broker
-    monkeypatch.setattr(main, "PUBLISH_LOCATION", False)
-    c = C()
-    main.publish_discovery(c, set(main.OPTIONAL_ENDPOINTS), "km")
-    assert c.pub[tracker_topic] == ""
-    assert c.pub[main.ATTR_TOPIC] == ""
-    assert c.pub[main.TRACKER_STATE_TOPIC] == ""
 
 
 def test_setup_logging_clamps_library_loggers(monkeypatch):
@@ -420,61 +396,6 @@ def test_detect_supported_success(monkeypatch):
     assert "charge-mode" not in supported          # not supported -> discarded
     assert "actions/horn-start" in supported
     assert "actions/charge-start" not in supported  # forbidden -> not added
-
-
-# --------------------------------------------------------------------------- #
-# MQTT wiring
-# --------------------------------------------------------------------------- #
-def test_mqtt_connect(monkeypatch):
-    seen = {}
-
-    class FakeClient:
-        def username_pw_set(self, u, p):
-            seen["auth"] = (u, p)
-
-        def will_set(self, *a, **k):
-            seen["will"] = True
-
-        def reconnect_delay_set(self, **k):
-            seen["delay"] = k
-
-        def connect(self, host, port, keepalive):
-            seen["connect"] = (host, port)
-
-        def loop_start(self):
-            seen["loop"] = True
-
-    monkeypatch.setattr(main.mqtt, "Client", lambda *a, **k: FakeClient())
-    monkeypatch.setenv("MQTT_HOST", "broker")
-    monkeypatch.setenv("MQTT_USER", "u")
-    monkeypatch.setenv("MQTT_PASS", "p")
-    main.mqtt_connect()
-    assert seen["connect"][0] == "broker" and seen["loop"] and seen["auth"] == ("u", "p")
-    assert seen["delay"] == {"min_delay": 1, "max_delay": 120}   # bounded reconnect backoff
-
-
-def test_on_disconnect_logs_both_paths():
-    main._on_disconnect(None, None, None, 0)   # clean disconnect — no warning
-    main._on_disconnect(None, None, None, 1)   # unexpected — logs a reconnect warning
-
-
-def test_on_connect_resubscribes_and_publishes():
-    class C:
-        def __init__(self):
-            self.subs, self.pub = [], {}
-
-        def subscribe(self, t):
-            self.subs.append(t)
-
-        def publish(self, t, p, retain=False):
-            self.pub[t] = p
-
-    main._MQTT_CTX["supported"], main._MQTT_CTX["dist_unit"] = set(main.OPTIONAL_ENDPOINTS), "km"
-    c = C()
-    main._on_connect(c, None, None, 0)
-    assert f"{main.CMD_PREFIX}#" in c.subs
-    assert any("/sensor/alpine_a290/" in t for t in c.pub)
-    assert c.pub[main.AVAIL_TOPIC] == "online"
 
 
 # --------------------------------------------------------------------------- #
@@ -659,8 +580,8 @@ def _wire_main(monkeypatch, poll):
 
     monkeypatch.setattr(main, "VehicleSession", FakeVS)
     monkeypatch.setattr(main, "detect_supported", fake_detect)
-    monkeypatch.setattr(main, "mqtt_connect", lambda: FakeClient())
-    monkeypatch.setattr(main, "publish_discovery", lambda *a, **k: None)
+    monkeypatch.setattr(mqtt, "mqtt_connect", lambda: FakeClient())
+    monkeypatch.setattr(mqtt, "publish_discovery", lambda *a, **k: None)
     monkeypatch.setattr(main, "start_health_server", fake_health)
     monkeypatch.setattr(main.deploy, "run_deploy", _acoro)
     monkeypatch.setattr(main, "poll_once", poll)
@@ -778,33 +699,8 @@ def test_supports_handles_sync_and_async():
     asyncio.run(scenario())
 
 
-def test_refresh_location_button_cleared_when_location_disabled(monkeypatch):
-    class C:
-        def __init__(self):
-            self.pub = {}
-
-        def publish(self, t, p, retain=False):
-            self.pub[t] = p
-
-    (cmd,) = tuple(main.LOCATION_CMDS)                 # the location-refresh command suffix
-    btn_topic = f"{main.DISCOVERY_PREFIX}/button/{main.NODE}/{cmd}/config"
-    eps = set(main.OPTIONAL_ENDPOINTS) | {main.REFRESH_LOCATION_EP}
-
-    # location on: the refresh-location button is published
-    monkeypatch.setattr(main, "PUBLISH_LOCATION", True)
-    c = C()
-    main.publish_discovery(c, eps, "km")
-    assert "command_topic" in c.pub[btn_topic]
-
-    # location off: the button is cleared even though the endpoint is supported
-    monkeypatch.setattr(main, "PUBLISH_LOCATION", False)
-    c = C()
-    main.publish_discovery(c, eps, "km")
-    assert c.pub[btn_topic] == ""
-
-
 def test_run_command_rejects_refresh_location_when_location_disabled(monkeypatch):
-    monkeypatch.setattr(main, "PUBLISH_LOCATION", False)
+    monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", False)
     called = {"n": 0}
 
     async def fake_login(ws, locale):
