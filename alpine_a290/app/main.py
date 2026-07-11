@@ -15,13 +15,13 @@ import signal
 import sys
 
 import aiohttp
-import config
 import deploy
 import mqtt
 from aiohttp import web
 from catalog import (
     ACTION_BUTTONS,
     CHARGES_ENDPOINT,
+    ENV_PREFIX,
     NUMBERS,
     OBJ_PREFIX,
     OPTIONAL_ENDPOINTS,
@@ -29,12 +29,18 @@ from catalog import (
     SOC_ENDPOINT,
 )
 from charge import resolve_last_charge, update_charge_session
-from config import _RedactingFilter, cfg, redact
 from debug import maybe_dump_api
 from mqtt import ATTR_TOPIC, AVAIL_TOPIC, STATE_TOPIC, TRACKER_STATE_TOPIC
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.renault_client import RenaultClient
+from renault_ha_core import config
+from renault_ha_core.config import _RedactingFilter, cfg, redact
 from renault_ha_core.util import _num, iso, now_ts
+
+# Inject this model's env-var prefix into the shared core's redaction net before anything is
+# logged, so config.redact / _config_secrets mask this add-on's configured VIN / account_id /
+# username / password. Set at import time (the add-on's own suite asserts the wiring).
+config.ENV_PREFIX = ENV_PREFIX
 
 LOG = logging.getLogger("alpine_a290")
 

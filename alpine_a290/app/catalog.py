@@ -8,6 +8,12 @@ discovery value_template strips that prefix."""
 # poll/publish loop changes (previously it was a hard-coded `obj[5:]` magic number at 5 sites).
 OBJ_PREFIX = "a290_"
 
+# The per-model environment-variable prefix the add-on's options are exported under (run.sh
+# exports A290_USERNAME, A290_VIN, …). main.py injects it into the shared core as
+# `config.ENV_PREFIX` so the redaction net reads this model's option names; the r5 twin sets
+# "R5_" here. The ONE place the env prefix is defined.
+ENV_PREFIX = "A290_"
+
 SENSORS = {
     "a290_battery_level":        ("Battery Level", "battery", "%", "measurement"),
     "a290_range":                ("Range", "distance", "km", "measurement"),

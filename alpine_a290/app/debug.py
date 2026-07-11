@@ -13,7 +13,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 
-from config import _config_secrets, cfg
+from renault_ha_core.config import _config_secrets, cfg
 
 LOG = logging.getLogger("alpine_a290")
 
