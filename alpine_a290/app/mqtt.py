@@ -27,7 +27,7 @@ from catalog import (
     SENSORS,
     SOC_ENDPOINT,
 )
-from config import _opt_flag, cfg
+from renault_ha_core.config import _opt_flag, cfg
 
 LOG = logging.getLogger("alpine_a290")
 

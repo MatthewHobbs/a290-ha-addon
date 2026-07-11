@@ -4,12 +4,12 @@ import asyncio
 import types
 
 import charge
-import config
 import debug
 import main
 import mqtt
 import pytest
 from renault_api.kamereon.enums import ChargeState, PlugState
+from renault_ha_core import config
 
 
 def ns(**kw):
