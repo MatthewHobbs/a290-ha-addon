@@ -18,7 +18,7 @@ def _isolate_module_globals():
     pytest-xdist). Restoring here keeps each test isolated regardless of order.
     `config._DISCOVERED_ACCOUNT_ID` is the same concern for the redaction seam (set by
     resolve_account, read by redact)."""
-    import debug
+    from renault_ha_core import debug
     import main
     import mqtt
     from renault_ha_core import config

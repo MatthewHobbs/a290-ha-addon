@@ -57,8 +57,8 @@ RUN pip3 install --no-cache-dir --break-system-packages --require-hashes -r /app
 # runtime deps of its own. Pinned by immutable commit SHA (the tag is kept for readability) —
 # the same reproducibility discipline as the tempio rebuild above. Bump deliberately when a core
 # change should ship; the build + container-verify gate confirms the new core boots clean.
-# renault-ha-core v0.4.0
-ARG CORE_REF=670a916903a5aca71fb857cb7722e7a80190a476
+# renault-ha-core v0.6.0
+ARG CORE_REF=d58e0a72a9b30b19e1ce3edbdbce1004d49ee8d7
 # git clones the pinned ref; py3-setuptools is the build backend for core's wheel. Both come from
 # the apk repo (pinned by the base-image @sha256 digest above), and --no-build-isolation makes pip
 # use that setuptools instead of fetching an unpinned one from PyPI — so the core install adds no
