@@ -1,13 +1,13 @@
 """a290-side wiring contract for the shared config seam.
 
 The generic config behaviour (cfg / _opt_flag / redact / _RedactingFilter) is tested in the
-renault-ha-core package. What stays a290's responsibility is the *wiring*: that this add-on
+renault-mqtt package. What stays a290's responsibility is the *wiring*: that this add-on
 injects its own env-var prefix (A290_) into the shared redaction net, so real A290_ secrets are
 actually masked. Importing main (conftest does this for every test) runs that injection.
 """
 import catalog
 import main  # noqa: F401 — imported for its side effect: sets config.ENV_PREFIX from catalog
-from renault_ha_core import config
+from renault_mqtt import config
 
 
 def test_catalog_defines_the_a290_env_prefix():

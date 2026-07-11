@@ -50,15 +50,15 @@ RUN apk add --no-cache python3 py3-pip
 COPY app/requirements.txt /app/requirements.txt
 RUN pip3 install --no-cache-dir --break-system-packages --require-hashes -r /app/requirements.txt
 
-# Shared a290/r5 core (renault-ha-core) — the code both add-ons run in common, held once and
+# Shared a290/r5 core (renault-mqtt) — the code both add-ons run in common, held once and
 # consumed here instead of hand-mirrored between the sibling repos (a290#56). Installed in its
 # own step, AFTER the hash-locked requirements.txt and with --no-deps, so that lockfile stays
 # the single hash-checked source of truth for the third-party tree; the core carries no new
 # runtime deps of its own. Pinned by immutable commit SHA (the tag is kept for readability) —
 # the same reproducibility discipline as the tempio rebuild above. Bump deliberately when a core
 # change should ship; the build + container-verify gate confirms the new core boots clean.
-# renault-ha-core v0.10.0
-ARG CORE_REF=2cdf341adf32794de56878860ec7b308805ddad1
+# renault-mqtt v0.11.0
+ARG CORE_REF=80608f49913d1eb6dceaefcee943b35150275126
 # git clones the pinned ref; py3-setuptools is the build backend for core's wheel. Both come from
 # the apk repo (pinned by the base-image @sha256 digest above), and --no-build-isolation makes pip
 # use that setuptools instead of fetching an unpinned one from PyPI — so the core install adds no
@@ -68,7 +68,7 @@ ARG CORE_REF=2cdf341adf32794de56878860ec7b308805ddad1
 # no size bloat, no extra CVE surface for the Trivy scan.
 RUN apk add --no-cache --virtual .core-build git py3-setuptools \
  && pip3 install --no-cache-dir --break-system-packages --no-build-isolation --no-deps \
-      "renault-ha-core @ git+https://github.com/MatthewHobbs/renault-ha-core@${CORE_REF}" \
+      "renault-mqtt @ git+https://github.com/MatthewHobbs/renault-mqtt@${CORE_REF}" \
  && apk del .core-build
 
 COPY app/ /app/
