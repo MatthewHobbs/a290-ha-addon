@@ -29,11 +29,11 @@ from catalog import (
 )
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.renault_client import RenaultClient
-from renault_ha_core import config, mqtt
-from renault_ha_core.charge import CHARGES_ENDPOINT, resolve_last_charge, update_charge_session
-from renault_ha_core.config import _RedactingFilter, cfg, redact
-from renault_ha_core.debug import maybe_dump_api
-from renault_ha_core.parse import (
+from renault_mqtt import config, mqtt
+from renault_mqtt.charge import CHARGES_ENDPOINT, resolve_last_charge, update_charge_session
+from renault_mqtt.config import _RedactingFilter, cfg, redact
+from renault_mqtt.debug import maybe_dump_api
+from renault_mqtt.parse import (
     _bool_on,
     _charge_schedule_fields,
     _dist,
@@ -41,7 +41,7 @@ from renault_ha_core.parse import (
     _find_precond,
     _hvac_schedule_fields,
 )
-from renault_ha_core.util import _num, iso, now_ts
+from renault_mqtt.util import _num, iso, now_ts
 
 # Inject this model's env-var prefix into the shared core's redaction net before anything is
 # logged, so config.redact / _config_secrets mask this add-on's configured VIN / account_id /
