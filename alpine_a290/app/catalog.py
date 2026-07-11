@@ -112,7 +112,7 @@ ACTION_BUTTONS = {
 # so a model that rejects the write never ships the control. (name, icon, min, max, step)
 SOC_ENDPOINT = "soc-levels"
 # (CHARGES_ENDPOINT — the authoritative recent-charge-sessions endpoint — moved to
-# renault_ha_core.charge with the reconciliation logic; it's identical across models. main.py
+# renault_mqtt.charge with the reconciliation logic; it's identical across models. main.py
 # imports it from there for the endpoint-support probe.)
 # The refresh-location action endpoint. Names the ACTION_BUTTONS entry that triggers a GPS
 # refresh; the poller gates both the discovery button and the command on it (and on the

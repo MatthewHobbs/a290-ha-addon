@@ -3,13 +3,13 @@ server, account resolution, and one happy + one failing iteration of main()."""
 import asyncio
 import types
 
-from renault_ha_core import charge
-from renault_ha_core import debug
+from renault_mqtt import charge
+from renault_mqtt import debug
 import main
-from renault_ha_core import mqtt
+from renault_mqtt import mqtt
 import pytest
 from renault_api.kamereon.enums import ChargeState, PlugState
-from renault_ha_core import config
+from renault_mqtt import config
 
 
 def ns(**kw):

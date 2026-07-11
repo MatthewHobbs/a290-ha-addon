@@ -1,13 +1,13 @@
 """a290-side contract for the shared charge seam.
 
-The reconciliation logic itself is tested in the renault-ha-core package. What stays a290's
+The reconciliation logic itself is tested in the renault-mqtt package. What stays a290's
 responsibility is the *contract* between the shared charge output and this model's catalog: the
 last_charge_* keys the core produces must be exactly the "last_charge" sensors a290 declares in
 its catalog — otherwise a published field would have no home in discovery, or a declared sensor
 would go permanently unpopulated.
 """
 import catalog
-from renault_ha_core import charge
+from renault_mqtt import charge
 
 _CHARGE_ITEM = {
     "chargeStartDate": "2026-06-20T22:00:00+00:00",
