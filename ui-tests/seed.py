@@ -34,14 +34,14 @@ CHARGER_DEMO = {
     "A290_CHARGER_DISPATCHING": "binary_sensor.demo_intelligent_dispatching",
 }
 
-# Lovelace resources. card-mod first (it patches card rendering); mushroom/button-card are
-# vendored single-file bundles served from /local/cards; bubble-card is chunked so it loads
-# from jsDelivr (chunks co-locate there); Zen Dots is the dashboards' display font.
+# Lovelace resources. card-mod first (it patches card rendering); all four cards are vendored
+# single-file bundles served same-origin from /local/cards (see run.sh) so no card is fetched
+# over the network at render time; Zen Dots (the display font) is the one remaining remote load.
 RESOURCES = [
     ("/local/cards/card-mod.js", "module"),
     ("/local/cards/mushroom.js", "module"),
     ("/local/cards/button-card.js", "module"),
-    ("https://cdn.jsdelivr.net/gh/Clooos/Bubble-Card@main/dist/bubble-card.js", "module"),
+    ("/local/cards/bubble-card.js", "module"),
     ("https://fonts.googleapis.com/css2?family=Zen+Dots&display=swap", "css"),
 ]
 
