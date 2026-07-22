@@ -1,13 +1,18 @@
 name: Refresh screenshots
 
 # Privileged companion to "UI Tests". Commits the freshly-rendered docs screenshots back to the
-# PR branch (a web-flow-signed commit via the GraphQL API, authored by SCREENSHOT_PAT).
+# PR branch (a web-flow-signed commit via the GraphQL API, authored by the GitHub App bot).
 #
 # It runs via `workflow_run`, so the workflow definition AND the scripts it runs come from the
 # DEFAULT branch (trusted) — never from the PR. It only *downloads* the render artifact (data)
 # and runs the repo's own `ui-tests/commit_screenshots.py`; it never executes the PR's version of
-# run.sh / seed.py / check_overflow.py / deploy.py. That's the whole point: the PAT can't be
+# run.sh / seed.py / check_overflow.py / deploy.py. That's the whole point: the App token can't be
 # exfiltrated by a malicious same-repo PR branch editing a script that runs in the same job.
+#
+# The write credential is a short-lived GitHub App installation token minted per-run from the
+# APP_ID / APP_PRIVATE_KEY secrets (replaces the manually-expiring SCREENSHOT_PAT). Being a
+# separate App — not the repo's GITHUB_TOKEN — its commit still re-triggers the PR's required
+# checks, and `createCommitOnBranch` signs it so it satisfies "require signed commits".
 #
 # Note: a `workflow_run` workflow only takes effect once it is on the default branch, so this
 # file's first real execution is the next dashboard PR after it merges.
@@ -35,20 +40,21 @@ jobs:
       # Default ref = the default branch (trusted): this is main's commit_screenshots.py + resize.
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
 
-      - name: Check for the refresh PAT
-        id: pat
+      - name: Check for the App credentials
+        id: app
         env:
-          SCREENSHOT_PAT: ${{ secrets.SCREENSHOT_PAT }}
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
         run: |
-          if [ -z "${SCREENSHOT_PAT:-}" ]; then
-            echo "No SCREENSHOT_PAT secret — auto-refresh disabled (add the secret to enable)."
-            echo "have=0" >> "$GITHUB_OUTPUT"
-          else
+          if [ -n "${APP_ID:-}" ] && [ -n "${APP_PRIVATE_KEY:-}" ]; then
             echo "have=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "No APP_ID / APP_PRIVATE_KEY secret — auto-refresh disabled (add the App credentials to enable)."
+            echo "have=0" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Download rendered screenshots
-        if: steps.pat.outputs.have == '1'
+        if: steps.app.outputs.have == '1'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: dashboard-screenshots
@@ -57,20 +63,18 @@ jobs:
           github-token: ${{ github.token }}
 
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
-        if: steps.pat.outputs.have == '1'
+        if: steps.app.outputs.have == '1'
         with:
           python-version: "3.14"
 
-      - name: Copy + resize the phone shots, then commit them to the PR branch
-        if: steps.pat.outputs.have == '1'
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          BRANCH: ${{ github.event.workflow_run.head_branch }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          SCREENSHOT_PAT: ${{ secrets.SCREENSHOT_PAT }}
+      # Untrusted step: the render artifact is PR-controlled data, so Pillow decodes attacker-
+      # influenced PNGs here. The write token is deliberately NOT minted yet — nothing in this
+      # step's env can exfiltrate it if a decoder is exploited.
+      - name: Copy + resize the phone shots
+        if: steps.app.outputs.have == '1'
         run: |
           set -euo pipefail
-          # Pinned: this job holds the PAT and parses PR-rendered PNGs, so keep its deps fixed.
+          # Pinned: this step parses PR-rendered PNGs, so keep its deps fixed.
           python3 -m pip install --quiet "pillow==12.2.0"
           cp ui-tests/screenshots/alpine-standard__iphone_15_pro.png docs/screenshots/standard-iphone-15-pro.png
           cp ui-tests/screenshots/alpine-standard__galaxy_s24.png docs/screenshots/standard-galaxy-s24.png
@@ -85,4 +89,23 @@ jobs:
               if im.width > 700:
                   im.resize((700, round(im.height * 700 / im.width))).save(p)
           "
-          python3 ui-tests/commit_screenshots.py
+
+      # Mint the write credential only AFTER the untrusted image handling above, and scope it to
+      # Contents only. The token exists just long enough for the trusted commit script below.
+      - name: Mint a short-lived App installation token
+        id: token
+        if: steps.app.outputs.have == '1'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Commit the refreshed screenshots to the PR branch
+        if: steps.app.outputs.have == '1'
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          COMMIT_TOKEN: ${{ steps.token.outputs.token }}
+        run: python3 ui-tests/commit_screenshots.py

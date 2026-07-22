@@ -2,19 +2,20 @@
 """Commit refreshed dashboard screenshots to a PR branch via the GitHub GraphQL API.
 
 Runs from the **trusted** `refresh-screenshots.yaml` (a `workflow_run` job checked out from the
-default branch), so the SCREENSHOT_PAT never executes a PR's version of any script. The newly
-rendered images (downloaded as an artifact, then resized into `docs/screenshots/`) are compared
-against the PR branch's current versions over the REST API — no local `git`, no PR checkout — and
-only the differing files are committed.
+default branch), so the token never executes a PR's version of any script. The newly rendered
+images (downloaded as an artifact, then resized into `docs/screenshots/`) are compared against
+the PR branch's current versions over the REST API — no local `git`, no PR checkout — and only
+the differing files are committed.
 
 `createCommitOnBranch` produces a web-flow-signed ("Verified") commit, so the refresh satisfies
-the repo's "require signed commits" rule without a signing key in CI; authoring it with a
-fine-grained PAT (not GITHUB_TOKEN) makes the commit trigger the required checks so the PR stays
-mergeable. A no-op when nothing changed.
+the repo's "require signed commits" rule without a signing key in CI; authoring it with a GitHub
+App installation token (not GITHUB_TOKEN) makes the commit trigger the required checks so the PR
+stays mergeable. A no-op when nothing changed.
 
 Env: GITHUB_REPOSITORY (owner/name), BRANCH (PR head ref), HEAD_SHA (PR head commit — used as
-the `expectedHeadOid`, so the mutation fails closed if the branch advanced), SCREENSHOT_PAT
-(contents:write PAT). Only the listed files are considered; their on-disk content is committed.
+the `expectedHeadOid`, so the mutation fails closed if the branch advanced), COMMIT_TOKEN (a
+contents:write GitHub App installation token). Only the listed files are considered; their
+on-disk content is committed.
 """
 import base64
 import json
@@ -55,7 +56,7 @@ def main():
     repo = os.environ["GITHUB_REPOSITORY"]
     branch = os.environ["BRANCH"]
     head = os.environ["HEAD_SHA"]
-    token = os.environ["SCREENSHOT_PAT"]
+    token = os.environ["COMMIT_TOKEN"]
 
     additions = []
     for f in FILES:
