@@ -38,3 +38,15 @@ PYTHON=/path/to/venv/bin/python bash ui-tests/run.sh
 
 Screenshots land in `ui-tests/screenshots/` (git-ignored; uploaded as a CI artifact). In CI
 this is the **UI Tests** workflow, which runs whenever the dashboards or this harness change.
+
+## Docs-screenshot auto-refresh
+
+On a PR, a trusted `workflow_run` companion (`.github/workflows/refresh-screenshots.yaml`)
+downloads the rendered artifact and, if it differs from the committed docs shots, commits the
+refreshed PNGs back to the PR branch via the GraphQL `createCommitOnBranch` mutation (see
+`commit_screenshots.py`). That mutation web-flow-signs the commit (**Verified**), so it satisfies
+the branch's "require signed commits" rule with no signing key in CI. The write credential is a
+short-lived **GitHub App installation token** minted per-run (App `a290-r5-screenshot-committer`,
+`Contents: write` only) — no long-lived PAT to renew. Because the App is a separate identity, its
+push still re-triggers the PR's required checks; a `[refresh-shots]` message guard stops the
+re-triggered run from committing again.
