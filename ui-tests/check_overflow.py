@@ -99,24 +99,33 @@ def auth_script(base, tokens):
     return f"window.localStorage.setItem('hassTokens', {json.dumps(json.dumps(payload))});"
 
 
-def _stable_issues(page):
-    """Run the truncation scan twice (with a short re-settle) and keep only issues present in
-    BOTH passes. card-mod styles (e.g. `white-space:normal` on the card labels) and webfonts
-    apply asynchronously after a card first paints, so a single measurement can catch a label
-    still in its default nowrap/ellipsis state and false-flag it as truncated. A genuine
-    truncation persists across passes; a transient one clears on the second — so the
-    intersection is the stable signal, removing the gate's flakiness without piling on fixed
-    sleeps. Fast path: a clean first pass returns immediately (the common case)."""
-    first = page.evaluate(JS_DETECT)
-    if not first:
-        return []
-    page.wait_for_timeout(600)
+def _stable_issues(page, settle_ms=500, max_passes=12):
+    """Poll the truncation scan across a settle window and report only issues that SURVIVE it.
+    card-mod styles (e.g. `white-space:normal` on the card labels) and webfonts apply
+    asynchronously after a card first paints, so an early measurement can catch a label still in
+    its default nowrap/ellipsis state and false-flag it as truncated.
 
-    def key(i):
-        return (i["type"], i.get("tag"), i.get("text"))
+    Crucially, a phantom truncation is *stable* for the whole pre-card-mod plateau (the flagged
+    set doesn't change from scan to scan) and then clears all at once when card-mod lands — so a
+    fixed two-pass, or any "stop when two scans agree" rule, can return the phantom set outright.
+    On the narrowest, most-card-dense viewport (Galaxy S24 @ 360px) that plateau outlasts a couple
+    of samples and the gate flakes (observed pass->fail->fail->pass on identical dashboards).
 
-    second = {key(i) for i in page.evaluate(JS_DETECT)}
-    return [i for i in first if key(i) in second]
+    The reliable signal is *survival*, not stability: a phantom clears once card-mod applies (a
+    terminal state — card-mod does not un-apply), whereas a genuine truncation stays flagged for
+    the entire window. So keep scanning up to `max_passes`; exit early only on a clean state
+    (confirmed by two consecutive empty scans, to rule out a transient empty), and otherwise report
+    whatever is still flagged when the window closes. Fast path: a clean pair returns quickly; a
+    genuine failure uses the full window (~6s), which is fine since failures are rare."""
+    issues, clean_streak = [], 0
+    for i in range(max_passes):
+        issues = page.evaluate(JS_DETECT)
+        clean_streak = clean_streak + 1 if not issues else 0
+        if clean_streak >= 2:                  # two consecutive clean scans → genuinely settled
+            return []
+        if i < max_passes - 1:                 # no point sleeping after the final scan
+            page.wait_for_timeout(settle_ms)
+    return issues                              # still flagged when the window closed → genuine
 
 
 def run():
