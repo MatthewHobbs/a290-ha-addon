@@ -3,8 +3,10 @@
 > **Back up Home Assistant before you start** (Settings → System → Backups). These
 > steps add a dashboard (and, for the manual route, packages and helpers) to your config.
 >
-> **Charging control:** Renault **forbids remote charge start and stop on the A290**, so
-> the app ships no charging buttons and the dashboards include no charge tile.
+> **Charging control:** the app publishes a **Start Charging** button that *requests* an
+> immediate charge (new via renault-api 0.5.13; may be a no-op if no charge schedule is set,
+> and not yet confirmed end-to-end). Remote charge-*stop* stays unavailable — stop at the
+> charger. The bundled dashboards don't yet include a charge tile.
 
 This dashboard is the **frontend only**. All car data is provided by the
 **[Alpine A290 app](https://github.com/MatthewHobbs/a290-ha-addon)** — a proper
@@ -74,9 +76,10 @@ safe). To pull in a later layout update, set `redeploy_dashboard: true` and rest
 ### 4. Control buttons + optional extras
 
 - **Control buttons:** the app publishes these **natively over MQTT** — no Home Assistant `renault` integration needed: `button.alpine_a290_sound_horn`, `…_flash_lights`,
-  `…_start_climate`, `…_stop_climate`, `…_refresh_location`. Each is gated on what the
-  platform supports; Renault **forbids remote charge-start/stop on the A290**, so no
-  charging buttons are shipped and the dashboards include no charge tile.
+  `…_start_climate`, `…_stop_climate`, `…_refresh_location`, `…_start_charging`. Each is gated
+  on what the platform supports. Charge-start (new via renault-api 0.5.13) *requests* an
+  immediate charge (may be a no-op with no schedule set); charge-*stop* stays unavailable. The
+  bundled dashboards don't yet include a charge tile.
 - **Pretty location** and **test mode** are not auto-deployed — they're a small package
   you merge manually. See [Optional extras](#optional-extras).
 
