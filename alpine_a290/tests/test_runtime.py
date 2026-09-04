@@ -465,7 +465,9 @@ def test_resolve_account_from_env(monkeypatch):
 
 
 def test_resolve_account_autodiscovers(monkeypatch):
+    # No VIN configured -> fall back to the MYRENAULT account (legacy safety net).
     monkeypatch.delenv("A290_ACCOUNT_ID", raising=False)
+    monkeypatch.delenv("A290_VIN", raising=False)
 
     class Client:
         async def get_person(self):
@@ -476,6 +478,57 @@ def test_resolve_account_autodiscovers(monkeypatch):
     # the discovered id is captured so redact() can mask it in later error URLs
     assert config._DISCOVERED_ACCOUNT_ID == "acct-2"
     assert "acct-2" not in config.redact("boom /accounts/acct-2/vehicles/V/x")
+
+
+def test_resolve_account_matches_vin_garage(monkeypatch):
+    # The A290 lives under MYALPINE, not MYRENAULT — pick the account whose garage holds the VIN,
+    # not the one whose type happens to be MYRENAULT.
+    monkeypatch.delenv("A290_ACCOUNT_ID", raising=False)
+    monkeypatch.setenv("A290_VIN", "vysp01a0175326907")  # lower-case: match must be case-insensitive
+    garages = {"acct-renault": [], "acct-alpine": [ns(vin="VYSP01A0175326907")]}
+
+    class Account:
+        def __init__(self, aid):
+            self.aid = aid
+
+        async def get_vehicles(self):
+            return ns(vehicleLinks=garages[self.aid])
+
+    class Client:
+        async def get_person(self):
+            return ns(accounts=[ns(accountType="MYRENAULT", accountId="acct-renault"),
+                                ns(accountType="MYALPINE", accountId="acct-alpine")])
+
+        async def get_api_account(self, aid):
+            return Account(aid)
+
+    assert asyncio.run(main.resolve_account(Client())) == "acct-alpine"
+    assert config._DISCOVERED_ACCOUNT_ID == "acct-alpine"
+
+
+def test_resolve_account_skips_failing_account(monkeypatch):
+    # A garage lookup that errors on one account must not abort discovery — keep scanning.
+    monkeypatch.delenv("A290_ACCOUNT_ID", raising=False)
+    monkeypatch.setenv("A290_VIN", "VYSP01A0175326907")
+
+    class Account:
+        def __init__(self, aid):
+            self.aid = aid
+
+        async def get_vehicles(self):
+            if self.aid == "acct-bad":
+                raise RuntimeError("kamereon 500")
+            return ns(vehicleLinks=[ns(vin="VYSP01A0175326907")])
+
+    class Client:
+        async def get_person(self):
+            return ns(accounts=[ns(accountType="SFDC", accountId="acct-bad"),
+                                ns(accountType="MYALPINE", accountId="acct-alpine")])
+
+        async def get_api_account(self, aid):
+            return Account(aid)
+
+    assert asyncio.run(main.resolve_account(Client())) == "acct-alpine"
 
 
 def test_login_vehicle(monkeypatch):
@@ -537,6 +590,7 @@ def test_detect_supported_handles_probe_errors():
 
 def test_resolve_account_raises_without_myrenault(monkeypatch):
     monkeypatch.delenv("A290_ACCOUNT_ID", raising=False)
+    monkeypatch.delenv("A290_VIN", raising=False)
 
     class Client:
         async def get_person(self):

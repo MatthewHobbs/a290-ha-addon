@@ -326,13 +326,36 @@ async def resolve_account(client):
     account_id = cfg("A290_ACCOUNT_ID")
     if account_id:
         return account_id
+    # Match the account whose garage actually contains our VIN. The A290 is registered under a
+    # MYALPINE account, not MYRENAULT, so keying on account type mis-resolves for Alpine owners;
+    # matching by VIN is model-agnostic (also correct for the Renault 5) and robust to the several
+    # account types a login can carry (MYALPINE / MYRENAULT / SFDC / ALPINE_TM …). Fall back to a
+    # MYRENAULT account only if no garage matches (preserves the old behaviour as a safety net).
+    vin = (cfg("A290_VIN") or "").strip().upper()
     person = await client.get_person()
+    fallback = None
     for account in person.accounts:
-        if account.accountType == "MYRENAULT":
-            config._DISCOVERED_ACCOUNT_ID = account.accountId   # so redact() can mask it (URL embeds it)
-            LOG.info("Auto-discovered MYRENAULT account")
-            return account.accountId
-    raise RuntimeError("No MYRENAULT account found and A290_ACCOUNT_ID not set")
+        if vin:
+            try:
+                api_account = await client.get_api_account(account.accountId)
+                vehicles = await api_account.get_vehicles()
+                garage = {(getattr(link, "vin", "") or "").upper()
+                          for link in (getattr(vehicles, "vehicleLinks", None) or [])}
+                if vin in garage:
+                    config._DISCOVERED_ACCOUNT_ID = account.accountId  # so redact() can mask it (URL embeds it)
+                    LOG.info("Auto-discovered %s account (its garage contains the configured VIN)",
+                             account.accountType)
+                    return account.accountId
+            except Exception as err:  # noqa: BLE001 — one bad account must not abort discovery
+                LOG.debug("Garage lookup for the %s account failed: %s", account.accountType, err)
+        if account.accountType == "MYRENAULT" and fallback is None:
+            fallback = account.accountId
+    if fallback is not None:
+        config._DISCOVERED_ACCOUNT_ID = fallback  # so redact() can mask it (URL embeds it)
+        LOG.warning("No account garage matched the configured VIN; falling back to the MYRENAULT "
+                    "account. If polling fails, set account_id on the Configuration page.")
+        return fallback
+    raise RuntimeError("No account contains the configured VIN and A290_ACCOUNT_ID is not set")
 
 
 async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
