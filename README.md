@@ -23,8 +23,9 @@ The **dashboards now ship inside the app** (previously a separate `a290-dashboar
 repo — since merged in and archived): enable `deploy_dashboard` and the app installs a
 ready-made dashboard for you. Controls (lights, horn, climate, refresh location) are sent
 **natively** by the app — **you do not need Home Assistant's `renault` integration**. (Remote
-charge-start is forbidden by Renault on the A290, so no Start Charging button is offered —
-that's a platform limit, not a missing feature.)
+charge-start is now advertised for the A290 via renault-api 0.5.13, so the app publishes a
+Start Charging button that *requests* an immediate charge; remote charge-*stop* stays
+unavailable — stop at the charger.)
 
 ## What's here
 
@@ -109,8 +110,9 @@ key needed.
   previously-retained GPS from the broker, for a zero location footprint.
 - **Native controls (no Home Assistant `renault` integration):**
   `button.alpine_a290_sound_horn`, `…_flash_lights`, `…_start_climate`, `…_stop_climate`,
-  `…_refresh_location` — each gated on what the platform supports (charge-start is
-  forbidden on the A290, so it isn't shipped).
+  `…_refresh_location`, `…_start_charging` — each gated on what the platform supports.
+  Charge-start (new via renault-api 0.5.13) *requests* an immediate charge; charge-*stop*
+  stays unavailable.
 - **Writable charge limits:** `number.alpine_a290_minimum_soc` (15–45 %) and
   `number.alpine_a290_charge_target_soc` (55–100 %) — sliders that set the car's charge limits
   via `set_battery_soc` (`soc-levels`). These cover the one capability Home Assistant's `renault` integration had over the app, so it's no longer needed.
@@ -139,9 +141,10 @@ available.
 | Refresh location | `actions/refresh-location` | ⚠️ best-effort (may 403) |
 | Tyre pressure (TPMS) | `pressure` | ❌ forbidden |
 | Charge mode | `charge-mode` | ❌ forbidden |
-| Start / stop charging | `actions/charge-start` · `actions/charge-stop` | ❌ forbidden |
+| Start charging | `actions/charge-start` | ⚠️ advertised (0.5.13), end-to-end unconfirmed |
+| Stop charging | `actions/charge-stop` | ❌ forbidden |
 
-✅ supported · ⚠️ library default, untested (may return forbidden) · ❌ Renault forbids it on the A290
+✅ supported · ⚠️ library default / newly advertised, untested (may return forbidden or no-op) · ❌ Renault forbids it on the A290
 
 > Set `debug_dump: true` to log the decoded response of every readable endpoint (secrets
 > redacted) — useful if Renault changes what the platform exposes.

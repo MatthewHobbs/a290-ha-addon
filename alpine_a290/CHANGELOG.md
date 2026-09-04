@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.19.2
+
+- **Docs: clarify the charge-start status.** `button.alpine_a290_start_charging` (added in 1.19.0)
+  *requests* an immediate charge by disabling any scheduled-charge programs. On a car with **no
+  charge schedule set** there may be nothing to disable, so the request can be a no-op — end-to-end
+  charging on the A290 is **not yet confirmed**. Remote charge-*stop* remains unavailable (stop at
+  the charger). No code change.
+
 ## 1.19.1
 
 - **Fix: account auto-discovery now works for Alpine owners.** The add-on picked the first
@@ -13,9 +21,10 @@
 - **Remote charge-start is now available on the A290.** renault-api 0.5.13 exposes the KCM
   "start via settings" endpoint for the A290 (`A5E1AE`), which was previously forbidden. The
   add-on already carries a gated `Start Charging` control, so on this version it publishes
-  **`button.alpine_a290_start_charging`** automatically. Pressing it triggers an immediate
-  charge (by clearing the scheduled-charge programs, the same mechanism the R5 already uses).
-  Remote charge-*stop* remains unavailable on the A290 — stop at the charger.
+  **`button.alpine_a290_start_charging`** automatically. Pressing it *requests* an immediate
+  charge by disabling any scheduled-charge programs (the same mechanism the R5 uses); on a car
+  with no charge schedule this may be a no-op, and end-to-end charging is not yet confirmed (see
+  1.19.2). Remote charge-*stop* remains unavailable on the A290 — stop at the charger.
 
 ## 1.18.2
 
