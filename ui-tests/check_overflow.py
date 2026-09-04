@@ -16,6 +16,14 @@ from playwright.sync_api import sync_playwright
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
+# The bubble dashboard auto-opens its main pop-up ~60ms after load by setting location.hash. If
+# that fires while one of our evaluate/screenshot calls is in flight it tears down the execution
+# context ("Execution context was destroyed") or leaves a webfont fetch pending (screenshot's
+# font-wait then times out). Both are transient and viewport-independent. We settle the auto-open
+# before touching the page and retry the whole main capture on such a render error — a genuine
+# truncation is a returned finding (never an exception), so it is never retried away.
+MAX_RENDER_ATTEMPTS = 3
+
 UA_IOS = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 "
           "(KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1")
 UA_ANDROID = ("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like "
@@ -160,31 +168,47 @@ def run():
             for dash in args.dashboards:
                 slug = dev["name"].lower().replace(" ", "_").replace("(", "").replace(")", "")
                 shot = os.path.join(args.out, f"{dash}__{slug}.png")
-                try:
-                    page.goto(f"{args.base}/{dash}", wait_until="domcontentloaded", timeout=30000)
-                    page.wait_for_function(JS_RENDERED, timeout=30000)
-                    try:  # actually load Zen Dots before measuring — fonts.ready alone resolves
-                        page.evaluate(                                 # before a not-yet-applied font fetches
-                            "async () => { try {"
-                            " await document.fonts.load('400 12px \"Zen Dots\"');"
-                            " await document.fonts.load('700 13px \"Zen Dots\"');"
-                            " await document.fonts.ready;"
-                            " } catch (e) {} }")
-                    except Exception:
-                        pass
-                    page.wait_for_timeout(1200)  # settle layout + late cards
-                    issues = _stable_issues(page)   # confirm truncations across two passes (see helper)
-                    # Drop HA's startup toasts only AFTER the truncation scan, so removing the
-                    # toast node can never perturb the gate's measurement — it only cleans the shot.
-                    page.evaluate(JS_DISMISS_TOASTS)
-                    page.screenshot(path=shot, full_page=True)
-                except Exception as err:
-                    issues = [{"type": "render-error", "tag": "-", "text": f"{type(err).__name__}: {err}"}]
+                issues = None
+                for attempt in range(MAX_RENDER_ATTEMPTS):
                     try:
+                        page.goto(f"{args.base}/{dash}", wait_until="domcontentloaded", timeout=30000)
+                        # Let the bubble dashboard's auto-open hash navigation fire (~60ms) and
+                        # settle BEFORE any evaluate/screenshot, so it can't tear down an in-flight
+                        # execution context or leave a font fetch pending mid-capture.
+                        page.wait_for_timeout(300)
+                        page.wait_for_function(JS_RENDERED, timeout=30000)
+                        try:  # actually load Zen Dots before measuring — fonts.ready alone resolves
+                            page.evaluate(                                 # before a not-yet-applied font fetches
+                                "async () => { try {"
+                                " await document.fonts.load('400 12px \"Zen Dots\"');"
+                                " await document.fonts.load('700 13px \"Zen Dots\"');"
+                                " await document.fonts.ready;"
+                                " } catch (e) {} }")
+                        except Exception:
+                            pass
+                        page.wait_for_timeout(1200)  # settle layout + late cards
+                        issues = _stable_issues(page)   # confirm truncations across two passes (see helper)
+                        # Drop HA's startup toasts only AFTER the truncation scan, so removing the
+                        # toast node can never perturb the gate's measurement — it only cleans the shot.
                         page.evaluate(JS_DISMISS_TOASTS)
                         page.screenshot(path=shot, full_page=True)
-                    except Exception:
-                        pass
+                        break
+                    except Exception as err:
+                        # A render error here is transient (auto-open context teardown / font-wait
+                        # timeout). Retry the whole capture; only record it as a failure once the
+                        # attempts are exhausted. Genuine truncations are returned by _stable_issues,
+                        # not raised, so they never reach this branch and are never retried away.
+                        if attempt < MAX_RENDER_ATTEMPTS - 1:
+                            print(f"    [retry {attempt + 1}/{MAX_RENDER_ATTEMPTS - 1}] {dash} @ "
+                                  f"{dev['name']}: transient {type(err).__name__} — re-rendering")
+                            page.wait_for_timeout(600)
+                            continue
+                        issues = [{"type": "render-error", "tag": "-", "text": f"{type(err).__name__}: {err}"}]
+                        try:
+                            page.evaluate(JS_DISMISS_TOASTS)
+                            page.screenshot(path=shot, full_page=True)
+                        except Exception:
+                            pass
                 # The Smart Charging pop-up ("tab") capture is best-effort and ISOLATED from the
                 # gate: opening it via hash navigation can tear down the JS context on slower
                 # viewports ("Execution context was destroyed"), and that must never fail the run.
