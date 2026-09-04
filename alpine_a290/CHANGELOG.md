@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.20.2
+
+- **Smart Charging: "Bump Charge" is now labelled "Charge Now."** The dashboard's bump/boost
+  control (from the `charger_bump_charge` option) now reads **Charge Now** — the plain-language
+  name for the remote "charge now while I'm away" control. On externally-scheduled setups (e.g.
+  Octopus Intelligent) this is the button that actually forces an immediate charge, since the
+  car's own charge-start is a no-op there (see 1.20.1). Same entity and behaviour, clearer label.
+  Re-import the dashboard (or `redeploy_dashboard: true`) to pick it up.
+
 ## 1.20.1
 
 - **Docs: charge-start confirmed as a no-op under external scheduling.** Live-tested on a real
