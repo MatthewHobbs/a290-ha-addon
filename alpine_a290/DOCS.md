@@ -67,7 +67,7 @@ map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dash
 | `dashboard_url_path` | URL slug for the deployed dashboard (default `alpine-a290`; with `both`, the bubble one is suffixed `-bubble`). |
 | `redeploy_dashboard` | `true` re-pushes the dashboard config on next start (to pick up an update). Default `false` so your edits are never overwritten. |
 | `charger_smart_charge` | *(optional)* entity id of your EV charger's **smart-charge** switch — see [Smart Charging](#smart-charging-card) below. |
-| `charger_bump_charge` | *(optional)* entity id of your charger's **bump/boost-charge** switch. |
+| `charger_bump_charge` | *(optional)* entity id of your charger's **bump/boost-charge** switch — shown on the dashboard as **Charge Now** (your remote "charge now while away", e.g. for Octopus Intelligent). |
 | `charger_target_soc` | *(optional)* entity id of your charger's **charge-target %** number. |
 | `charger_target_time` | *(optional)* entity id of your charger's **target-time** (ready-by) control. |
 | `charger_dispatching` | *(optional)* entity id of any **on/off** entity that's `on` when electricity is cheap — drives the green "Off-peak now" / red "Peak rate" badge. An **off-peak tariff** sensor is the best fit (see below); a `binary_sensor` or `calendar` both work. |
@@ -241,8 +241,9 @@ won't see a control your A290 rejects):
 > programs* to trigger an immediate charge. **It only does anything if you use the car's built-in
 > charge timer.** If your charging is scheduled **externally — e.g. Octopus Intelligent** — the car
 > has no internal programs to clear, so the button is a **no-op** (tested on a real A290: the car
-> stays "Waiting to Charge"). For those setups, start a charge with your charger/tariff instead
-> (e.g. Octopus **Bump Charge**) or the car's physical charge-flap timer button. Remote
+> stays "Waiting to Charge"). For those setups, start a charge with the dashboard's **Charge Now**
+> button (your tariff's bump/boost — e.g. Octopus Bump Charge) or the car's physical charge-flap
+> timer button. Remote
 > charge-*stop* stays unavailable — stop at the charger. **Refresh Location** isn't explicitly
 > documented for the A290 in `renault-api`; it falls back to the default endpoint and may
 > return *forbidden* when pressed — harmless if so, but it may simply not work.
