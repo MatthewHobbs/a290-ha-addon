@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.20.1
+
+- **Docs: charge-start confirmed as a no-op under external scheduling.** Live-tested on a real
+  A290 — remote charge-start (renault-api 0.5.13) starts a charge only by clearing the car's own
+  **built-in** charge timer, so with **Octopus Intelligent** / external scheduling (where the car
+  has no internal programs) the button does nothing and the car stays *Waiting to Charge*. The docs
+  now say so and point those setups to their tariff's "charge now" (e.g. Octopus **Bump Charge**)
+  or the car's physical charge-flap timer button. The button stays published for anyone who uses
+  the car's built-in timer; remote charge-*stop* remains unavailable. No code change.
+
 ## 1.20.0
 
 - **Test mode is now one self-contained package.** The optional dashboard "Test Charge" preview

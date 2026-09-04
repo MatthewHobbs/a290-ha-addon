@@ -44,9 +44,11 @@ library at `renault_api/kamereon/models.py` → `_VEHICLE_ENDPOINTS` (A290 is mo
 `A5E1AE`, R5 is `R5E1VE`). That map — not the readthedocs pages — is the authoritative
 source for what each car exposes. The A290 forbids several endpoints (charge-mode, pressure,
 charge-stop); charge-start became available in renault-api 0.5.13 (KCM "via-settings", model
-`A5E1AE`) — it *requests* an immediate charge by disabling scheduled programs (end-to-end
-unconfirmed on cars with no schedule). The add-on probes `supports_endpoint()` at startup and
-only publishes what's available.
+`A5E1AE`) — it starts a charge by clearing the car's **own** scheduled programs, so it only acts
+when the car's built-in timer is used and is a **no-op under external scheduling (Octopus
+Intelligent)** — confirmed on a real A290 (car stayed "Waiting to Charge"; no car-side programs to
+clear). The button is still published; docs steer Octopus users to Bump Charge / the physical
+timer. The add-on probes `supports_endpoint()` at startup and only publishes what's available.
 
 ## Local checks — run the FULL suite before pushing
 

@@ -141,10 +141,10 @@ available.
 | Refresh location | `actions/refresh-location` | ⚠️ best-effort (may 403) |
 | Tyre pressure (TPMS) | `pressure` | ❌ forbidden |
 | Charge mode | `charge-mode` | ❌ forbidden |
-| Start charging | `actions/charge-start` | ⚠️ advertised (0.5.13), end-to-end unconfirmed |
+| Start charging | `actions/charge-start` | ⚠️ car-timer only — a no-op under Octopus/external scheduling (tested) |
 | Stop charging | `actions/charge-stop` | ❌ forbidden |
 
-✅ supported · ⚠️ library default / newly advertised, untested (may return forbidden or no-op) · ❌ Renault forbids it on the A290
+✅ supported · ⚠️ conditional/best-effort (may 403 or no-op — see notes) · ❌ Renault forbids it on the A290
 
 > Set `debug_dump: true` to log the decoded response of every readable endpoint (secrets
 > redacted) — useful if Renault changes what the platform exposes.
