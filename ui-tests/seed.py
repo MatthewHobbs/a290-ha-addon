@@ -47,7 +47,8 @@ RESOURCES = [
 
 ENTITY_RE = re.compile(
     r"\b(sensor|binary_sensor|number|device_tracker|switch|button|climate|select|light|"
-    r"cover|lock|fan|person|zone|sun|weather|input_boolean|input_number|input_text)"
+    r"cover|lock|fan|person|zone|sun|weather|input_boolean|input_number|input_text|"
+    r"input_button|input_datetime)"
     r"\.[a-z0-9_]+\b")
 
 # Representative states for the A290 entities — realistic lengths/values to reproduce the
@@ -100,6 +101,11 @@ DEFAULTS = {
     "device_tracker": ("home", {"latitude": 51.5074, "longitude": -0.1278, "gps_accuracy": 8, "source_type": "gps"}),
     "switch": ("off", {}),
     "button": ("unknown", {}),
+    # Test-mode helpers (a290_test_* package): default idle so the panels stay hidden and the
+    # always-visible "Run Test Charge" button renders instead of a "not found" error card.
+    "input_boolean": ("off", {}),
+    "input_button": ("unknown", {}),
+    "input_datetime": ("2026-06-27 09:00:00", {"has_date": True, "has_time": True}),
 }
 
 
