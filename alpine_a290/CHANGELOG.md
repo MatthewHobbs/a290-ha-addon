@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.20.0
+
+- **Test mode is now one self-contained package.** The optional dashboard "Test Charge" preview
+  used to need several loose files and shared unprefixed `test_*` entities with the R5 add-on. It's
+  now a single file — `dashboards/Packages/a290_test.yaml` — with everything prefixed `a290_test_*`
+  (toggle, button, the raw helpers, the ~15 display sensors, the panel-timer sensors and the
+  Run-Test-Charge driver automation), so it can't clash with the R5 on a shared Home Assistant
+  instance. The bundled dashboards now reference `sensor.a290_test_*`. **If you use test mode:**
+  merge the new package and re-import the dashboard. No effect on normal (real-car) use.
+
 ## 1.19.2
 
 - **Docs: clarify the charge-start status.** `button.alpine_a290_start_charging` (added in 1.19.0)
