@@ -71,9 +71,6 @@ input_datetime:
     has_time: true
 
 input_text:
-  a290_test_last_charge_type:
-    name: A290 Test Last Charge Type
-    max: 32
   a290_test_last_charge_end_status:
     name: A290 Test Last Charge End Status
     max: 32
@@ -322,9 +319,6 @@ automation:
         target: { entity_id: input_number.a290_test_charge_energy_stored_kwh }
         data: { value: 19.8 }
       - action: input_text.set_value
-        target: { entity_id: input_text.a290_test_last_charge_type }
-        data: { value: "Slow AC" }
-      - action: input_text.set_value
         target: { entity_id: input_text.a290_test_last_charge_end_status }
         data: { value: "Complete" }
       - action: input_boolean.turn_on
@@ -335,3 +329,18 @@ automation:
       - action: input_datetime.set_datetime
         target: { entity_id: input_datetime.a290_test_last_finished }
         data: { datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}" }
+
+  # Safety net: the 5-minute window above lives in an automation delay, so a Home Assistant
+  # restart (or an automations reload) mid-run cancels it — and input_boolean.a290_test_mode
+  # restores its last state (on), which would otherwise leave the preview stuck on forever. Clear
+  # it on start so an interrupted test never sticks.
+  - id: a290_test_mode_reset_on_start
+    alias: "A290 Test Mode — clear on Home Assistant start"
+    mode: single
+    triggers:
+      - trigger: homeassistant
+        event: start
+    conditions: []
+    actions:
+      - action: input_boolean.turn_off
+        target: { entity_id: input_boolean.a290_test_mode }
