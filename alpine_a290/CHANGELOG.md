@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.18.2
+
+- **Security: bump `aiohttp` to 3.14.3.** Clears three advisories affecting the
+  transitively-pinned `aiohttp` 3.14.1 (`PYSEC-2026-3545`, `-3546`, `-3547`; fixed upstream in
+  3.14.2/3.14.3). Lockfile-only refresh (`requirements.txt`) — no behaviour, entity, or
+  `object_id` change. (Mirrored in the R5.)
+
 ## 1.18.1
 
 - **Available Energy now populated even when the car omits it.** The A290's battery data
