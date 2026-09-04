@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.19.0
+
+- **Remote charge-start is now available on the A290.** renault-api 0.5.13 exposes the KCM
+  "start via settings" endpoint for the A290 (`A5E1AE`), which was previously forbidden. The
+  add-on already carries a gated `Start Charging` control, so on this version it publishes
+  **`button.alpine_a290_start_charging`** automatically. Pressing it triggers an immediate
+  charge (by clearing the scheduled-charge programs, the same mechanism the R5 already uses).
+  Remote charge-*stop* remains unavailable on the A290 — stop at the charger.
+
 ## 1.18.2
 
 - **Security: bump `aiohttp` to 3.14.3.** Clears three advisories affecting the
