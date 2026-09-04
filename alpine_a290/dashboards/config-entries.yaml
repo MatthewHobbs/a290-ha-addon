@@ -6,10 +6,8 @@ lovelace:
 homeassistant:
   packages: !include_dir_named packages
 
-# Additional YAML Files — test-mode simulation helpers + the pretty-location template.
-# (The car data comes from the Alpine A290 add-on; there are no more scripts,
-# shell_commands or RAW command_line sensors.)
+# The optional test-mode package (packages/a290_test.yaml) is self-contained — it brings its own
+# helpers, display sensors, panel timers and driver automation, all prefixed `a290_test_*`. The
+# templates/ dir holds only the pretty-location sensor. (Car data comes from the Alpine A290
+# add-on; there are no scripts, shell_commands or command_line sensors.)
 template: !include_dir_merge_list templates
-input_datetime: !include helpers/input_datetime.yaml
-input_number:   !include helpers/input_number.yaml
-input_text:     !include helpers/input_text.yaml

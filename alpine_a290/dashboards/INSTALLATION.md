@@ -113,17 +113,14 @@ lovelace:
 homeassistant:
   packages: !include_dir_named packages
 
-template:       !include_dir_merge_list templates   # pretty-location + test-panel timers
-input_datetime: !include helpers/input_datetime.yaml
-input_number:   !include helpers/input_number.yaml
-input_text:     !include helpers/input_text.yaml
+template: !include_dir_merge_list templates   # pretty-location sensor
 ```
 
 Copy the repo folders accordingly:
 
-- `Packages/` → `/config/packages/`
-- `Templates/` → `/config/templates/`
-- `Helpers/` → `/config/helpers/`
+- `Packages/` → `/config/packages/` — includes the self-contained **`a290_test.yaml`** test-mode
+  package (its own helpers, display sensors, timers and driver — nothing else to wire up).
+- `Templates/` → `/config/templates/` — the pretty-location sensor.
 
 Check **Developer Tools → YAML → Check Configuration**, then **Restart**.
 
@@ -142,11 +139,14 @@ Whichever route you used, these are a small manual package (the auto-deploy does
 install them):
 
 - **Pretty location:** `sensor.alpine_pretty_location` shows "Driveway" / "Home" /
-  town. Merge the `Packages/`, `Templates/` and `Helpers/` folders as in
+  town. Merge `Templates/a290_pretty_location.yaml` as in
   [manual step 4](#4-wire-up-resources-and-any-extras), create a `zone.driveway` for the
   driveway state, and optionally the [`places`](https://github.com/custom-components/places)
   integration for town names.
-- **Test mode:** toggle `input_boolean.a290_test_mode` to preview the charge panels.
+- **Test mode:** merge the single self-contained **`Packages/a290_test.yaml`** (everything is
+  prefixed `a290_test_*`, so it never clashes with the R5 add-on's test mode). Then either toggle
+  `input_boolean.a290_test_mode` to preview the charge panels, or press the **Run Test Charge**
+  button for a scripted ~5-minute demo that fills the Last-Charge tiles and auto-resets.
 
 ---
 

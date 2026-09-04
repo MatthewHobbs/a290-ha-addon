@@ -1,3 +1,14 @@
+# A290 Test Mode — self-contained preview package (OPTIONAL).
+#
+# Merge this single file into your Home Assistant config (as a package — see INSTALLATION.md) to
+# make the dashboard's "Test Charge" panel work without a real charge: toggle
+# `input_boolean.a290_test_mode`, or press the **Run Test Charge** button for a scripted 5-minute
+# preview that populates the Last-Charge tiles.
+#
+# Everything is prefixed `a290_test_*` and reads only its own helpers, so it never collides with
+# the Renault 5 add-on's (unprefixed) test mode on a shared Home Assistant instance. Car data comes
+# from the Alpine A290 add-on over MQTT — none of these entities touch the real car.
+
 input_boolean:
   a290_test_mode:
     name: A290 Test Mode
@@ -7,3 +18,320 @@ input_button:
   a290_test_charge_run:
     name: A290 Test Charge Run
     icon: mdi:flask-outline
+
+input_number:
+  a290_test_last_charge_start_soc:
+    name: A290 Test Last Charge Start SoC
+    min: 0
+    max: 100
+    step: 1
+  a290_test_last_charge_end_soc:
+    name: A290 Test Last Charge End SoC
+    min: 0
+    max: 100
+    step: 1
+  a290_test_last_charge_start_power_kw:
+    name: A290 Test Last Charge Start Power (kW)
+    min: 0
+    max: 25
+    step: 0.1
+  a290_test_last_charge_average_power_kw:
+    name: A290 Test Last Charge Average Power (kW)
+    min: 0
+    max: 25
+    step: 0.1
+  a290_test_charge_start_energy_kwh:
+    name: A290 Test Charge Start Energy (kWh)
+    min: 0
+    max: 100
+    step: 0.1
+  a290_test_charge_end_energy_kwh:
+    name: A290 Test Charge End Energy (kWh)
+    min: 0
+    max: 100
+    step: 0.1
+  a290_test_charge_energy_stored_kwh:
+    name: A290 Test Charge Energy Stored (kWh)
+    min: 0
+    max: 100
+    step: 0.1
+
+input_datetime:
+  a290_test_last_charge_start:
+    name: A290 Test Last Charge Start
+    has_date: true
+    has_time: true
+  a290_test_last_charge_end:
+    name: A290 Test Last Charge End
+    has_date: true
+    has_time: true
+  a290_test_last_finished:
+    name: A290 Test Last Finished
+    has_date: true
+    has_time: true
+
+input_text:
+  a290_test_last_charge_type:
+    name: A290 Test Last Charge Type
+    max: 32
+  a290_test_last_charge_end_status:
+    name: A290 Test Last Charge End Status
+    max: 32
+
+template:
+  # ----------------------------------------------------------------------------------------------
+  # Panel-timer sensors — tick every second so the UI swaps promptly at 0.
+  # ----------------------------------------------------------------------------------------------
+  - trigger:
+      - platform: time_pattern
+        seconds: "/1"
+    binary_sensor:
+      - name: "A290 Test Show Panel"
+        unique_id: a290_test_show_panel
+        state: >-
+          {% set tm = is_state('input_boolean.a290_test_mode','on') %}
+          {% set ts = as_timestamp(states('input_datetime.a290_test_last_finished'), 0) %}
+          {% set linger = (ts > 0) and ((as_timestamp(now()) - ts) < 60) %}
+          {{ tm or linger }}
+
+  - trigger:
+      - platform: time_pattern
+        seconds: "/1"
+    sensor:
+      - name: "A290 Test Panel Hide Countdown"
+        unique_id: a290_test_panel_hide_countdown
+        state: >-
+          {% set ts = as_timestamp(states('input_datetime.a290_test_last_finished'), 0) %}
+          {% if ts > 0 %}
+            {{ [ (60 - (as_timestamp(now()) - ts)) | int, 0 ] | max }} sec
+          {% else %}
+            0 sec
+          {% endif %}
+
+  - trigger:
+      - platform: time_pattern
+        seconds: "/1"
+    sensor:
+      - name: "A290 Test Ends Countdown"
+        unique_id: a290_test_ends_countdown
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}
+            {% set s = as_timestamp(states('input_datetime.a290_test_last_charge_start'), 0) %}
+            {% if s > 0 %}
+              {% set rem = (s + 300) - as_timestamp(now()) %}
+              {% set r = [rem | int, 0] | max %}
+              {% set m = (r // 60) %}
+              {% set sec = (r % 60) %}
+              {% if m > 0 %}{{ m }} min {{ '%02d' | format(sec) }} sec{% else %}{{ sec }} sec{% endif %}
+            {% else %}
+              5 min 00 sec
+            {% endif %}
+          {% else %}
+            Test Complete
+          {% endif %}
+
+  # ----------------------------------------------------------------------------------------------
+  # Display sensors — the Last-Charge tiles. They show "Wait..." while a test is running
+  # (a290_test_mode on) and the simulated result once it finishes. Each reads only its helpers.
+  # ----------------------------------------------------------------------------------------------
+  - sensor:
+      - name: a290_test_last_charge_start_time
+        unique_id: a290_test_last_charge_start_time
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:clock-check-outline' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}
+            Wait...
+          {% else %}
+            {% set s = states('input_datetime.a290_test_last_charge_start') %}
+            {% if s not in ['unknown','unavailable','none',''] %}{{ as_datetime(s).strftime('%H:%M') }}{% else %}--{% endif %}
+          {% endif %}
+
+      - name: a290_test_last_charge_end_time
+        unique_id: a290_test_last_charge_end_time
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:clock-remove-outline' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}
+            Wait...
+          {% else %}
+            {% set s = states('input_datetime.a290_test_last_charge_end') %}
+            {% if s not in ['unknown','unavailable','none',''] %}{{ as_datetime(s).strftime('%H:%M') }}{% else %}--{% endif %}
+          {% endif %}
+
+      - name: a290_test_last_charge_duration
+        unique_id: a290_test_last_charge_duration
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:timer' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}
+            Wait...
+          {% else %}
+            {% set s = as_timestamp(states('input_datetime.a290_test_last_charge_start'), 0) %}
+            {% set e = as_timestamp(states('input_datetime.a290_test_last_charge_end'), 0) %}
+            {% if s > 0 and e > 0 and e >= s %}{{ (((e - s) / 60) | int) }} min{% else %}0 min{% endif %}
+          {% endif %}
+
+      - name: a290_test_last_charge_start_soc
+        unique_id: a290_test_last_charge_start_soc
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:car-battery' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}Wait...
+          {% else %}{{ states('input_number.a290_test_last_charge_start_soc') | int(0) }}%{% endif %}
+
+      - name: a290_test_last_charge_end_soc
+        unique_id: a290_test_last_charge_end_soc
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:car-battery' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}Wait...
+          {% else %}{{ states('input_number.a290_test_last_charge_end_soc') | int(0) }}%{% endif %}
+
+      - name: a290_test_last_charge_soc_recovered
+        unique_id: a290_test_last_charge_soc_recovered
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:checkbox-marked-circle-plus-outline' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}Wait...
+          {% else %}
+            {% set a = states('input_number.a290_test_last_charge_start_soc') | int(0) %}
+            {% set b = states('input_number.a290_test_last_charge_end_soc') | int(0) %}
+            {{ (b - a) }}%
+          {% endif %}
+
+      - name: a290_test_last_charge_start_energy
+        unique_id: a290_test_last_charge_start_energy
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:lightning-bolt' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}Wait...
+          {% else %}{{ states('input_number.a290_test_charge_start_energy_kwh') | float(0) | round(1) }} kWh{% endif %}
+
+      - name: a290_test_last_charge_end_energy
+        unique_id: a290_test_last_charge_end_energy
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:lightning-bolt' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}Wait...
+          {% else %}{{ states('input_number.a290_test_charge_end_energy_kwh') | float(0) | round(1) }} kWh{% endif %}
+
+      - name: a290_test_last_charge_energy_delta
+        unique_id: a290_test_last_charge_energy_delta
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:checkbox-marked-circle-plus-outline' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}Wait...
+          {% else %}
+            {% set a = states('input_number.a290_test_charge_start_energy_kwh') | float(0) %}
+            {% set b = states('input_number.a290_test_charge_end_energy_kwh') | float(0) %}
+            {{ (b - a) | round(1) }} kWh
+          {% endif %}
+
+      - name: a290_test_last_charge_energy_stored
+        unique_id: a290_test_last_charge_energy_stored
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:lightning-bolt' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}Wait...
+          {% else %}{{ states('input_number.a290_test_charge_energy_stored_kwh') | float(0) | round(1) }} kWh{% endif %}
+
+      - name: a290_test_charge_start_power
+        unique_id: a290_test_charge_start_power
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:flash' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}Wait...
+          {% else %}{{ states('input_number.a290_test_last_charge_start_power_kw') | float(0) | round(1) }} kW{% endif %}
+
+      - name: a290_test_charge_average_power
+        unique_id: a290_test_charge_average_power
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:flash' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}Wait...
+          {% else %}{{ states('input_number.a290_test_last_charge_average_power_kw') | float(0) | round(1) }} kW{% endif %}
+
+      - name: a290_test_charge_type
+        unique_id: a290_test_charge_type
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:ev-station' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}Wait...
+          {% else %}
+            {% set s_ts = as_timestamp(states('input_datetime.a290_test_last_charge_start'), 0) %}
+            {% set e_ts = as_timestamp(states('input_datetime.a290_test_last_charge_end'), 0) %}
+            {% set mins = ((e_ts - s_ts) / 60) if (s_ts > 0 and e_ts > 0 and e_ts >= s_ts) else 0 %}
+            {% set start_e = states('input_number.a290_test_charge_start_energy_kwh') | float(0) %}
+            {% set end_e = states('input_number.a290_test_charge_end_energy_kwh') | float(0) %}
+            {% set avg = ((end_e - start_e) / (mins/60)) if mins > 0 else 0 %}
+            {% if avg >= 80 %}Rapid DC{% elif avg >= 40 %}Fast DC{% elif avg >= 11 %}Fast AC{% elif avg > 0 %}Slow AC{% else %}Not Rated{% endif %}
+          {% endif %}
+
+      - name: a290_test_charge_end_status
+        unique_id: a290_test_charge_end_status
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:check-decagram' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}Wait...
+          {% else %}
+            {% set v = states('input_text.a290_test_last_charge_end_status') | string | trim %}
+            {% set sl = v | lower %}
+            {% if sl in ['ok','complete','completed'] %}Completed
+            {% elif sl in ['ko','fail','failed','error'] %}Failed
+            {% elif v != '' and v not in ['unknown','unavailable','none'] %}{{ v }}
+            {% else %}N/A{% endif %}
+          {% endif %}
+
+      - name: a290_test_last_charge_date
+        unique_id: a290_test_last_charge_date
+        icon: "{{ 'mdi:flask-outline' if is_state('input_boolean.a290_test_mode','on') else 'mdi:calendar' }}"
+        state: >-
+          {% if is_state('input_boolean.a290_test_mode','on') %}Wait...
+          {% else %}
+            {% set s = states('input_datetime.a290_test_last_charge_start') %}
+            {% if s not in ['unknown','unavailable','none',''] %}{{ as_datetime(s).strftime('%d/%m/%y') }}{% else %}--{% endif %}
+          {% endif %}
+
+automation:
+  # Press "Run Test Charge" -> fill the simulated last-charge helpers, open a 5-minute Test Mode
+  # window (the dashboard shows the live-charging animations + the "Ends In" countdown), then turn
+  # Test Mode off and stamp a290_test_last_finished so the completed panel lingers 60s ("Auto
+  # Reset"). Duration is set to ~170 min so the Charge Type tile reads a realistic home rate
+  # (~7 kW -> Slow AC) rather than an implausible rapid-DC figure. mode: restart so a re-press
+  # restarts the window cleanly.
+  - id: a290_test_charge_run_driver
+    alias: "A290 Test Charge — simulate a 5-minute preview"
+    mode: restart
+    triggers:
+      - trigger: state
+        entity_id: input_button.a290_test_charge_run
+    conditions: []
+    actions:
+      - action: input_datetime.set_datetime
+        target: { entity_id: input_datetime.a290_test_last_charge_start }
+        data: { datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}" }
+      - action: input_datetime.set_datetime
+        target: { entity_id: input_datetime.a290_test_last_charge_end }
+        data: { datetime: "{{ (now() + timedelta(minutes=170)).strftime('%Y-%m-%d %H:%M:%S') }}" }
+      - action: input_number.set_value
+        target: { entity_id: input_number.a290_test_last_charge_start_soc }
+        data: { value: 42 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.a290_test_last_charge_end_soc }
+        data: { value: 80 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.a290_test_last_charge_start_power_kw }
+        data: { value: 7.4 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.a290_test_last_charge_average_power_kw }
+        data: { value: 6.9 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.a290_test_charge_start_energy_kwh }
+        data: { value: 21.8 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.a290_test_charge_end_energy_kwh }
+        data: { value: 41.6 }
+      - action: input_number.set_value
+        target: { entity_id: input_number.a290_test_charge_energy_stored_kwh }
+        data: { value: 19.8 }
+      - action: input_text.set_value
+        target: { entity_id: input_text.a290_test_last_charge_type }
+        data: { value: "Slow AC" }
+      - action: input_text.set_value
+        target: { entity_id: input_text.a290_test_last_charge_end_status }
+        data: { value: "Complete" }
+      - action: input_boolean.turn_on
+        target: { entity_id: input_boolean.a290_test_mode }
+      - delay: { minutes: 5 }
+      - action: input_boolean.turn_off
+        target: { entity_id: input_boolean.a290_test_mode }
+      - action: input_datetime.set_datetime
+        target: { entity_id: input_datetime.a290_test_last_finished }
+        data: { datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}" }
