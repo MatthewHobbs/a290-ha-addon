@@ -42,9 +42,11 @@ ruff.toml / repository.yaml / README.md / LICENSE
 **Do not bump `renault-api` casually.** Per-model endpoint support is hard-coded in the
 library at `renault_api/kamereon/models.py` → `_VEHICLE_ENDPOINTS` (A290 is model
 `A5E1AE`, R5 is `R5E1VE`). That map — not the readthedocs pages — is the authoritative
-source for what each car exposes. The A290 forbids several endpoints (charge-start,
-charge-mode, pressure); the add-on probes `supports_endpoint()` at startup and only
-publishes what's available.
+source for what each car exposes. The A290 forbids several endpoints (charge-mode, pressure,
+charge-stop); charge-start became available in renault-api 0.5.13 (KCM "via-settings", model
+`A5E1AE`) — it *requests* an immediate charge by disabling scheduled programs (end-to-end
+unconfirmed on cars with no schedule). The add-on probes `supports_endpoint()` at startup and
+only publishes what's available.
 
 ## Local checks — run the FULL suite before pushing
 

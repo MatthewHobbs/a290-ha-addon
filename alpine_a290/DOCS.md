@@ -196,8 +196,7 @@ The buttons and number entities work by the app subscribing to `alpine_a290/cmd/
 MQTT broker — anything able to publish to that topic can trigger a control (horn, lights,
 climate, charge-limit sliders). That's inherent to MQTT discovery, not a bug in the app; if
 your broker is shared with other apps or devices, restrict who can publish to
-`alpine_a290/cmd/#` with a broker ACL. (Charge-start is forbidden on the A290, so there's no
-charge-start control to worry about.)
+`alpine_a290/cmd/#` with a broker ACL.
 
 ## Requirements
 
@@ -235,12 +234,16 @@ won't see a control your A290 rejects):
 | **Flash Lights** | Flashes the headlights. |
 | **Start Climate** | Starts preconditioning to `precondition_temperature`. |
 | **Stop Climate** | Stops preconditioning. |
+| **Start Charging** | *Requests* an immediate charge by disabling any scheduled-charge programs. New via renault-api 0.5.13 — see note. |
 | **Refresh Location** | Forces a fresh GPS fix. *(May report forbidden on the A290 — see note.)* |
 
-> Remote **charge-start is forbidden** on the A290 by Renault, so no Start Charging button
-> is shown. **Refresh Location** isn't explicitly documented for the A290 in `renault-api`;
-> it falls back to the default endpoint and may return *forbidden* when pressed — harmless
-> if so, but it may simply not work.
+> Remote **charge-start** is newly advertised for the A290 (renault-api 0.5.13): the
+> **Start Charging** button *requests* an immediate charge by disabling scheduled-charge
+> programs. On a car with **no charge schedule set** there may be nothing to disable, so the
+> request can be a no-op — end-to-end charging on the A290 is **not yet confirmed**. Remote
+> charge-*stop* stays unavailable — stop at the charger. **Refresh Location** isn't explicitly
+> documented for the A290 in `renault-api`; it falls back to the default endpoint and may
+> return *forbidden* when pressed — harmless if so, but it may simply not work.
 
 ### Last Charge
 
