@@ -3,10 +3,11 @@
 > **Back up Home Assistant before you start** (Settings → System → Backups). These
 > steps add a dashboard (and, for the manual route, packages and helpers) to your config.
 >
-> **Charging control:** the app publishes a **Start Charging** button that *requests* an
-> immediate charge (new via renault-api 0.5.13; may be a no-op if no charge schedule is set,
-> and not yet confirmed end-to-end). Remote charge-*stop* stays unavailable — stop at the
-> charger. The bundled dashboards don't yet include a charge tile.
+> **Charging control:** the app publishes a **Start Charging** button (renault-api 0.5.13) that
+> starts an immediate charge by clearing the car's **built-in** charge timer. If your charging is
+> scheduled externally (e.g. **Octopus Intelligent**) it's a **no-op** — use your charger/tariff's
+> "charge now" (e.g. Octopus **Bump Charge**) or the car's physical timer button instead. Remote
+> charge-*stop* stays unavailable — stop at the charger. The dashboards include no charge tile.
 
 This dashboard is the **frontend only**. All car data is provided by the
 **[Alpine A290 app](https://github.com/MatthewHobbs/a290-ha-addon)** — a proper
@@ -77,9 +78,10 @@ safe). To pull in a later layout update, set `redeploy_dashboard: true` and rest
 
 - **Control buttons:** the app publishes these **natively over MQTT** — no Home Assistant `renault` integration needed: `button.alpine_a290_sound_horn`, `…_flash_lights`,
   `…_start_climate`, `…_stop_climate`, `…_refresh_location`, `…_start_charging`. Each is gated
-  on what the platform supports. Charge-start (new via renault-api 0.5.13) *requests* an
-  immediate charge (may be a no-op with no schedule set); charge-*stop* stays unavailable. The
-  bundled dashboards don't yet include a charge tile.
+  on what the platform supports. Charge-start (renault-api 0.5.13) starts a charge only by
+  clearing the car's **built-in** timer — it's a **no-op** under external scheduling like
+  Octopus Intelligent (use the tariff's "charge now" / the car's physical timer instead);
+  charge-*stop* stays unavailable. The bundled dashboards include no charge tile.
 - **Pretty location** and **test mode** are not auto-deployed — they're a small package
   you merge manually. See [Optional extras](#optional-extras).
 
