@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.19.1
+
+- **Fix: account auto-discovery now works for Alpine owners.** The add-on picked the first
+  `MYRENAULT` Kamereon account, but the A290 is registered under a **MYALPINE** account — so with
+  `account_id` left blank (as the docs suggest) auto-discovery resolved the wrong account and
+  polling never started. It now selects the account whose garage actually contains your configured
+  VIN (model-agnostic), falling back to the previous MYRENAULT behaviour only if none matches.
+
 ## 1.19.0
 
 - **Remote charge-start is now available on the A290.** renault-api 0.5.13 exposes the KCM
