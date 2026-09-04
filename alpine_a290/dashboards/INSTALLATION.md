@@ -5,8 +5,9 @@
 >
 > **Charging control:** the app publishes a **Start Charging** button (renault-api 0.5.13) that
 > starts an immediate charge by clearing the car's **built-in** charge timer. If your charging is
-> scheduled externally (e.g. **Octopus Intelligent**) it's a **no-op** — use your charger/tariff's
-> "charge now" (e.g. Octopus **Bump Charge**) or the car's physical timer button instead. Remote
+> scheduled externally (e.g. **Octopus Intelligent**) it's a **no-op** — use the dashboard's
+> **Charge Now** button (your tariff's bump/boost, e.g. Octopus Bump Charge) or the car's physical
+> timer button instead. Remote
 > charge-*stop* stays unavailable — stop at the charger. The dashboards include no charge tile.
 
 This dashboard is the **frontend only**. All car data is provided by the

@@ -180,7 +180,7 @@ def _charger_cards():
         out.append(_mush_entity(smart, "Smart Charge", "mdi:ev-station",
                                 _switch_icon_css(smart, "#33BEFA"), tap_action=toggle))
     if bump:
-        out.append(_mush_entity(bump, "Bump Charge", "mdi:battery-plus-variant",
+        out.append(_mush_entity(bump, "Charge Now", "mdi:battery-plus-variant",
                                 _switch_icon_css(bump, "orange"), tap_action=toggle))
     if soc:
         out.append(_mush_entity(soc, "Charge Target", "mdi:battery-charging-high", "color:green;"))
@@ -260,7 +260,7 @@ def _charger_popup():
     if smart:
         toggles.append(_toggle_card(smart, "Smart Charge", "mdi:ev-station", "#33BEFA"))
     if bump:
-        toggles.append(_toggle_card(bump, "Bump Charge", "mdi:battery-plus-variant", "orange"))
+        toggles.append(_toggle_card(bump, "Charge Now", "mdi:battery-plus-variant", "orange"))
     if len(toggles) == 2:
         cards.append({"type": "horizontal-stack", "cards": toggles})
     elif toggles:
