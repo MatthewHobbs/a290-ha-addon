@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.21.0
+
+- **Fixed: the car's location entity never showed Home or a zone.** `device_tracker.*_location`
+  was stuck reading `online` regardless of where the car actually was. The add-on published
+  connectivity to the tracker's state topic on every poll, and Home Assistant turns a state payload
+  into the entity's location name, which then takes priority over the GPS coordinates — so the
+  coordinates were being collected and then ignored. The tracker now publishes coordinates only,
+  and Home Assistant resolves Home / a zone name / away from them as it should. Connectivity is
+  unchanged and still shown via the entity's availability.
+- **Upgrading is automatic.** The old retained value is cleared for you on first start; the entity
+  should show its real location within a poll or two. No action needed.
+
 ## 1.20.2
 
 - **Smart Charging: "Bump Charge" is now labelled "Charge Now."** The dashboard's bump/boost

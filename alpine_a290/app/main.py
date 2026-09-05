@@ -539,8 +539,10 @@ async def main():
             client.publish(mqtt.STATE_TOPIC, json.dumps(data), retain=True)
             _LATEST.update(ok=True, last_poll=iso(now_ts()), data=data)
             if location_attrs:
+                # Attributes only. The tracker declares no state topic: HA turns a state payload
+                # into location_name, which then wins over these lat/lon attributes and stops the
+                # entity ever resolving home or a zone. Connectivity belongs on AVAIL_TOPIC below.
                 client.publish(mqtt.ATTR_TOPIC, json.dumps(location_attrs), retain=True)
-                client.publish(mqtt.TRACKER_STATE_TOPIC, "online", retain=True)
             client.publish(mqtt.AVAIL_TOPIC, "online", retain=True)
             save_state(state)
             LOG.info("Published: %s%% battery, plug=%s, charging=%s, suspect=%s",
