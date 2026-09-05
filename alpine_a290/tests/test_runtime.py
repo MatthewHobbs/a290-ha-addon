@@ -3,13 +3,10 @@ server, account resolution, and one happy + one failing iteration of main()."""
 import asyncio
 import types
 
-from renault_mqtt import charge
-from renault_mqtt import debug
 import main
-from renault_mqtt import mqtt
 import pytest
 from renault_api.kamereon.enums import ChargeState, PlugState
-from renault_mqtt import config
+from renault_mqtt import charge, config, debug, mqtt
 
 
 def ns(**kw):
@@ -624,8 +621,15 @@ def _wire_main(monkeypatch, poll):
     monkeypatch.setenv("A290_POLL_INTERVAL", "60")
 
     class FakeClient:
-        def publish(self, *a, **k):
-            pass
+        """Records publishes. A no-op publish() makes the main-loop tests coverage-only: they
+        prove main() runs without asserting anything about what it emits, which is how a wrong
+        topic write survived here while the R5 twin's equivalent test caught it."""
+
+        def __init__(self):
+            self.pubs = []
+
+        def publish(self, topic, payload="", retain=False):
+            self.pubs.append((topic, payload))
 
         def loop_stop(self):
             pass
@@ -651,12 +655,14 @@ def _wire_main(monkeypatch, poll):
 
     monkeypatch.setattr(main, "VehicleSession", FakeVS)
     monkeypatch.setattr(main, "detect_supported", fake_detect)
-    monkeypatch.setattr(mqtt, "mqtt_connect", lambda: FakeClient())
+    fc = FakeClient()
+    monkeypatch.setattr(mqtt, "mqtt_connect", lambda: fc)
     monkeypatch.setattr(mqtt, "publish_discovery", lambda *a, **k: None)
     monkeypatch.setattr(main, "start_health_server", fake_health)
     monkeypatch.setattr(main.deploy, "run_deploy", _acoro)
     monkeypatch.setattr(main, "poll_once", poll)
     monkeypatch.setattr(main.asyncio, "Event", _OneShotEvent)
+    return fc
 
 
 async def _acoro(*a, **k):
@@ -668,8 +674,17 @@ def test_main_one_successful_iteration(monkeypatch):
         return ({"battery_level": 50, "plug_status": "Connected", "charging": "off",
                  "plug_suspect": "off"}, {"latitude": 1, "longitude": 2})
 
-    _wire_main(monkeypatch, poll)
+    fc = _wire_main(monkeypatch, poll)
     asyncio.run(main.main())
+
+    topics = [t for t, _ in fc.pubs]
+    assert mqtt.STATE_TOPIC in topics
+    assert mqtt.ATTR_TOPIC in topics                  # location attributes published
+    # ...and NOTHING on the tracker state topic. A state payload becomes the entity's
+    # location_name, which outranks the lat/lon attributes above and would pin the tracker to
+    # that value permanently -- the bug this add-on shipped until 1.21.0.
+    assert mqtt.TRACKER_STATE_TOPIC not in topics
+    assert (mqtt.AVAIL_TOPIC, "offline") in fc.pubs   # clean shutdown
 
 
 def test_main_handles_failing_poll(monkeypatch):

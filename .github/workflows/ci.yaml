@@ -37,7 +37,7 @@ jobs:
       - name: Ruff (Python)
         uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89  # v4.1.0
         with:
-          src: alpine_a290/app
+          src: alpine_a290/app alpine_a290/tests
 
       - name: Home Assistant add-on linter
         uses: frenck/action-addon-linter@b9cfd1bc62ba60d2c4fc96317b5f7ada5923f4a7  # v2
