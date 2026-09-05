@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.21.1
+
+- **Clearer logs when an entity is missing.** The add-on withholds entities for several different
+  reasons — the car does not expose the endpoint, the object_id was retired in a previous version,
+  or there was simply nothing to publish — and previously reported all of them the same way. The
+  log now names what was withheld and why. In particular, if your vehicle does not expose Renault's
+  SOC endpoint, the log says so explicitly rather than silently omitting the Minimum SoC and Charge
+  Target SoC controls.
+- Picks up shared core `renault-mqtt` v0.13.1. No behaviour change beyond the logging.
+
+
 ## 1.21.0
 
 - **Fixed: the car's location entity never showed Home or a zone.** `device_tracker.*_location`
