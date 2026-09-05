@@ -229,3 +229,22 @@ def test_on_message_dispatches_via_injected_handler(monkeypatch):
 
     mqtt._on_message(None, None, _Msg("unrelated/topic"))   # non-command -> ignored
     assert len(recorded) == 2
+
+
+def test_runtime_never_writes_the_tracker_state_topic():
+    """The tracker deliberately declares no state topic (renault-mqtt >=0.13.0). Publishing to it
+    sets location_name, which wins over the lat/lon attributes and pins the entity to that payload
+    -- the a290 previously wrote "online" here every poll and the tracker could never report a zone.
+
+    Guarded at source level because the regression is a single line reappearing in the poll loop,
+    and the behavioural contract already lives in the core's own tests.
+    """
+    import pathlib
+    app = pathlib.Path(__file__).resolve().parent.parent / "app"
+    offenders = [
+        f"{f.name}:{n}: {line.strip()}"
+        for f in sorted(app.glob("*.py"))
+        for n, line in enumerate(f.read_text().splitlines(), 1)
+        if "TRACKER_STATE_TOPIC" in line and "publish" in line
+    ]
+    assert not offenders, "runtime must not publish to the tracker state topic:\n" + "\n".join(offenders)
