@@ -52,17 +52,21 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "CORE_REF pins the shared renault-mqtt core by immutable commit SHA. No manifest declares it, so Dependabot cannot see it at all and it has only ever been bumped by hand. Tracked against main by digest rather than by tag, because renault-mqtt releases are not consistently tagged: 0.13.0 and 0.13.1 exist only as merged commits, so a tag datasource would read v0.12.0 as newest and propose a downgrade.",
+      "description": [
+        "CORE_REF pins the shared renault-mqtt core by immutable commit SHA. No manifest declares it, so Dependabot cannot see it at all and it has only ever been bumped by hand.",
+        "The version comment and the SHA are captured together and rewritten as a pair, so the comment cannot drift away from the pin beneath it. This is the same shape as a SHA-pinned GitHub Action carrying a version comment.",
+        "Tag datasource, not the branch head: a bump should mean a released core, not merely the newest commit on main. If a release ever ships untagged, Renovate goes quiet rather than proposing a bump - the safe direction to fail."
+      ],
       "managerFilePatterns": [
         "/(^|/)Dockerfile$/"
       ],
       "matchStrings": [
-        "ARG CORE_REF=(?<currentDigest>[a-f0-9]{40})"
+        "# renault-mqtt (?<currentValue>v[\\d.]+)\nARG CORE_REF=(?<currentDigest>[a-f0-9]{40})"
       ],
+      "autoReplaceStringTemplate": "# renault-mqtt {{{newValue}}}\nARG CORE_REF={{{newDigest}}}",
       "depNameTemplate": "MatthewHobbs/renault-mqtt",
-      "packageNameTemplate": "https://github.com/MatthewHobbs/renault-mqtt",
-      "currentValueTemplate": "main",
-      "datasourceTemplate": "git-refs"
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "semver"
     }
   ]
 }
