@@ -88,18 +88,58 @@ clean. Keep them identical to the r5 twin's `ui-tests/run.sh` (lockstep).
 Ruff config (`ruff.toml`): line-length 120, target py314, `select = E,F,W,B,I`,
 `ignore = E501,B008`.
 
-## Before recommending a merge: build the container locally
+## Before recommending a merge: build and boot the container locally
 
 Per the global container rule — this add-on's image is pulled by tag (`config.yaml` `version`),
-so build and boot it locally and observe the changed behaviour before merge on any runtime PR:
+so build and boot it locally and observe the changed behaviour before merge on any runtime PR.
+
+Two things make a naive run fail, both worth knowing before you spend time debugging them:
+
+- **`bashio::config` reads the Supervisor API, not `/data/options.json`.** Mounting a stub
+  options file achieves nothing: `/run.sh` gets empty config and the add-on correctly exits
+  with `Missing required setting`. Bypass `run.sh` with `--entrypoint python3` and pass the
+  `A290_*` env vars directly.
+- **The poller needs an MQTT broker** or it dies on `ConnectionRefusedError` before it ever
+  serves `/healthz`.
+
+There are no test credentials to use. `renault-api` has no sandbox and authenticates only
+against production Gigya/Kamereon, so blackhole the three real hosts and the boot test never
+reaches Renault. The verification signal is identical; only the poll error text changes.
+The S3 host is easy to miss — `get_api_keys()` hits it before login even starts.
 
 ```sh
-# base image pinned in alpine_a290/Dockerfile (FROM ghcr.io/home-assistant/base:<tag>, the single
-# source of truth) — no --build-arg needed (build.yaml/BUILD_FROM were removed when Supervisor
-# 2026.04 dropped the BUILD_FROM default).
 docker buildx build --platform linux/amd64 -t a290-local alpine_a290
-# then run with a stub /data/options.json and curl http://localhost:<port>/healthz, check logs, etc.
+
+docker network create a290v
+printf 'listener 1883 0.0.0.0\nallow_anonymous true\n' > /tmp/mosq.conf
+docker run -d --name a290-mqtt --network a290v \
+  -v /tmp/mosq.conf:/mosquitto/config/mosquitto.conf eclipse-mosquitto:2
+
+docker run -d --name a290-verify --network a290v -p 8099:8099 \
+  --add-host accounts.eu1.gigya.com:127.0.0.1 \
+  --add-host api-wired-prod-1-euw1.wrd-aws.com:127.0.0.1 \
+  --add-host renault-wrd-prod-1-euw1-myrapp-one.s3-eu-west-1.amazonaws.com:127.0.0.1 \
+  -e A290_USERNAME=stub@example.invalid -e A290_PASSWORD=stub-not-a-real-credential \
+  -e A290_ACCOUNT_ID=0000000000 -e A290_VIN=VF1STUBVIN0000000 \
+  -e A290_LOCALE=en_GB -e A290_POLL_INTERVAL=300 -e A290_BATTERY_CAPACITY_KWH=52 \
+  -e A290_STALE_HOURS=6 -e A290_PUBLISH_LOCATION=true -e A290_GPS_PRECISION=4 \
+  -e A290_PRECONDITION_TEMPERATURE=20 \
+  -e A290_LOG_LEVEL=debug -e A290_DEBUG_DUMP=false \
+  -e A290_DEPLOY_DASHBOARD=none -e A290_REDEPLOY_DASHBOARD=false \
+  -e MQTT_HOST=a290-mqtt -e MQTT_PORT=1883 -e MQTT_USER= -e MQTT_PASS= \
+  --entrypoint python3 a290-local -u /app/main.py
+
+sleep 8
+curl -s http://127.0.0.1:8099/healthz; echo
+docker logs a290-verify 2>&1 | tail -20
+
+docker rm -f a290-verify a290-mqtt; docker network rm a290v
 ```
+
+Expect `/healthz` to return `ok`, plus `MQTT connected — subscribed to commands, discovery
+(re)published` and a `Published discovery: N sensors …` line. One `Poll failed … Cannot connect
+to host accounts.eu1.gigya.com` is expected and correct: it is the proof no traffic left the
+machine.
 
 Exceptions (CI is enough): docs-only, CI-YAML-only, or test-only changes.
 
