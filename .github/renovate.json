@@ -16,7 +16,7 @@
   ],
   "timezone": "Europe/London",
   "schedule": [
-    "before 6am on monday"
+    "before 6am on saturday"
   ],
   "semanticCommits": "enabled",
   "semanticCommitType": "build",
