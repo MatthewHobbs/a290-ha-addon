@@ -5,9 +5,9 @@ dashboard tile: the Last Charge data-key contract, plug-suspect detection, enum
 decoding, schedule summaries and unit conversion.
 """
 import catalog
-from renault_mqtt import charge
 import main
 from renault_api.kamereon.enums import ChargeState
+from renault_mqtt import charge
 
 
 class Battery:
