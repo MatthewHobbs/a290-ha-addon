@@ -1,0 +1,68 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": [
+    "Renovate covers what Dependabot cannot see in this repo: the CORE_REF git-SHA pin in the Dockerfile, which no manifest describes, and the Dockerfile base and build-stage images.",
+    "Python is deliberately left to Dependabot. requirements.txt is a hash-locked pip-compile output installed with --require-hashes, and it carries no pip-compile header, so Renovate cannot regenerate the hashes and would leave the lock inconsistent.",
+    "renault-api stays manual regardless of tooling: per-model endpoint support is hard-coded in the library, so it is bumped by hand after a container-verified review."
+  ],
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard"
+  ],
+  "enabledManagers": [
+    "github-actions",
+    "dockerfile",
+    "custom.regex"
+  ],
+  "timezone": "Europe/London",
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "semanticCommits": "enabled",
+  "semanticCommitType": "build",
+  "semanticCommitScope": "deps",
+  "labels": [
+    "dependencies"
+  ],
+  "prConcurrentLimit": 3,
+  "packageRules": [
+    {
+      "description": "One PR for all GitHub Actions, matching the grouping Dependabot used before this change.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "actions"
+    },
+    {
+      "description": "Base and build-stage images move independently of the add-on, so keep them in their own PR to be container-verified on their own.",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "groupName": "container images"
+    },
+    {
+      "description": "The shared core is a runtime-code change, never a routine bump. Keep it on its own PR so the build-and-boot gate applies to it alone.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "groupName": "renault-mqtt core",
+      "commitMessageTopic": "the renault-mqtt core"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "CORE_REF pins the shared renault-mqtt core by immutable commit SHA. No manifest declares it, so Dependabot cannot see it at all and it has only ever been bumped by hand. Tracked against main by digest rather than by tag, because renault-mqtt releases are not consistently tagged: 0.13.0 and 0.13.1 exist only as merged commits, so a tag datasource would read v0.12.0 as newest and propose a downgrade.",
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile$/"
+      ],
+      "matchStrings": [
+        "ARG CORE_REF=(?<currentDigest>[a-f0-9]{40})"
+      ],
+      "depNameTemplate": "MatthewHobbs/renault-mqtt",
+      "packageNameTemplate": "https://github.com/MatthewHobbs/renault-mqtt",
+      "currentValueTemplate": "main",
+      "datasourceTemplate": "git-refs"
+    }
+  ]
+}
