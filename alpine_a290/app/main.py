@@ -209,7 +209,12 @@ async def detect_supported(vsession):
         vehicle = await vsession.vehicle()
         for ep in list(OPTIONAL_ENDPOINTS):
             try:
-                if not await _supports(vehicle, ep):
+                # add AND discard, not discard-only: a pessimistic endpoint starts outside the
+                # set, so a discard-only loop could never let a successful probe put it back and
+                # the endpoint would stay dark forever on cars that do support it.
+                if await _supports(vehicle, ep):
+                    supported.add(ep)
+                else:
                     supported.discard(ep)
             except Exception as err:  # noqa: BLE001
                 LOG.warning("supports_endpoint(%s) check failed: %s", ep, err)

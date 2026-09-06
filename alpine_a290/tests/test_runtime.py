@@ -862,3 +862,35 @@ def test_detection_failure_leaves_hvac_settings_unsupported():
     supported = asyncio.run(main.detect_supported(_Broken()))
     assert "hvac-settings" not in supported
     assert "pressure" in supported and "charge-mode" in supported   # others stay optimistic
+
+
+def test_pessimistic_endpoint_is_restored_when_the_car_does_support_it():
+    """hvac-settings starts outside the supported set, so the probe loop must be able to ADD it
+    back — a discard-only loop would leave it dark forever on cars that do support it, defeating
+    the self-healing the pessimistic default is supposed to preserve. Dual review, 2026-09-06."""
+    class _Vs:
+        async def vehicle(self):
+            class _V:
+                async def supports_endpoint(self, ep):
+                    return True
+            return _V()
+        async def invalidate(self):
+            pass
+
+    supported = asyncio.run(main.detect_supported(_Vs()))
+    assert "hvac-settings" in supported
+
+
+def test_pessimistic_endpoint_stays_out_when_the_car_does_not_support_it():
+    class _Vs:
+        async def vehicle(self):
+            class _V:
+                async def supports_endpoint(self, ep):
+                    return ep != "hvac-settings"
+            return _V()
+        async def invalidate(self):
+            pass
+
+    supported = asyncio.run(main.detect_supported(_Vs()))
+    assert "hvac-settings" not in supported
+    assert "pressure" in supported
