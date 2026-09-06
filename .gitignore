@@ -25,3 +25,6 @@ local editor settings
 # Editor / IDE
 .vscode/
 .idea/
+
+# Local `just ci` virtualenv (uv)
+.venv/
