@@ -9,7 +9,11 @@
   redacted by key before anything is logged, so what you see is `lastUpdateTime` and
   `gpsDirection`: enough to tell whether Renault is returning a fresh fix, and nothing about
   where the car actually is. The dump remains one-shot per restart and off by default.
-- Picks up shared core `renault-mqtt` v0.14.0.
+- **`publish_location: false` still means zero location footprint.** The dump honours the
+  opt-out: with location publishing off, the location endpoint is not queried even with
+  `debug_dump` on. It fails safe — if the flag has not been configured yet, location is skipped
+  rather than fetched.
+- Picks up shared core `renault-mqtt` v0.14.1.
 
 ## 1.21.1
 
