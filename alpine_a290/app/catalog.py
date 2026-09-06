@@ -105,6 +105,12 @@ OPTIONAL_ENDPOINTS = {
                  "a290_tyre_pressure_rl", "a290_tyre_pressure_rr"],
 }
 
+# Optional endpoints that must default to UNSUPPORTED when detection is inconclusive, because
+# calling them when they are absent is not free. hvac-settings returns errorCode 502000 on this
+# model on every poll; guessing "supported" after a transient detection failure restores the
+# exact log spam this was added to stop.
+PESSIMISTIC_ENDPOINTS = {"hvac-settings"}
+
 ACTION_BUTTONS = {
     "a290_charge_start":     ("Start Charging",   "mdi:ev-station",      "actions/charge-start"),
     "a290_horn":             ("Sound Horn",       "mdi:bullhorn",        "actions/horn-start"),

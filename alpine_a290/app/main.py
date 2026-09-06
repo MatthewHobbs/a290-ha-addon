@@ -24,6 +24,7 @@ from catalog import (
     NUMBERS,
     OBJ_PREFIX,
     OPTIONAL_ENDPOINTS,
+    PESSIMISTIC_ENDPOINTS,
     REFRESH_LOCATION_EP,
     SOC_ENDPOINT,
 )
@@ -196,7 +197,13 @@ async def detect_supported(vsession):
     """Set of supported endpoint names. Data endpoints default to supported on a detection
     error (read-only, harmless if empty); action endpoints default to unsupported so a
     forbidden control is never shipped."""
-    supported = set(OPTIONAL_ENDPOINTS)
+    # Optional DATA endpoints default to supported when detection cannot run, on the grounds
+    # that a read-only call is harmless. That is not true for every endpoint: hvac-settings is
+    # unavailable on this model and answers errorCode 502000 on every poll, so an optimistic
+    # default turns one transient login failure into a warning every five minutes until the
+    # add-on is restarted. Endpoints whose wrong guess is expensive default the other way -
+    # the cost of being wrong is two absent sensors, not unbounded log spam.
+    supported = set(OPTIONAL_ENDPOINTS) - PESSIMISTIC_ENDPOINTS
     action_eps = {ep for _name, _icon, ep in ACTION_BUTTONS.values()}
     try:
         vehicle = await vsession.vehicle()
@@ -436,15 +443,24 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
     if mqtt.PUBLISH_LOCATION:   # skipped entirely when the user opts out of location publishing
         try:
             loc = await vehicle.get_location()
-            data["gps_last_activity"] = getattr(loc, "lastUpdateTime", None)
             # build_location_attrs returns None when the payload carries no usable fix, which
             # Kamereon signals with an out-of-band sentinel rather than a null: this car returned
             # 91/181 on a fresh timestamp and the old `is not None` check published it as a real
             # position, flipping the car to not_home while parked at home.
             location_attrs = build_location_attrs(loc, GPS_PRECISION)
-            if location_attrs is None and getattr(loc, "gpsLatitude", None) is not None:
-                LOG.warning("location fix rejected: the API reported no usable position "
-                            "(sentinel or out-of-range coordinates); keeping the last known fix")
+            if location_attrs is None:
+                # gps_last_activity is deliberately NOT advanced here. binary_sensor.a290_gps_stale
+                # is templated on this sensor, so writing the sentinel's fresh timestamp would
+                # disarm the staleness guard at the very moment the position became unknown -
+                # rejecting the coordinates but keeping the timestamp would fix half the bug and
+                # silence the half that reports it. The sensor therefore means "when we last had a
+                # USABLE fix", which is exactly what the guard needs to be true.
+                if getattr(loc, "gpsLatitude", None) is not None:
+                    LOG.warning("location fix rejected: the API reported no usable position "
+                                "(sentinel or out-of-range coordinates); keeping the last known "
+                                "fix and leaving the staleness guard armed")
+            else:
+                data["gps_last_activity"] = getattr(loc, "lastUpdateTime", None)
         except Exception as err:  # noqa: BLE001
             LOG.warning("location unavailable: %s", err)
 

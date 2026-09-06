@@ -583,7 +583,9 @@ def test_detect_supported_handles_probe_errors():
             raise RuntimeError("probe boom")
 
     supported = asyncio.run(main.detect_supported(FakeVSession(V())))
-    assert supported == set(main.OPTIONAL_ENDPOINTS)   # data defaults kept, no actions added
+    # Data endpoints stay optimistic on a detection failure EXCEPT the pessimistic ones
+    # (hvac-settings), which answer 502000 on every poll when absent.
+    assert supported == set(main.OPTIONAL_ENDPOINTS) - main.PESSIMISTIC_ENDPOINTS   # data defaults kept, no actions added
 
 
 def test_resolve_account_raises_without_myrenault(monkeypatch):
@@ -815,3 +817,48 @@ def test_poll_once_skips_hvac_settings_when_the_car_does_not_advertise_it():
         main.poll_once(FakeVSession(_V()), {}, 52.0, {"pressure", "charge-mode"}, "km"))
     assert not called
     assert "climate_schedule_mode" not in data and "climate_ready_time" not in data
+
+
+def test_sentinel_fix_does_not_advance_gps_last_activity():
+    """binary_sensor.a290_gps_stale is templated on sensor.*_gps_last_activity. Writing the
+    sentinel's fresh timestamp would disarm the staleness guard at the moment the position became
+    unknown — fixing the coordinates while silencing the sensor that reports the problem.
+    Found by dual review 2026-09-06, after the first cut of the fix did exactly that."""
+    class _V(FakeVehicle):
+        async def get_location(self):
+            return types.SimpleNamespace(gpsLatitude=91, gpsLongitude=181,
+                                         lastUpdateTime="2026-09-06T17:37:31Z")
+
+    data, loc_attrs = asyncio.run(
+        main.poll_once(FakeVSession(_V()), {}, 52.0,
+                       {"pressure", "charge-mode", "hvac-settings"}, "km"))
+    assert loc_attrs is None                      # coordinates rejected
+    assert "gps_last_activity" not in data        # and the guard is NOT disarmed
+
+
+def test_valid_fix_does_advance_gps_last_activity():
+    class _V(FakeVehicle):
+        async def get_location(self):
+            return types.SimpleNamespace(gpsLatitude=51.9473, gpsLongitude=-0.6274,
+                                         lastUpdateTime="2026-09-06T17:37:31Z")
+
+    data, loc_attrs = asyncio.run(
+        main.poll_once(FakeVSession(_V()), {}, 52.0,
+                       {"pressure", "charge-mode", "hvac-settings"}, "km"))
+    assert loc_attrs is not None
+    assert data["gps_last_activity"] == "2026-09-06T17:37:31Z"
+
+
+def test_detection_failure_leaves_hvac_settings_unsupported():
+    """Optional data endpoints default to supported when detection cannot run. hvac-settings must
+    not: it answers 502000 on every poll here, so an optimistic default turns one transient login
+    failure into a warning every five minutes until restart."""
+    class _Broken:
+        async def vehicle(self):
+            raise RuntimeError("login failed")
+        async def invalidate(self):
+            pass
+
+    supported = asyncio.run(main.detect_supported(_Broken()))
+    assert "hvac-settings" not in supported
+    assert "pressure" in supported and "charge-mode" in supported   # others stay optimistic

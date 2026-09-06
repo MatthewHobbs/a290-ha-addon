@@ -9,8 +9,9 @@
   to `not_home` on the drive, and because the timestamp was fresh the GPS-stale guard switched
   *off* at the same moment — a fresh non-answer is worse than a stale answer, because nothing is
   left to catch it. Coordinates are now validated (range, `0,0` null island, NaN) and a payload
-  with no usable fix is rejected, so the last known-good position stays put and the stale guard
-  stays armed.
+  with no usable fix is rejected, so the last known-good position stays put — and crucially the
+  GPS-activity timestamp is *not* advanced either, so the stale guard stays armed rather than
+  being silenced by the very payload that broke the position.
 - **Fixed: a warning every five minutes, forever.** This vehicle (model `A5E1AE`) does not
   advertise the `hvac-settings` endpoint, and calling it returned `502000 "something went
   wrong"` on every single poll. It is now probed like any other optional endpoint: cars that
