@@ -115,7 +115,8 @@ class FakeVSession:
 def test_poll_once_full(monkeypatch):
     monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
     data, attrs = asyncio.run(
-        main.poll_once(FakeVSession(FakeVehicle()), {}, 52.0, {"pressure", "charge-mode"}, "km"))
+        main.poll_once(FakeVSession(FakeVehicle()), {}, 52.0,
+                       {"pressure", "charge-mode", "hvac-settings"}, "km"))
     assert data["battery_level"] == 60
     assert data["mileage"] == 12345
     assert data["plug_status"] == "Connected"
@@ -797,3 +798,20 @@ def test_run_command_rejects_refresh_location_when_location_disabled(monkeypatch
     (cmd,) = tuple(main.LOCATION_CMDS)
     asyncio.run(main.run_command(cmd))
     assert called["n"] == 0            # rejected before any login/dispatch
+
+
+def test_poll_once_skips_hvac_settings_when_the_car_does_not_advertise_it():
+    """A5E1AE (A290) does not list hvac-settings among its supported endpoints, and calling it
+    anyway returned errorCode 502000 on every poll - a warning every five minutes, forever.
+    Gating it means no call and no log spam; the two climate-schedule fields are simply absent."""
+    called = []
+
+    class _V(FakeVehicle):
+        async def get_hvac_settings(self):
+            called.append(1)
+            raise AssertionError("hvac-settings must not be called when unsupported")
+
+    data, _ = asyncio.run(
+        main.poll_once(FakeVSession(_V()), {}, 52.0, {"pressure", "charge-mode"}, "km"))
+    assert not called
+    assert "climate_schedule_mode" not in data and "climate_ready_time" not in data

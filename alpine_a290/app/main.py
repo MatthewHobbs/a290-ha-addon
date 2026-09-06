@@ -42,6 +42,7 @@ from renault_mqtt.parse import (
     _hvac_schedule_fields,
     available_energy,
 )
+from renault_mqtt.parse import location_attrs as build_location_attrs
 from renault_mqtt.util import _num, iso, now_ts
 
 # Inject this model's env-var prefix into the shared core's redaction net before anything is
@@ -404,10 +405,11 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
         data.update(_charge_schedule_fields(p))
     except Exception as err:  # noqa: BLE001
         LOG.warning("ev/settings unavailable: %s", err)
-    try:
-        data.update(_hvac_schedule_fields(await vehicle.get_hvac_settings()))
-    except Exception as err:  # noqa: BLE001
-        LOG.warning("hvac-settings unavailable: %s", err)
+    if "hvac-settings" in supported_eps:
+        try:
+            data.update(_hvac_schedule_fields(await vehicle.get_hvac_settings()))
+        except Exception as err:  # noqa: BLE001
+            LOG.warning("hvac-settings unavailable: %s", err)
     try:
         soc_lvl = await vehicle.get_battery_soc()
         data["soc_target"] = getattr(soc_lvl, "socTarget", None)
@@ -435,12 +437,14 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
         try:
             loc = await vehicle.get_location()
             data["gps_last_activity"] = getattr(loc, "lastUpdateTime", None)
-            lat, lon = getattr(loc, "gpsLatitude", None), getattr(loc, "gpsLongitude", None)
-            if lat is not None and lon is not None:
-                location_attrs = {"latitude": round(lat, GPS_PRECISION),
-                                  "longitude": round(lon, GPS_PRECISION),
-                                  "gps_accuracy": max(10, round(111_000 / 10 ** GPS_PRECISION)),
-                                  "last_update": getattr(loc, "lastUpdateTime", None)}
+            # build_location_attrs returns None when the payload carries no usable fix, which
+            # Kamereon signals with an out-of-band sentinel rather than a null: this car returned
+            # 91/181 on a fresh timestamp and the old `is not None` check published it as a real
+            # position, flipping the car to not_home while parked at home.
+            location_attrs = build_location_attrs(loc, GPS_PRECISION)
+            if location_attrs is None and getattr(loc, "gpsLatitude", None) is not None:
+                LOG.warning("location fix rejected: the API reported no usable position "
+                            "(sentinel or out-of-range coordinates); keeping the last known fix")
         except Exception as err:  # noqa: BLE001
             LOG.warning("location unavailable: %s", err)
 
