@@ -208,3 +208,27 @@ the car last moved. Publish a `last_successful_poll` timestamp on each completed
 (this is the same heartbeat proposed in P1 — one field satisfies both), and key the
 staleness binary sensor off that. Then "stale" means "we have not heard from Kamereon",
 which is the thing worth alerting on, and a parked car reads as healthy.
+
+## P2 — GPS staleness guard is blind on a process that has never had a usable fix
+
+**Component:** `alpine_a290` (`poll_once`) · logged 2026-09-06
+
+`gps_last_activity` carries the last USABLE fix time forward when a location payload is
+rejected, so `binary_sensor.*_gps_stale` stays armed. Both fallbacks — persisted `state` and
+the in-process `_LATEST` — are empty on the first poll of a freshly started process, so if that
+poll returns a sentinel the key is omitted from the retained state document and the guard reads
+"not stale" until the first usable fix arrives.
+
+Surfaced by dual review across three separate rounds; not fixed because every cheap option is
+wrong (advancing the timestamp is the original bug; publishing a fabricated old one is
+dishonest). The correct fix is to seed `state["gps_last_activity"]` at startup by reading the
+add-on's own retained state topic before the first publish, which is real MQTT work rather than
+a tweak.
+
+Mitigations already in place: a WARNING on every rejected fix, and no tracker attributes
+published, so nothing asserts a false position. Self-corrects permanently on the first usable
+fix.
+
+**Separate operational note:** a retained payload published by an OLDER version is not cleared
+by this fix. An install that already retained sentinel coordinates keeps showing them until a
+usable fix replaces them, or until the attributes topic is cleared by hand.
