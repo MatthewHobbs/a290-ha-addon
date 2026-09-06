@@ -945,3 +945,53 @@ def test_rejected_fix_falls_back_to_the_last_published_timestamp():
         assert data["gps_last_activity"] == "2026-09-02T11:43:14Z"
     finally:
         main._LATEST.update(data={})
+
+
+def test_hvac_breaker_stops_calling_after_repeated_failures():
+    """v1.23.0 gated hvac-settings on supports_endpoint(), which returns True on this model while
+    every call answers 502000 — so the warning continued every five minutes. What the endpoint
+    does is the only reliable signal. Bounded log spam, then silence."""
+    main._BREAKERS.clear()
+    main._BREAKER_FAILS.clear()
+    calls = []
+
+    class _V(FakeVehicle):
+        async def get_hvac_settings(self):
+            calls.append(1)
+            raise RuntimeError("('err.tech.vcps.ev.hvac-settings.error', '502000')")
+
+    eps = {"pressure", "charge-mode", "hvac-settings"}
+    try:
+        for _ in range(6):
+            asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
+        assert len(calls) == main.BREAKER_TRIP, "must stop calling once the breaker trips"
+        assert main._BREAKERS.get("hvac-settings") is True
+    finally:
+        main._BREAKERS.clear()
+    main._BREAKER_FAILS.clear()
+
+
+def test_hvac_breaker_resets_on_success():
+    """A server-side fix must be picked up without intervention, so any success clears the count."""
+    main._BREAKERS.clear()
+    main._BREAKER_FAILS.clear()
+    state = {"fail": True}
+
+    class _V(FakeVehicle):
+        async def get_hvac_settings(self):
+            if state["fail"]:
+                raise RuntimeError("502000")
+            return types.SimpleNamespace(raw_data={})
+
+    eps = {"pressure", "charge-mode", "hvac-settings"}
+    try:
+        for _ in range(main.BREAKER_TRIP - 1):
+            asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
+        assert main._BREAKER_FAILS["hvac-settings"] == main.BREAKER_TRIP - 1
+        state["fail"] = False
+        asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
+        assert main._BREAKER_FAILS["hvac-settings"] == 0
+        assert not main._BREAKERS.get("hvac-settings")
+    finally:
+        main._BREAKERS.clear()
+    main._BREAKER_FAILS.clear()

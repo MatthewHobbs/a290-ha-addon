@@ -69,6 +69,12 @@ STATE_FILE = os.environ.get("A290_STATE_FILE", "/data/state.json")
 _GPS_P = os.environ.get("A290_GPS_PRECISION", "4").strip()
 GPS_PRECISION = max(1, min(6, int(_GPS_P))) if _GPS_P.isdigit() else 4
 
+# Consecutive failures before an optional endpoint is switched off for the session. Small enough
+# that log spam is bounded, large enough that a transient blip does not disable a working feature.
+BREAKER_TRIP = 3
+_BREAKER_FAILS = {}
+_BREAKERS = {}
+
 VERSION = os.environ.get("A290_VERSION", "dev")
 
 CHARGE_STATUS_LABELS = {
@@ -417,11 +423,24 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
         data.update(_charge_schedule_fields(p))
     except Exception as err:  # noqa: BLE001
         LOG.warning("ev/settings unavailable: %s", err)
-    if "hvac-settings" in supported_eps:
+    # supports_endpoint("hvac-settings") returns TRUE on this model while the server answers
+    # errorCode 502000 to every actual call, so advertised support is not a usable gate - v1.23.0
+    # shipped one and the warning carried on every five minutes regardless. What the endpoint
+    # DOES is the only reliable signal, so trip a breaker after a few consecutive failures: log
+    # once, stop calling, and let a restart retry. Reset on any success, so a server-side fix is
+    # picked up without intervention.
+    if "hvac-settings" in supported_eps and not _BREAKERS.get("hvac-settings"):
         try:
             data.update(_hvac_schedule_fields(await vehicle.get_hvac_settings()))
+            _BREAKER_FAILS["hvac-settings"] = 0
         except Exception as err:  # noqa: BLE001
-            LOG.warning("hvac-settings unavailable: %s", err)
+            n = _BREAKER_FAILS["hvac-settings"] = _BREAKER_FAILS.get("hvac-settings", 0) + 1
+            if n < BREAKER_TRIP:
+                LOG.warning("hvac-settings unavailable: %s", err)
+            elif n == BREAKER_TRIP:
+                _BREAKERS["hvac-settings"] = True
+                LOG.warning("hvac-settings has failed %d polls in a row (%s) - not calling it "
+                            "again this session. Restart the add-on to retry.", n, err)
     try:
         soc_lvl = await vehicle.get_battery_soc()
         data["soc_target"] = getattr(soc_lvl, "socTarget", None)
