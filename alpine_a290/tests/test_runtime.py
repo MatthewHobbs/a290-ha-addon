@@ -894,3 +894,33 @@ def test_pessimistic_endpoint_stays_out_when_the_car_does_not_support_it():
     supported = asyncio.run(main.detect_supported(_Vs()))
     assert "hvac-settings" not in supported
     assert "pressure" in supported
+
+
+def test_rejected_fix_carries_the_last_good_timestamp_forward():
+    """`data` is published as a COMPLETE retained state document, so dropping the key renders the
+    sensor empty; the stale guard's `t is not none` then short-circuits to "not stale" — the same
+    disarm as advancing it, by the opposite route. Carrying the last usable fix time forward is
+    the only behaviour that leaves the guard armed. Dual review, 2026-09-06."""
+    class _V(FakeVehicle):
+        async def get_location(self):
+            return types.SimpleNamespace(gpsLatitude=91, gpsLongitude=181,
+                                         lastUpdateTime="2026-09-06T17:37:31Z")
+
+    st = {"gps_last_activity": "2026-09-02T11:43:14Z"}
+    data, loc_attrs = asyncio.run(
+        main.poll_once(FakeVSession(_V()), st, 52.0,
+                       {"pressure", "charge-mode", "hvac-settings"}, "km"))
+    assert loc_attrs is None
+    assert data["gps_last_activity"] == "2026-09-02T11:43:14Z"   # old, not the sentinel's
+
+
+def test_valid_fix_records_the_timestamp_for_later_carry_forward():
+    class _V(FakeVehicle):
+        async def get_location(self):
+            return types.SimpleNamespace(gpsLatitude=51.9473, gpsLongitude=-0.6274,
+                                         lastUpdateTime="2026-09-06T17:37:31Z")
+
+    st = {}
+    asyncio.run(main.poll_once(FakeVSession(_V()), st, 52.0,
+                               {"pressure", "charge-mode", "hvac-settings"}, "km"))
+    assert st["gps_last_activity"] == "2026-09-06T17:37:31Z"

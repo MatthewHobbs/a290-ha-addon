@@ -454,18 +454,25 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
             # position, flipping the car to not_home while parked at home.
             location_attrs = build_location_attrs(loc, GPS_PRECISION)
             if location_attrs is None:
-                # gps_last_activity is deliberately NOT advanced here. binary_sensor.a290_gps_stale
-                # is templated on this sensor, so writing the sentinel's fresh timestamp would
-                # disarm the staleness guard at the very moment the position became unknown -
-                # rejecting the coordinates but keeping the timestamp would fix half the bug and
-                # silence the half that reports it. The sensor therefore means "when we last had a
-                # USABLE fix", which is exactly what the guard needs to be true.
+                # gps_last_activity must be neither ADVANCED nor DROPPED here, and both failure
+                # modes disarm binary_sensor.a290_gps_stale, which templates on this sensor:
+                #   advanced -> the sentinel's fresh timestamp says the fix is current;
+                #   dropped  -> `data` is published as a COMPLETE retained state document with
+                #               value_template "{{ value_json.gps_last_activity }}", so a missing
+                #               key renders empty, `as_datetime` yields none, and the guard's
+                #               `t is not none` short-circuits to False, i.e. "not stale".
+                # Carrying the last USABLE fix time forward is the only option that leaves the
+                # guard armed, and it does not depend on how HA treats an absent key.
+                prev = state.get("gps_last_activity")
+                if prev:
+                    data["gps_last_activity"] = prev
                 if getattr(loc, "gpsLatitude", None) is not None:
                     LOG.warning("location fix rejected: the API reported no usable position "
                                 "(sentinel or out-of-range coordinates); keeping the last known "
                                 "fix and leaving the staleness guard armed")
             else:
                 data["gps_last_activity"] = getattr(loc, "lastUpdateTime", None)
+                state["gps_last_activity"] = data["gps_last_activity"]
         except Exception as err:  # noqa: BLE001
             LOG.warning("location unavailable: %s", err)
 
