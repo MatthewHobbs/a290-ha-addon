@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.23.0
+
+- **Fixed: the car could report `not_home` while parked at home.** When the Renault API has no
+  position it does not return an error or a null — it returns an out-of-band *sentinel*:
+  latitude `91`, longitude `181`, each exactly one unit past the maximum, carried on a
+  genuinely fresh timestamp. The add-on published that as a real coordinate, so the car flipped
+  to `not_home` on the drive, and because the timestamp was fresh the GPS-stale guard switched
+  *off* at the same moment — a fresh non-answer is worse than a stale answer, because nothing is
+  left to catch it. Coordinates are now validated (range, `0,0` null island, NaN) and a payload
+  with no usable fix is rejected, so the last known-good position stays put — and crucially the
+  GPS-activity timestamp is *not* advanced either, so the stale guard stays armed rather than
+  being silenced by the very payload that broke the position.
+- **Fixed: a warning every five minutes, forever.** This vehicle (model `A5E1AE`) does not
+  advertise the `hvac-settings` endpoint, and calling it returned `502000 "something went
+  wrong"` on every single poll. It is now probed like any other optional endpoint: cars that
+  lack it simply do not get the two climate-schedule sensors, and cars that gain it pick them
+  up automatically. No configuration needed.
+- Picks up shared core `renault-mqtt` v0.15.0.
+
 ## 1.22.0
 
 - **The `debug_dump` diagnostic now covers the location endpoint.** If your car's position goes
