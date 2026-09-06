@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.23.1
+
+- **Actually stops the five-minutely HVAC warning.** 1.23.0 gated the call on whether the car
+  advertises the endpoint — but this model advertises `hvac-settings` as supported while the
+  server answers `502000` to every call, so the warning carried on unchanged. What the endpoint
+  *does* is the only reliable signal: after three consecutive failures the add-on stops calling
+  it for the session and says so once. Any success resets the count, so a server-side fix is
+  picked up on its own.
+
 ## 1.23.0
 
 - **Fixed: the car could report `not_home` while parked at home.** When the Renault API has no
