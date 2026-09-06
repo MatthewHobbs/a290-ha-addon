@@ -72,8 +72,12 @@ GPS_PRECISION = max(1, min(6, int(_GPS_P))) if _GPS_P.isdigit() else 4
 # Consecutive failures before an optional endpoint is switched off for the session. Small enough
 # that log spam is bounded, large enough that a transient blip does not disable a working feature.
 BREAKER_TRIP = 3
+# Polls to skip before a tripped breaker probes once more. At the default 300s poll that is
+# roughly hourly - often enough to notice a server-side fix, rare enough to stay silent.
+BREAKER_RETRY_EVERY = 12
 _BREAKER_FAILS = {}
 _BREAKERS = {}
+_BREAKER_SKIPS = {}
 
 VERSION = os.environ.get("A290_VERSION", "dev")
 
@@ -377,6 +381,22 @@ async def resolve_account(client):
     raise RuntimeError("No account contains the configured VIN and A290_ACCOUNT_ID is not set")
 
 
+def _hvac_due(supported_eps):
+    """Should this poll call hvac-settings? Yes when the car lists it and the breaker is clear;
+    yes once every BREAKER_RETRY_EVERY polls while tripped, so a server-side recovery is noticed
+    without a restart (the reset lives inside the call, so a breaker that never retried could
+    never clear itself); no otherwise."""
+    if "hvac-settings" not in supported_eps:
+        return False
+    if not _BREAKERS.get("hvac-settings"):
+        return True
+    n = _BREAKER_SKIPS["hvac-settings"] = _BREAKER_SKIPS.get("hvac-settings", 0) + 1
+    if n >= BREAKER_RETRY_EVERY:
+        _BREAKER_SKIPS["hvac-settings"] = 0
+        return True
+    return False
+
+
 async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
     vehicle = await vsession.vehicle()
     locale = vsession.locale
@@ -429,18 +449,25 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
     # DOES is the only reliable signal, so trip a breaker after a few consecutive failures: log
     # once, stop calling, and let a restart retry. Reset on any success, so a server-side fix is
     # picked up without intervention.
-    if "hvac-settings" in supported_eps and not _BREAKERS.get("hvac-settings"):
+    if _hvac_due(supported_eps):
+        tripped = bool(_BREAKERS.get("hvac-settings"))
         try:
             data.update(_hvac_schedule_fields(await vehicle.get_hvac_settings()))
             _BREAKER_FAILS["hvac-settings"] = 0
+            if _BREAKERS.pop("hvac-settings", None):
+                LOG.info("hvac-settings is answering again - re-enabled.")
         except Exception as err:  # noqa: BLE001
-            n = _BREAKER_FAILS["hvac-settings"] = _BREAKER_FAILS.get("hvac-settings", 0) + 1
-            if n < BREAKER_TRIP:
-                LOG.warning("hvac-settings unavailable: %s", err)
-            elif n == BREAKER_TRIP:
-                _BREAKERS["hvac-settings"] = True
-                LOG.warning("hvac-settings has failed %d polls in a row (%s) - not calling it "
-                            "again this session. Restart the add-on to retry.", n, err)
+            # A failed periodic probe stays tripped and stays quiet. Only pre-trip failures count
+            # and log, so spam is bounded at BREAKER_TRIP lines however long the outage lasts.
+            if not tripped:
+                n = _BREAKER_FAILS["hvac-settings"] = _BREAKER_FAILS.get("hvac-settings", 0) + 1
+                if n < BREAKER_TRIP:
+                    LOG.warning("hvac-settings unavailable: %s", err)
+                elif n == BREAKER_TRIP:
+                    _BREAKERS["hvac-settings"] = True
+                    LOG.warning("hvac-settings has failed %d polls in a row (%s) - pausing it. It "
+                                "is retried every %d polls and re-enabled automatically if it "
+                                "recovers.", n, err, BREAKER_RETRY_EVERY)
     try:
         soc_lvl = await vehicle.get_battery_soc()
         data["soc_target"] = getattr(soc_lvl, "socTarget", None)
