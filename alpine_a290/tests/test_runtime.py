@@ -924,3 +924,24 @@ def test_valid_fix_records_the_timestamp_for_later_carry_forward():
     asyncio.run(main.poll_once(FakeVSession(_V()), st, 52.0,
                                {"pressure", "charge-mode", "hvac-settings"}, "km"))
     assert st["gps_last_activity"] == "2026-09-06T17:37:31Z"
+
+
+def test_rejected_fix_falls_back_to_the_last_published_timestamp():
+    """state['gps_last_activity'] is introduced by this change, so the first poll after an upgrade
+    has no persisted value. If that poll is a sentinel — the case on the vehicle that prompted this
+    fix — the key would be omitted and the guard would go quiet. Fall back to the last value this
+    process published. Dual review, 2026-09-06."""
+    class _V(FakeVehicle):
+        async def get_location(self):
+            return types.SimpleNamespace(gpsLatitude=91, gpsLongitude=181,
+                                         lastUpdateTime="2026-09-06T17:37:31Z")
+
+    main._LATEST.update(data={"gps_last_activity": "2026-09-02T11:43:14Z"})
+    try:
+        data, loc_attrs = asyncio.run(
+            main.poll_once(FakeVSession(_V()), {}, 52.0,
+                           {"pressure", "charge-mode", "hvac-settings"}, "km"))
+        assert loc_attrs is None
+        assert data["gps_last_activity"] == "2026-09-02T11:43:14Z"
+    finally:
+        main._LATEST.update(data={})

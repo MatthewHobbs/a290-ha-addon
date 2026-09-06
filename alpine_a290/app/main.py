@@ -463,9 +463,17 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
                 #               `t is not none` short-circuits to False, i.e. "not stale".
                 # Carrying the last USABLE fix time forward is the only option that leaves the
                 # guard armed, and it does not depend on how HA treats an absent key.
-                prev = state.get("gps_last_activity")
+                # Prefer the persisted last-good time; fall back to whatever was last published
+                # in this process. state["gps_last_activity"] is introduced by this change, so on
+                # the FIRST poll after upgrading there is no persisted value - and if that poll is
+                # a sentinel (which it is on the vehicle that prompted this fix) the key would be
+                # omitted from the retained document and the guard would go quiet. _LATEST covers
+                # the rest of that window.
+                prev = (state.get("gps_last_activity")
+                        or (_LATEST.get("data") or {}).get("gps_last_activity"))
                 if prev:
                     data["gps_last_activity"] = prev
+                    state.setdefault("gps_last_activity", prev)
                 if getattr(loc, "gpsLatitude", None) is not None:
                     LOG.warning("location fix rejected: the API reported no usable position "
                                 "(sentinel or out-of-range coordinates); keeping the last known "
