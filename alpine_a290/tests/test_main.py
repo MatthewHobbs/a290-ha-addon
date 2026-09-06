@@ -203,7 +203,9 @@ def test_detect_supported_degrades_and_invalidates_on_login_failure(monkeypatch)
         vs = main.VehicleSession("en_GB")
         supported = await main.detect_supported(vs)
         # falls back to the read-only optional endpoints; no action buttons; session dropped
-        assert supported == set(main.OPTIONAL_ENDPOINTS)
+            # Data endpoints stay optimistic on a detection failure EXCEPT the pessimistic
+        # ones (hvac-settings), which answer 502000 on every poll when absent.
+        assert supported == set(main.OPTIONAL_ENDPOINTS) - main.PESSIMISTIC_ENDPOINTS
         assert not any(ep.startswith("actions/") for ep in supported)
         assert vs._vehicle is None
 

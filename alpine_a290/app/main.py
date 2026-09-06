@@ -24,6 +24,7 @@ from catalog import (
     NUMBERS,
     OBJ_PREFIX,
     OPTIONAL_ENDPOINTS,
+    PESSIMISTIC_ENDPOINTS,
     REFRESH_LOCATION_EP,
     SOC_ENDPOINT,
 )
@@ -42,6 +43,7 @@ from renault_mqtt.parse import (
     _hvac_schedule_fields,
     available_energy,
 )
+from renault_mqtt.parse import location_attrs as build_location_attrs
 from renault_mqtt.util import _num, iso, now_ts
 
 # Inject this model's env-var prefix into the shared core's redaction net before anything is
@@ -195,13 +197,24 @@ async def detect_supported(vsession):
     """Set of supported endpoint names. Data endpoints default to supported on a detection
     error (read-only, harmless if empty); action endpoints default to unsupported so a
     forbidden control is never shipped."""
-    supported = set(OPTIONAL_ENDPOINTS)
+    # Optional DATA endpoints default to supported when detection cannot run, on the grounds
+    # that a read-only call is harmless. That is not true for every endpoint: hvac-settings is
+    # unavailable on this model and answers errorCode 502000 on every poll, so an optimistic
+    # default turns one transient login failure into a warning every five minutes until the
+    # add-on is restarted. Endpoints whose wrong guess is expensive default the other way -
+    # the cost of being wrong is two absent sensors, not unbounded log spam.
+    supported = set(OPTIONAL_ENDPOINTS) - PESSIMISTIC_ENDPOINTS
     action_eps = {ep for _name, _icon, ep in ACTION_BUTTONS.values()}
     try:
         vehicle = await vsession.vehicle()
         for ep in list(OPTIONAL_ENDPOINTS):
             try:
-                if not await _supports(vehicle, ep):
+                # add AND discard, not discard-only: a pessimistic endpoint starts outside the
+                # set, so a discard-only loop could never let a successful probe put it back and
+                # the endpoint would stay dark forever on cars that do support it.
+                if await _supports(vehicle, ep):
+                    supported.add(ep)
+                else:
                     supported.discard(ep)
             except Exception as err:  # noqa: BLE001
                 LOG.warning("supports_endpoint(%s) check failed: %s", ep, err)
@@ -404,10 +417,11 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
         data.update(_charge_schedule_fields(p))
     except Exception as err:  # noqa: BLE001
         LOG.warning("ev/settings unavailable: %s", err)
-    try:
-        data.update(_hvac_schedule_fields(await vehicle.get_hvac_settings()))
-    except Exception as err:  # noqa: BLE001
-        LOG.warning("hvac-settings unavailable: %s", err)
+    if "hvac-settings" in supported_eps:
+        try:
+            data.update(_hvac_schedule_fields(await vehicle.get_hvac_settings()))
+        except Exception as err:  # noqa: BLE001
+            LOG.warning("hvac-settings unavailable: %s", err)
     try:
         soc_lvl = await vehicle.get_battery_soc()
         data["soc_target"] = getattr(soc_lvl, "socTarget", None)
@@ -434,13 +448,39 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
     if mqtt.PUBLISH_LOCATION:   # skipped entirely when the user opts out of location publishing
         try:
             loc = await vehicle.get_location()
-            data["gps_last_activity"] = getattr(loc, "lastUpdateTime", None)
-            lat, lon = getattr(loc, "gpsLatitude", None), getattr(loc, "gpsLongitude", None)
-            if lat is not None and lon is not None:
-                location_attrs = {"latitude": round(lat, GPS_PRECISION),
-                                  "longitude": round(lon, GPS_PRECISION),
-                                  "gps_accuracy": max(10, round(111_000 / 10 ** GPS_PRECISION)),
-                                  "last_update": getattr(loc, "lastUpdateTime", None)}
+            # build_location_attrs returns None when the payload carries no usable fix, which
+            # Kamereon signals with an out-of-band sentinel rather than a null: this car returned
+            # 91/181 on a fresh timestamp and the old `is not None` check published it as a real
+            # position, flipping the car to not_home while parked at home.
+            location_attrs = build_location_attrs(loc, GPS_PRECISION)
+            if location_attrs is None:
+                # gps_last_activity must be neither ADVANCED nor DROPPED here, and both failure
+                # modes disarm binary_sensor.a290_gps_stale, which templates on this sensor:
+                #   advanced -> the sentinel's fresh timestamp says the fix is current;
+                #   dropped  -> `data` is published as a COMPLETE retained state document with
+                #               value_template "{{ value_json.gps_last_activity }}", so a missing
+                #               key renders empty, `as_datetime` yields none, and the guard's
+                #               `t is not none` short-circuits to False, i.e. "not stale".
+                # Carrying the last USABLE fix time forward is the only option that leaves the
+                # guard armed, and it does not depend on how HA treats an absent key.
+                # Prefer the persisted last-good time; fall back to whatever was last published
+                # in this process. state["gps_last_activity"] is introduced by this change, so on
+                # the FIRST poll after upgrading there is no persisted value - and if that poll is
+                # a sentinel (which it is on the vehicle that prompted this fix) the key would be
+                # omitted from the retained document and the guard would go quiet. _LATEST covers
+                # the rest of that window.
+                prev = (state.get("gps_last_activity")
+                        or (_LATEST.get("data") or {}).get("gps_last_activity"))
+                if prev:
+                    data["gps_last_activity"] = prev
+                    state.setdefault("gps_last_activity", prev)
+                if getattr(loc, "gpsLatitude", None) is not None:
+                    LOG.warning("location fix rejected: the API reported no usable position "
+                                "(sentinel or out-of-range coordinates); keeping the last known "
+                                "fix and leaving the staleness guard armed")
+            else:
+                data["gps_last_activity"] = getattr(loc, "lastUpdateTime", None)
+                state["gps_last_activity"] = data["gps_last_activity"]
         except Exception as err:  # noqa: BLE001
             LOG.warning("location unavailable: %s", err)
 

@@ -94,9 +94,22 @@ ICONS = {
 
 OPTIONAL_ENDPOINTS = {
     "charge-mode": ["a290_charge_mode"],
+    # A5E1AE (A290) does not advertise hvac-settings: the car's supported list is
+    # charge-start / horn-start / hvac-start / hvac-stop / lights-start / refresh-location /
+    # charges / soc-levels. Calling it anyway returned errorCode 502000 ("something went
+    # wrong", errorType technical) on EVERY poll - roughly every five minutes, indefinitely.
+    # Probing it like any other optional endpoint withholds the two climate-schedule sensors
+    # on cars that lack it, and picks them up automatically on cars (or firmware) that gain it.
+    "hvac-settings": ["a290_climate_schedule_mode", "a290_climate_ready_time"],
     "pressure": ["a290_tyre_pressure_fl", "a290_tyre_pressure_fr",
                  "a290_tyre_pressure_rl", "a290_tyre_pressure_rr"],
 }
+
+# Optional endpoints that must default to UNSUPPORTED when detection is inconclusive, because
+# calling them when they are absent is not free. hvac-settings returns errorCode 502000 on this
+# model on every poll; guessing "supported" after a transient detection failure restores the
+# exact log spam this was added to stop.
+PESSIMISTIC_ENDPOINTS = {"hvac-settings"}
 
 ACTION_BUTTONS = {
     "a290_charge_start":     ("Start Charging",   "mdi:ev-station",      "actions/charge-start"),
