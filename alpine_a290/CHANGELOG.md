@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.22.0
+
+- **The `debug_dump` diagnostic now covers the location endpoint.** If your car's position goes
+  stale, the dump previously could not show you why: `get_location` was the one endpoint it
+  deliberately skipped, so the only misbehaving endpoint was also the only invisible one. It is
+  now included. **Your coordinates are still masked** — `gpsLatitude` and `gpsLongitude` are
+  redacted by key before anything is logged, so what you see is `lastUpdateTime` and
+  `gpsDirection`: enough to tell whether Renault is returning a fresh fix, and nothing about
+  where the car actually is. The dump remains one-shot per restart and off by default.
+- Picks up shared core `renault-mqtt` v0.14.0.
+
 ## 1.21.1
 
 - **Clearer logs when an entity is missing.** The add-on withholds entities for several different
