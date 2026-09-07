@@ -150,7 +150,7 @@ def freshness_fields(state, payload_iso, stale_secs, last_ok):
     polled successfully every five minutes for 68 hours and reported as healthy, showing 55%
     while the car was at 83%.
 
-    battery-status is the right source and `cockpit` is not: cockpit commits at ignition-off, so
+    battery-status is the right source and `cockpit` is not: cockpit commits at power-off, so
     keying on it would mark every parked car stale — the same mistake `gps_last_activity` makes.
     battery-status refreshes while the car sits.
 
