@@ -42,6 +42,49 @@ string `None`) alongside every location update so `location_name` is cleared eac
 
 ---
 
+## P2 — UNTESTED: the dashboard render is not reproducible, so screenshots cannot be gated
+
+**Component:** `ui-tests/` (both dashboards) · **Logged:** 2026-09-07
+
+**Marker: treat every committed file in `docs/screenshots/` as UNTESTED.** They are a plausible
+picture of the dashboards, not a verified one, and a diff between two of them proves nothing.
+
+Measured over four full harness runs (identical code, identical seed, minutes apart):
+
+| Pair | bubble differing | standard differing |
+|---|---|---|
+| run 1 vs 2 | 6 / 20 | 4 / 10 |
+| run 3 vs 4 | 6 / 20 | 4 / 10 |
+
+**It is not a bubble-only problem** — the assumption worth killing early. Proportionally the
+*standard* dashboard is worse (40% vs 30%), and the split was identical across both pairs, so
+skipping bubble would not make the remainder trustworthy.
+
+Two causes were found and fixed (v1.24.0+): five infinite CSS animations (`pulse`, `spin`,
+`flap-wiggle`, `flip180`, `socFillToTarget`) meant the page never stopped moving, and hard-coded
+seed timestamps rendered as relative text changed pixels whenever the wall clock crossed a unit
+boundary. Both are gone. **Neither moved the 20/30 number**, which is what says the remaining
+cause is separate.
+
+**An attempted fix made it worse and was reverted — do not retry it as written.** Waiting for
+stable scroll dimensions + card count + image completion instead of a fixed sleep is the obvious
+next idea. A blank page is *stable*: the condition is satisfied instantly and captures an empty
+dashboard. `alpine-bubble__pixel_8.png` had been byte-identical at 169,749 bytes across two runs;
+with the wait it captured at 17,255 bytes at the same dimensions. Any retry needs a
+*completeness* condition (a known-good card count), not just a stability one.
+
+**Consequence:** the `Screenshot drift gate` that the `gotoad` twin runs as a required check
+cannot be adopted here. A byte-exact gate over this would be permanently red. That is why
+`refresh-screenshots` reports drift and attaches an artifact rather than failing, and why it no
+longer commits.
+
+**Next investigation, not yet done:** the differing shots are not the same ones each pair, and
+some collapse to near-empty at correct dimensions, which points at cards painting after capture
+rather than at layout timing. Instrument one device across ten runs and diff the DOM, rather
+than guessing at another wait.
+
+---
+
 ## P1 — A wedged poll loop is invisible: LWT catches process death, not a stalled producer
 
 **Component:** `alpine_a290` + `renault-mqtt`
