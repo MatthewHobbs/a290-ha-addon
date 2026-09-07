@@ -166,11 +166,11 @@ Contribute the A5E1AE endpoint mapping to
 [hacf-fr/renault-api#1747](https://github.com/hacf-fr/renault-api/issues/1747), then drop the
 pin once a release carries it.
 
-**Status 2026-09-07 — tested, reported, and a PR is ready but UNPUSHED.**
+**Status 2026-09-07 — tested, reported, branch pushed and safe; no PR opened yet.**
 
 Filed upstream as [hacf-fr/renault-api#2250](https://github.com/hacf-fr/renault-api/issues/2250);
-maintainer `epenet` replied *"Feel free to create a PR"*. A branch is committed locally at
-`<scratch>/renault-api` on `a5e1ae-refresh-location-and-hvac-settings` (`add7a95`, signed,
+maintainer `epenet` replied *"Feel free to create a PR"*. The work is **pushed to the fork** as
+`MatthewHobbs/renault-api` branch `a5e1ae-refresh-location-and-hvac-settings` (`add7a95`, signed,
 authored as matt@matthobbs.net) making exactly two changes to `kamereon/models.py`:
 
 - `"actions/refresh-location": _DEFAULT_ENDPOINTS[...]` — verified working on the car: the
@@ -178,13 +178,29 @@ authored as matt@matthobbs.net) making exactly two changes to `kamereon/models.p
   declares it; the line was missed in the copy.
 - `"hvac-settings": None` — see the persistence evidence below.
 
-Upstream test suite passes (363 passed, 30 skipped, 1 snapshot updated). **The scratch clone is
-temporary — re-fork and re-apply, or push the branch, before it is lost.**
+Upstream test suite passes (363 passed, 30 skipped, 1 snapshot updated).
 
-**Correction owed on #2250:** the issue also claims `hvac-history` and `hvac-sessions` need
-setting to `None`. They were already fixed upstream in 0.5.13 — that finding was made against
-the 0.5.12 installed locally rather than upstream `main`, and is wrong. Correct it in the thread
-when the PR goes up.
+**What remains, verified 2026-09-07:**
+
+- **Split it into two PRs before sending.** `epenet` asked twice, the second time explicitly:
+  *"separate PR for each issue mentionnned above"*. The branch is one commit bundling both
+  changes, so as it stands it is the shape the maintainer asked not to receive.
+- **Rebase first — the branch is one commit behind upstream `main` (`42e92ab`).** That commit
+  touches both files this branch touches, but in the `XHN1ML` (Espace VI) block rather than
+  `A5E1AE`, so the rebase should be clean; regenerate the `.ambr` snapshot afterwards.
+- **`42e92ab` is useful precedent:** it adds `"actions/refresh-location":
+  _DEFAULT_ENDPOINTS[...]` to another model — exactly the change §1 proposes here, made by a
+  maintainer days ago.
+- Do the split/rebase/PR **from a session rooted at a renault-api clone**, not from this repo,
+  and re-clone somewhere permanent — the original working copy was under `/private/tmp`. The
+  branch itself is safe on the fork, so nothing is lost if that copy disappears.
+
+**Correction still owed on #2250 — a wrong claim is standing publicly.** §4 of the issue claims
+`hvac-history` and `hvac-sessions` are absent from the `A5E1AE` entry and need setting to
+`None`. Both were **already `None` upstream** before this branch was cut (confirmed by reading
+`add7a95^:src/renault_api/kamereon/models.py`); the finding was made against the 0.5.12
+installed locally rather than upstream `main`. The commit correctly does not touch them, so only
+the issue text is wrong. §3 was already corrected in the thread on 2026-09-07; §4 was not.
 
 Also seen in the same log, and worth watching rather than fixing here:
 
