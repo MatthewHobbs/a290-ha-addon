@@ -35,9 +35,19 @@ current State of Charge (SoC — how full the battery is, as a %) against the Mi
 ### Last Activity · Location · Presets
 
 - **Last Activity** — timestamps of the last reported updates: `…_hvac_last_activity`,
-  `…_gps_last_activity`, `…_last_updated`. Any lag is down to how often Renault polls the car.
+  `…_gps_last_activity`, `…_last_updated`.
+
+  **These stop moving when the car is parked, and that is normal.** The car commits its data at
+  **power-off** and then sleeps; polling a sleeping car returns the same trip-end values.
+  Measured on a real A290 after a drive ending 12:03 UTC: battery-status 12:03:20, location
+  12:02:41, climate 11:46 — all three still unchanged eight hours later, still parked.
+
+  So **Mileage** and **Location** only move after a completed journey, and battery/range/plug
+  values only refresh while the car is awake (briefly after power-on, and during a charge).
+  Nothing here updates again until the car is driven.
 - **Location** — Home Assistant's built-in `map` card, driven by
-  `device_tracker.alpine_a290_location`. Updates around key-off / next drive.
+  `device_tracker.alpine_a290_location`. Updates when the car is powered off at the end of a
+  journey, and not again until the next one.
 - **Climate presets** (read from My Alpine / the car): Preconditioning Temperature
   (`…_preconditioning_temperature`), Heated Steering Wheel and Driver/Passenger Seats
   (`binary_sensor.alpine_a290_heated_*`).
@@ -69,7 +79,9 @@ with movement/charging — e.g. "Connected" but driven).
 `…_data_stale` and `…_poll_failing` answer two different questions, and the difference matters:
 
 - **Data Stale** — the *car* has not reported for longer than `stale_hours`. The readings on
-  screen are real but old.
+  screen are real but old. **A car parked overnight will show this on, and that is expected** —
+  the car commits data at power-off and then sleeps, so the readings genuinely are older than
+  your threshold. Paired with **Poll Failing** off, it reads as "all working, car simply parked".
 - **Poll Failing** — the *add-on* has not reached Renault for longer than `stale_hours`.
 
 They are independent. A car parked in an underground car park goes Data Stale while polling
