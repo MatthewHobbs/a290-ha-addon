@@ -77,6 +77,63 @@ JS_DISMISS_TOASTS = r"""
 """
 
 # True once a custom card (or an error card) is present in the (pierced) tree.
+# Opt-in capture diagnostics (UI_TESTS_DIAG=1). Writes a JSON sidecar next to each screenshot
+# recording what the DOM actually contained at the moment of capture. Added because the render is
+# not reproducible and every fix attempted so far was a guess: freezing animations and anchoring
+# the seeded clock did not move the 20-of-30 identical figure, and waiting for a "stable" layout
+# made it WORSE by capturing a blank page (a blank page is stable). This measures instead.
+#
+# The specific suspicion it exists to test: JS_RENDERED below returns true as soon as ONE card
+# exists anywhere in the tree, so readiness fires on the FIRST card and everything after it rests
+# on a fixed 1200ms sleep. If card counts vary between runs at capture time, that is the cause,
+# and the fix is a COMPLETENESS condition (a known-good count), not another wait.
+JS_DIAG = r"""
+() => {
+  const tags = {};
+  const walk = (root) => {
+    let nodes; try { nodes = root.querySelectorAll('*'); } catch (e) { return; }
+    for (const el of nodes) {
+      const t = (el.tagName || '').toLowerCase();
+      if (t.indexOf('mushroom') >= 0 || t === 'bubble-card' || t === 'button-card'
+          || t === 'hui-error-card' || t === 'ha-card') tags[t] = (tags[t] || 0) + 1;
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(document);
+  return {
+    cards: Object.values(tags).reduce((a, b) => a + b, 0), byTag: tags,
+    scrollW: document.documentElement.scrollWidth,
+    scrollH: document.documentElement.scrollHeight,
+    imagesPending: Array.from(document.images).filter(i => !i.complete).length,
+    readyState: document.readyState,
+  };
+}
+"""
+
+
+def _card_count(page):
+    """How many cards are currently in the (shadow-pierced) tree. 0 means nothing rendered."""
+    try:
+        return int(page.evaluate(JS_DIAG).get("cards", 0))
+    except Exception:
+        return 0
+
+
+def _write_diag(page, shot_path):
+    """Record the DOM state at capture time, when UI_TESTS_DIAG=1."""
+    if os.environ.get("UI_TESTS_DIAG") != "1":
+        return
+    try:
+        data = page.evaluate(JS_DIAG)
+    except Exception as err:      # never let diagnostics break the gate they are diagnosing
+        data = {"error": f"{type(err).__name__}: {err}"}
+    try:
+        with open(os.path.splitext(shot_path)[0] + ".diag.json", "w") as fh:
+            json.dump(data, fh, sort_keys=True)
+    except OSError:
+        pass
+
+
 JS_RENDERED = r"""
 () => {
   const find = (root) => {
@@ -199,6 +256,7 @@ def run():
                         # Drop HA's startup toasts only AFTER the truncation scan, so removing the
                         # toast node can never perturb the gate's measurement — it only cleans the shot.
                         page.evaluate(JS_DISMISS_TOASTS)
+                        _write_diag(page, shot)
                         page.screenshot(path=shot, full_page=True, animations="disabled")
                         break
                     except Exception as err:
@@ -214,6 +272,7 @@ def run():
                         issues = [{"type": "render-error", "tag": "-", "text": f"{type(err).__name__}: {err}"}]
                         try:
                             page.evaluate(JS_DISMISS_TOASTS)
+                            _write_diag(page, shot)
                             page.screenshot(path=shot, full_page=True, animations="disabled")
                         except Exception:
                             pass
@@ -227,14 +286,34 @@ def run():
                 # viewports, so a real break still surfaces on the ones that scan cleanly.
                 if dash == "alpine-bubble":
                     try:
-                        page.evaluate("() => { location.hash = '#alpine-charging'; }")
-                        try:  # wait for the pop-up's inner cards to paint (Bubble Card lazy-renders)
-                            page.wait_for_selector("text=Charge Target", timeout=8000)
-                        except Exception:
-                            pass
-                        page.wait_for_timeout(800)
+                        # COMPLETENESS, not just settling. The selector timeout below used to be
+                        # swallowed by a bare `except: pass`, after which the capture ran anyway —
+                        # so when the pop-up failed to open, an EMPTY page was written as the
+                        # documentation screenshot. Measured: the same shot captured 24 cards on
+                        # one run and 0 on the next, at identical page dimensions, differing in
+                        # 99.89% of its pixels. A screenshot known to be empty must never be
+                        # written; retry the open, and if it still has not rendered, skip the
+                        # capture and keep the previous good file.
+                        for popup_attempt in range(2):
+                            page.evaluate("() => { location.hash = '#alpine-charging'; }")
+                            try:  # the pop-up's inner cards lazy-render (Bubble Card)
+                                page.wait_for_selector("text=Charge Target", timeout=8000)
+                            except Exception:
+                                pass
+                            page.wait_for_timeout(800)
+                            if _card_count(page) > 0:
+                                break
+                            print(f"    [popup empty {popup_attempt + 1}/2] {dash} @ "
+                                  f"{dev['name']}: pop-up rendered no cards — reopening")
+                            page.evaluate("() => { location.hash = ''; }")
+                            page.wait_for_timeout(400)
+                        else:
+                            print(f"    [popup skipped] {dash} @ {dev['name']}: pop-up never "
+                                  f"rendered; not overwriting the committed screenshot")
+                            raise RuntimeError("smart-charging pop-up rendered no cards")
                         page.evaluate(JS_DISMISS_TOASTS)
                         pshot = os.path.join(args.out, f"{dash}__smart_charging__{slug}.png")
+                        _write_diag(page, pshot)
                         page.screenshot(path=pshot, full_page=True, animations="disabled")
                         issues += _stable_issues(page)
                     except Exception as err:
