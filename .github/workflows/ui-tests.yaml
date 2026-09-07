@@ -9,12 +9,36 @@ on:
     branches: [main]
     paths:
       - 'alpine_a290/dashboards/**'
+      # ...but NOT the prose in there. USER-GUIDE.md / INSTALLATION.md are user documentation;
+      # they cannot change what renders, yet a one-line edit to either used to trigger the full
+      # ten-viewport render AND the screenshot auto-refresh, which commits PNGs to the PR branch
+      # — twice rejecting an in-flight merge on #115 and committing a shot that changed 62% in
+      # size for a markdown-only edit. Everything else under dashboards/ (the .txt card configs,
+      # CSS, Fonts, Images, Packages, Templates) genuinely affects the render and still triggers.
+      # Both patterns deliberately: the two .md files sit directly in dashboards/, and whether
+      # `**/` matches zero directories is exactly the kind of assumption that ships a filter
+      # which silently changes nothing. The first line is the one that does the work today; the
+      # second covers any doc added in a subdirectory later.
+      - '!alpine_a290/dashboards/*.md'
+      - '!alpine_a290/dashboards/**/*.md'
       - 'alpine_a290/app/deploy.py'
       - 'ui-tests/**'
       - '.github/workflows/ui-tests.yaml'
   pull_request:
     paths:
       - 'alpine_a290/dashboards/**'
+      # ...but NOT the prose in there. USER-GUIDE.md / INSTALLATION.md are user documentation;
+      # they cannot change what renders, yet a one-line edit to either used to trigger the full
+      # ten-viewport render AND the screenshot auto-refresh, which commits PNGs to the PR branch
+      # — twice rejecting an in-flight merge on #115 and committing a shot that changed 62% in
+      # size for a markdown-only edit. Everything else under dashboards/ (the .txt card configs,
+      # CSS, Fonts, Images, Packages, Templates) genuinely affects the render and still triggers.
+      # Both patterns deliberately: the two .md files sit directly in dashboards/, and whether
+      # `**/` matches zero directories is exactly the kind of assumption that ships a filter
+      # which silently changes nothing. The first line is the one that does the work today; the
+      # second covers any doc added in a subdirectory later.
+      - '!alpine_a290/dashboards/*.md'
+      - '!alpine_a290/dashboards/**/*.md'
       - 'alpine_a290/app/deploy.py'
       - 'ui-tests/**'
       - '.github/workflows/ui-tests.yaml'
