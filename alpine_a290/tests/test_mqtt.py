@@ -248,3 +248,32 @@ def test_runtime_never_writes_the_tracker_state_topic():
         if "TRACKER_STATE_TOPIC" in line and "publish" in line
     ]
     assert not offenders, "runtime must not publish to the tracker state topic:\n" + "\n".join(offenders)
+
+
+def test_climate_sensors_are_availability_gated_when_the_endpoint_is_supported():
+    """The two hvac-settings sensors must go UNAVAILABLE, not blank, when the breaker trips.
+
+    A5E1AE advertises hvac-settings as supported and the server then answers 502000 to every
+    call, so v1.23.1's breaker stops writing the two keys. They rendered as empty strings —
+    indistinguishable from "the car reported nothing" — which is what the backlog asked to fix on
+    2026-09-05 and what three releases of breaker work left behind.
+
+    Not observable in the container-boot harness: with the Renault hosts blackholed, endpoint
+    detection fails and hvac-settings is PESSIMISTIC, so these two are withheld from discovery
+    entirely. The gating only applies on a car where detection succeeded, hence this test.
+    """
+    c = StubClient()
+    mqtt.publish_discovery(c, {"hvac-settings", "soc-levels"}, "km")
+    conf = json.loads(c.pub["homeassistant/sensor/alpine_a290/a290_climate_schedule_mode/config"])
+
+    # HA forbids mixing availability_topic with an availability list; the list must replace it.
+    assert "availability_topic" not in conf
+    assert conf["availability_mode"] == "all"
+    topics = [a["topic"] for a in conf["availability"]]
+    assert mqtt.AVAIL_TOPIC in topics and mqtt.STATE_TOPIC in topics
+    tmpl = next(a["value_template"] for a in conf["availability"] if a["topic"] == mqtt.STATE_TOPIC)
+    assert "value_json.climate_schedule_mode is defined" in tmpl
+
+    # An ordinary sensor keeps the plain form — this must not change every entity's availability.
+    plain = json.loads(c.pub["homeassistant/sensor/alpine_a290/a290_battery_level/config"])
+    assert plain["availability_topic"] == mqtt.AVAIL_TOPIC and "availability" not in plain

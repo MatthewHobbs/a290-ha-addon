@@ -156,3 +156,12 @@ RETIRED_SENSORS = ["a290_cabin_temperature", "a290_soc_target", "a290_soc_min"]
 # user-meaningful state. drive_side is just RHD/LHD derived from locale (used internally for
 # heated-seat mapping); it adds noise to the entity list. Users who want it can re-enable it.
 DEFAULT_DISABLED_SENSORS = {"a290_drive_side"}
+
+# Sensors whose endpoint can keep failing while the car still advertises it. A5E1AE
+# advertises hvac-settings as supported and the server answers errorCode 502000 to every
+# call, so the v1.23.1 breaker trips and stops writing these two keys. Without this they
+# render as EMPTY STRINGS - indistinguishable from 'the car reported nothing', which is
+# what the backlog asked to fix on 2026-09-05 and what three releases of breaker work left
+# behind. Declaring them here makes their MQTT availability follow whether the key was
+# actually published (renault-mqtt >= 0.16.0).
+DATA_GATED_SENSORS = {"a290_climate_schedule_mode", "a290_climate_ready_time"}
