@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.24.0
+
+- **Fixed: a car that stops reporting no longer reads as healthy.** `Data Stale` was wired to
+  whether the *poll* succeeded, and was forced off on every successful poll — so it answered
+  "can we reach Renault?" and never "is this reading current?". On the vehicle that prompted
+  this, the car last reported on 4 September; the add-on polled successfully every five minutes
+  for the next 68 hours, received the same three-day-old payload each time, and published it as
+  fresh. The dashboard showed 55% battery while the car was actually at 83%. `Data Stale` now
+  measures the age of the timestamp *inside* the car's own reading, which is the thing
+  `stale_hours` was always meant to bound.
+- **New: `binary_sensor.alpine_a290_poll_failing`** takes over the old meaning — the add-on
+  cannot reach Renault — using exactly the rule `Data Stale` used to apply, so no alerting is
+  lost. **If you have an automation on `Data Stale` that you built to catch connectivity
+  problems, point it at `Poll Failing`.** The two conditions are genuinely different: a car
+  parked underground goes stale while polling stays perfectly healthy.
+- **New: `sensor.alpine_a290_last_successful_poll`** — when the add-on last got through, next to
+  the existing `Last Updated`, which is when the *car* last reported.
+- **Fixed: `Last Updated` no longer invents a timestamp.** A payload that carried no timestamp
+  was stamped with the current time, which made staleness permanently unfireable — the same
+  failure as the GPS sentinel fixed in 1.23.0, where a fabricated-fresh timestamp silenced the
+  very guard meant to catch it. It now reads `unknown` when the car did not say.
+- `Data Stale` reads `unknown`, rather than a confident "off", until the car has reported at
+  least once.
+
 ## 1.23.1
 
 - **Actually stops the five-minutely HVAC warning.** 1.23.0 gated the call on whether the car
