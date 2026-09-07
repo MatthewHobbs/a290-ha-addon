@@ -166,6 +166,26 @@ Contribute the A5E1AE endpoint mapping to
 [hacf-fr/renault-api#1747](https://github.com/hacf-fr/renault-api/issues/1747), then drop the
 pin once a release carries it.
 
+**Status 2026-09-07 — tested, reported, and a PR is ready but UNPUSHED.**
+
+Filed upstream as [hacf-fr/renault-api#2250](https://github.com/hacf-fr/renault-api/issues/2250);
+maintainer `epenet` replied *"Feel free to create a PR"*. A branch is committed locally at
+`<scratch>/renault-api` on `a5e1ae-refresh-location-and-hvac-settings` (`add7a95`, signed,
+authored as matt@matthobbs.net) making exactly two changes to `kamereon/models.py`:
+
+- `"actions/refresh-location": _DEFAULT_ENDPOINTS[...]` — verified working on the car: the
+  vehicle answered 12s after invocation. `R5E1VE`, from which this entry was derived, already
+  declares it; the line was missed in the copy.
+- `"hvac-settings": None` — see the persistence evidence below.
+
+Upstream test suite passes (363 passed, 30 skipped, 1 snapshot updated). **The scratch clone is
+temporary — re-fork and re-apply, or push the branch, before it is lost.**
+
+**Correction owed on #2250:** the issue also claims `hvac-history` and `hvac-sessions` need
+setting to `None`. They were already fixed upstream in 0.5.13 — that finding was made against
+the 0.5.12 installed locally rather than upstream `main`, and is wrong. Correct it in the thread
+when the PR goes up.
+
 Also seen in the same log, and worth watching rather than fixing here:
 
 ```
@@ -176,6 +196,77 @@ WARNING hvac-settings unavailable: err.tech.vcps.ev.hvac-settings.error
 That is a Renault-side 502 on the HVAC settings endpoint, not an add-on fault. If it proves
 persistent rather than transient, degrade the affected entities to `unavailable` instead of
 logging a warning each cycle.
+
+**Persistence established 2026-09-07: it is not transient.** ~94 consecutive failures over
+7h35m at a 5-minute interval, zero successes, across four distinct `error_reference` prefixes —
+so not one unhealthy backend node.
+
+**Partially actioned, and not the way this entry prescribed.** v1.23.1 ships a circuit breaker:
+three consecutive failures pause the call for the session, it retries every 12 polls (~hourly)
+and re-enables itself on recovery. That stops the log spam but **does not** degrade the
+entities — `sensor.*_climate_schedule_mode` and `*_climate_ready_time` currently publish as
+empty strings rather than `unavailable`, which is what this entry actually asked for. Finish
+that: withhold or mark unavailable the two entities the endpoint feeds.
+
+Note also that gating on advertised support does not work here — `supports_endpoint()` reads a
+static per-model table which returns True for this endpoint, so v1.23.0 shipped a gate that
+changed nothing. Only the call's behaviour is a usable signal.
+
+---
+
+## P1 — `data_stale` measures the poll, not the car, so three days of silence read as healthy
+
+**Component:** `alpine_a290` (`main.py`)
+**Logged:** 2026-09-07
+
+`binary_sensor.alpine_a290_data_stale` is derived from `state["last_success"]`, which records
+when the **poll** last succeeded — not when the **car** last reported. `main.py:624` sets it
+`"off"` unconditionally on every successful poll.
+
+Observed on this installation: the vehicle last reported at **2026-09-04T15:50Z**; ~68 hours
+later, with `stale_hours` at 6:
+
+| Entity | Value |
+|---|---|
+| `sensor.alpine_a290_last_updated` | `2026-09-04T15:50:04Z` — correct |
+| `binary_sensor.alpine_a290_data_stale` | **`off`** — "healthy" |
+
+The add-on polled Renault successfully every five minutes throughout, received the same
+three-day-old payload each time, and reported it as fresh. Battery showed 55% while the car was
+actually at 83% — a 28-point error presented as current.
+
+This is the same defect as the `gps_last_activity` entry below, inverted: that one measures the
+car where it should measure the feed; this one measures the feed where it should measure the
+car. Both should key off the timestamp **inside the payload**.
+
+Fix: compare the payload timestamp (`cockpit`/`battery-status` `timestamp`) against
+`stale_hours`, and keep the poll-success signal as a separate concern — a failed poll and stale
+data are different conditions and deserve different entities.
+
+---
+
+## P2 — `actions/refresh-location` is destructive on a parked vehicle
+
+**Component:** `alpine_a290` (Refresh Location button) + upstream docs
+**Logged:** 2026-09-07
+
+Invoking it on a car that cannot obtain a fix **replaces the last valid cached position** with
+`gpsLatitude 91` / `gpsLongitude 181` and a *current* timestamp. There is no call that restores
+it; only completing a journey does. Observed here: the marker persisted **18 hours** until the
+next drive, during which the vehicle reported `not_home` while parked on the drive, and Renault's
+own app showed "We are unable to geolocate your vehicle."
+
+The fresh timestamp is what makes it dangerous — a staleness check passes while the coordinates
+are unusable, so the bad data looks *more* current than the good fix it replaced.
+
+Established by testing on 2026-09-07: `location` and `cockpit` commit together at **ignition-off**
+with an identical timestamp; they are trip-end events, not continuous telemetry. `battery-status`
+and `hvac-status` refresh independently while parked. So `91/181` means "no fix available right
+now", **not** a fault — a parked car simply keeps serving its last committed fix.
+
+v1.23.1 already rejects `91/181` rather than publishing it, which is the important half. What
+remains is user-facing: the button is presented as harmless and is not. Either warn in `DOCS.md`,
+or consider withholding it when the car is known to be asleep.
 
 ---
 
