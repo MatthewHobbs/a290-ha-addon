@@ -202,6 +202,51 @@ your broker is shared with other apps or devices, restrict who can publish to
 
 - The **Mosquitto broker** app (the MQTT connection is auto-discovered).
 
+## When the values actually update
+
+**Most of what this app shows is only refreshed when the car finishes a journey.** The add-on
+polls Renault every `poll_interval` seconds, but the *car* does not report continuously — it
+commits a batch of data when it is **powered off** and then goes to sleep. Polling a sleeping car
+returns the same trip-end values indefinitely.
+
+Measured on a real A290, parked after a drive that ended at 12:03 UTC — three separate endpoints
+all frozen within seconds of each other:
+
+| Reading | Last reported by the car |
+| --- | --- |
+| Battery, range, plug/charging state (`battery-status`) | 12:03:20 |
+| Location / GPS (`location`) | 12:02:41 |
+| Climate (`hvac-status`) | 11:46:00 |
+
+Eight hours later, still parked, every one of those was unchanged.
+
+**So a value that looks "stuck" on a parked car is almost always correct and simply
+trip-end-old.** It will not move until the car is driven again. Specifically:
+
+- **Mileage** and **Location** commit together when the car is powered off. They are trip-end events, not
+  live telemetry — a parked car keeps serving its last committed position, which is why the map
+  pin does not follow anything while the car sits.
+- **Battery, range, plug and charging status** refresh while the car is *awake* — for a couple of
+  minutes after it is powered on, and during a charge session — then freeze with everything else once it
+  sleeps.
+- **Climate** (`hvac_last_activity`) updates when the climate system runs, including a remote
+  preconditioning start.
+
+`sensor.alpine_a290_last_updated` always tells you when the **car** last reported, as distinct
+from `…_last_successful_poll`, which tells you when the **add-on** last reached Renault. If the
+first is old and the second is recent, everything is working and the car is simply parked.
+
+**`binary_sensor.alpine_a290_data_stale` measures the car, not the connection.** It turns on
+after `stale_hours` without the car reporting — so a car parked overnight will show it on, and
+**that is expected, not a fault**: the readings really are older than the threshold you set. It
+is answering "how old is this data", which is the honest answer for a sleeping car.
+
+If what you want instead is "can the add-on reach Renault", that is a separate entity:
+`binary_sensor.alpine_a290_poll_failing`. The two are deliberately distinct — a parked car is
+`data_stale: on` and `poll_failing: off`, which together read as "everything is working, the car
+simply has not reported since its last journey". Raise `stale_hours` if you would rather it
+tolerated your normal parking gap.
+
 ## Entities
 
 Published via MQTT discovery under the **Alpine A290** device, e.g.

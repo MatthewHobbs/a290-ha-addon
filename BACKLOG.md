@@ -346,7 +346,7 @@ own app showed "We are unable to geolocate your vehicle."
 The fresh timestamp is what makes it dangerous — a staleness check passes while the coordinates
 are unusable, so the bad data looks *more* current than the good fix it replaced.
 
-Established by testing on 2026-09-07: `location` and `cockpit` commit together at **ignition-off**
+Established by testing on 2026-09-07: `location` and `cockpit` commit together at **power-off**
 with an identical timestamp; they are trip-end events, not continuous telemetry. `battery-status`
 and `hvac-status` refresh independently while parked. So `91/181` means "no fix available right
 now", **not** a fault — a parked car simply keeps serving its last committed fix.

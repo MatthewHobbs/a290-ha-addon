@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.24.1
+
+- **Documents when the values actually update — and why a parked car looks "stuck".** The car
+  does not report continuously: it commits a batch of data when it is **powered off** and then sleeps,
+  so polling a sleeping car returns the same trip-end values indefinitely. Measured on a real
+  A290 parked after a drive ending 12:03 UTC — battery-status 12:03:20, location 12:02:41,
+  climate 11:46 — all three still unchanged eight hours later. **Mileage** and **Location** only
+  move after a completed journey; battery, range and plug values refresh only while the car is
+  awake (briefly after power-on, and during a charge).
+- **Clarifies that `Data Stale` on a parked car is expected, not a fault.** It measures how old
+  the *car's* reading is, so an overnight park will turn it on — the readings really are older
+  than `stale_hours`. `Poll Failing` is the separate signal for "the add-on cannot reach
+  Renault". A parked car reads `Data Stale: on` + `Poll Failing: off`, which together mean
+  "everything is working, the car simply has not reported since its last journey".
+
+Documentation only — no behaviour change.
+
 ## 1.24.0
 
 - **Fixed: a car that stops reporting no longer reads as healthy.** `Data Stale` was wired to
