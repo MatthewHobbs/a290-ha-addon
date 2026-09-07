@@ -77,6 +77,29 @@ jobs:
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: python3 scripts/docs_sync_check.py "$BASE_SHA"
 
+  docs-cite-check:
+    name: Docs cite-check
+    runs-on: ubuntu-latest
+    needs: [lint]
+    if: github.event_name == 'pull_request'
+    # ADVISORY, not required, and it exits 0 even with findings. The filters that exclude a
+    # user's own charger entities, the optional test package and wildcard forms in prose are a
+    # judgement call, and a judgement call should not block a merge until it has earned trust.
+    # Promotion path: add --strict here, then add "Docs cite-check" to the required contexts.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Documented entity ids must exist
+        run: |
+          out="$(python3 scripts/docs_cite_check.py)"
+          echo "$out"
+          {
+            echo "### Docs cite-check"
+            echo
+            echo '```'
+            echo "$out"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
   test:
     name: Tests
     runs-on: ubuntu-latest

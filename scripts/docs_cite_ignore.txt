@@ -1,0 +1,5 @@
+# Entities the docs legitimately name that this add-on does not publish over MQTT.
+# Keep this SHORT and justified — every line here is a check you have switched off.
+
+# Template sensor shipped in dashboards/Templates/, installed by the user, not by the add-on.
+alpine_pretty_location
