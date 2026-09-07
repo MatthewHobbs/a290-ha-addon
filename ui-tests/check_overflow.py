@@ -162,7 +162,15 @@ def run():
                 viewport={"width": dev["width"], "height": dev["height"]},
                 device_scale_factor=dev.get("deviceScaleFactor", 2),
                 is_mobile=dev.get("isMobile", True), has_touch=dev.get("hasTouch", True),
-                color_scheme=colour_scheme, user_agent=ua)
+                color_scheme=colour_scheme, user_agent=ua,
+                # The dashboards run FIVE infinite CSS animations (pulse, spin, flap-wiggle,
+                # flip180, socFillToTarget). A page that never stops moving cannot be captured
+                # reproducibly, and no amount of settling time fixes it — every shot samples a
+                # different frame. That, not runner timing, is why the committed screenshots
+                # oscillated between two byte sizes all day (143783 <-> 143801). reduced_motion
+                # asks the page not to start them; screenshot(animations="disabled") below is the
+                # belt-and-braces that freezes anything that ignores the preference.
+                reduced_motion="reduce")
             ctx.add_init_script(init)
             page = ctx.new_page()
             for dash in args.dashboards:
@@ -191,7 +199,7 @@ def run():
                         # Drop HA's startup toasts only AFTER the truncation scan, so removing the
                         # toast node can never perturb the gate's measurement — it only cleans the shot.
                         page.evaluate(JS_DISMISS_TOASTS)
-                        page.screenshot(path=shot, full_page=True)
+                        page.screenshot(path=shot, full_page=True, animations="disabled")
                         break
                     except Exception as err:
                         # A render error here is transient (auto-open context teardown / font-wait
@@ -206,7 +214,7 @@ def run():
                         issues = [{"type": "render-error", "tag": "-", "text": f"{type(err).__name__}: {err}"}]
                         try:
                             page.evaluate(JS_DISMISS_TOASTS)
-                            page.screenshot(path=shot, full_page=True)
+                            page.screenshot(path=shot, full_page=True, animations="disabled")
                         except Exception:
                             pass
                 # The Smart Charging pop-up ("tab") capture is best-effort and ISOLATED from the
@@ -227,7 +235,7 @@ def run():
                         page.wait_for_timeout(800)
                         page.evaluate(JS_DISMISS_TOASTS)
                         pshot = os.path.join(args.out, f"{dash}__smart_charging__{slug}.png")
-                        page.screenshot(path=pshot, full_page=True)
+                        page.screenshot(path=pshot, full_page=True, animations="disabled")
                         issues += _stable_issues(page)
                     except Exception as err:
                         print(f"    pop-up capture skipped ({type(err).__name__}) — not failing the gate")
