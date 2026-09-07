@@ -107,3 +107,51 @@ def test_hvac_settings_model_contract():
     out = main._hvac_schedule_fields(settings)
     assert out["climate_schedule_mode"] == "Scheduled"
     assert out["climate_ready_time"] == "Mon 07:30, Fri 08:15"   # only the activated schedule
+
+
+def test_soc_levels_model_contract():
+    """The charge-limit chain, end to end: API field -> data key -> published entity_id.
+
+    This is the one endpoint the contract test did NOT cover, and the gap showed. DOCS.md
+    documented `number.alpine_a290_soc_min_target` / `_soc_max_target` — the R5's ids, mirrored
+    across without porting. The add-on publishes neither, so anyone automating from the docs
+    targeted entities that do not exist.
+
+    The payload below is the REAL captured response from renault-api's own fixture
+    (`tests/fixtures/kamereon/vehicle_kcm_data/ev-soc-levels.json`), not an invention, loaded
+    through the library's own schema. `soc-levels` is declared for A5E1AE in the library's
+    `_VEHICLE_ENDPOINTS`, so this endpoint genuinely exists for this model.
+    """
+    import re
+
+    import catalog
+    import main
+
+    soc = schemas.KamereonVehicleBatterySocDataSchema.load(
+        {"lastEnergyUpdateTimestamp": "2025-04-18T06:51:09Z", "socMin": 20, "socTarget": 80})
+    # 1. The field names the poller reads off the library model.
+    assert soc.socMin == 20
+    assert soc.socTarget == 80
+
+    # 2. The data keys the poller writes must equal object_id minus the catalog's prefix, or the
+    #    MQTT value_template resolves to nothing and the slider renders unavailable.
+    keys = {o[len(catalog.OBJ_PREFIX):] for o in catalog.NUMBERS}
+    assert keys == {"soc_min", "soc_target"}, keys
+
+    # 3. And the entity_ids those NAMES produce are the ones the docs must cite. HA ignores the
+    #    discovery object_id and derives slug(device name + friendly name) — the whole reason the
+    #    wrong ids went unnoticed.
+    def slug(text):
+        return re.sub(r"_+", "_", re.sub(r"[^a-z0-9]+", "_", text.lower())).strip("_")
+
+    device = catalog.DEVICE["name"]
+    ids = {slug(f"{device} {meta[0]}") for meta in catalog.NUMBERS.values()}
+    assert ids == {"alpine_a290_minimum_soc", "alpine_a290_charge_target_soc"}, ids
+
+    # 4. The real captured values must sit inside the ranges the sliders advertise, or a genuine
+    #    car state would be unsettable through the control the add-on ships.
+    ranges = {o[len(catalog.OBJ_PREFIX):]: (m[2], m[3]) for o, m in catalog.NUMBERS.items()}
+    assert ranges["soc_min"][0] <= soc.socMin <= ranges["soc_min"][1]
+    assert ranges["soc_target"][0] <= soc.socTarget <= ranges["soc_target"][1]
+
+    assert main.SOC_ENDPOINT == "soc-levels"
