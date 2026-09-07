@@ -193,9 +193,21 @@ exactly this for the tracker, so the pattern is established.
 
 ---
 
-## P1 — Climate schedule sensors publish empty strings, not `unavailable`
+## ~~P1 — Climate schedule sensors publish empty strings, not `unavailable`~~ — DONE
 
-**Component:** `alpine_a290` (`main.py`) · **Logged:** 2026-09-05 · **still open**
+**Component:** `alpine_a290` · **Logged:** 2026-09-05 · **Fixed:** 2026-09-07 (a290 #126, v1.26.0;
+r5 #82, v1.6.0; core renault-mqtt #26, v0.16.0)
+
+> **Resolved**, and the fix was not where three attempts looked for it. It needed **no poller
+> change at all**: the breaker already omits the keys, so declaring the two sensors in
+> `DATA_GATED_SENSORS` gives them a compound MQTT availability (the add-on's own online/offline
+> topic AND a key-presence test on the state topic, `availability_mode: all`) and the template
+> resolves to `offline` on its own. Everyone reached for the poller; the answer was in discovery.
+>
+> Not verifiable by container boot on the a290: with the Renault hosts blackholed, detection
+> fails and `hvac-settings` is PESSIMISTIC, so the two sensors are withheld from discovery
+> entirely and the gating is unreachable. Verified at the discovery layer instead, and the
+> identical core path was container-verified live on r5 where they are always published.
 
 `sensor.alpine_a290_climate_schedule_mode` and `…_climate_ready_time` are fed by `hvac-settings`,
 which returns `502000` on every call for this model. When the v1.23.1 circuit breaker trips, the
@@ -328,9 +340,15 @@ changed nothing. Only the call's behaviour is a usable signal.
 
 ---
 
-## P1 — r5 has the `data_stale` defect a290 fixed in v1.24.0
+## ~~P1 — r5 has the `data_stale` defect a290 fixed in v1.24.0~~ — DONE
 
-**Component:** `renault_5` (`main.py`) · **Logged:** 2026-09-07 · **not started**
+**Component:** `renault_5` · **Logged:** 2026-09-07 · **Fixed:** 2026-09-07 (r5 #82, v1.6.0)
+
+> **Resolved.** `freshness_fields()` ported, `r5_poll_failing` + `r5_last_successful_poll` added,
+> the `or iso(now_ts())` fabrication on `battery_last_activity` removed, and `stale_hours`
+> defaulted to 36. Entity names stayed r5's own for forked-view compatibility. Container-verified:
+> 41 sensors / 8 binary_sensors (was 40/7), and the retained state document omits `data_stale`
+> when no car timestamp has been seen rather than asserting a confident "off".
 
 `renault_5/app/main.py` still sets `data["data_stale"] = "off"` unconditionally on every
 successful poll, so an R5 that stops reporting reads as healthy indefinitely — the identical
