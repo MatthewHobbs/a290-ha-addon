@@ -96,6 +96,11 @@ KNOWN = {
     # reads the same under either rule and leaves ~12 minutes of slack before any boundary.
     "sensor.alpine_a290_last_charge_start": (_ago(hours=14, minutes=12), {"device_class": "timestamp"}),
     "sensor.alpine_a290_last_charge_end": (_ago(hours=13, minutes=12), {"device_class": "timestamp"}),
+    # Seeded ON so the render gate exercises the "Car Parked" tile — which is the state a
+    # normally-parked car sits in, and the branch carrying the longer text. poll_failing off
+    # alongside it is the pairing that means "working fine, car simply parked".
+    "binary_sensor.alpine_a290_data_stale": ("on", {"device_class": "problem"}),
+    "binary_sensor.alpine_a290_poll_failing": ("off", {"device_class": "problem"}),
     "sensor.alpine_a290_last_updated": (_ago(hours=3, minutes=12), {"device_class": "timestamp"}),
     "sensor.alpine_a290_hvac_last_activity": (_ago(hours=5, minutes=12), {"device_class": "timestamp"}),
     "sensor.alpine_a290_gps_last_activity": (_ago(hours=4, minutes=12), {"device_class": "timestamp"}),
