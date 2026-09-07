@@ -905,11 +905,12 @@
         columns: 2
         square: false
         cards:
-        - type: custom:mushroom-entity-card
+        - type: custom:mushroom-template-card
           entity: sensor.alpine_a290_last_updated
-          icon: mdi:information-variant
-          name: Last Updated
-          secondary_info: state
+          primary: "{% if is_state('binary_sensor.alpine_a290_data_stale','on') %}Car Parked{% else %}Last Updated{% endif %}"
+          secondary: "{% set t = states('sensor.alpine_a290_last_updated') | as_datetime %}{% if t %}{{ relative_time(t) }} ago{% else %}unknown{% endif %}"
+          icon: "{% if is_state('binary_sensor.alpine_a290_data_stale','on') %}mdi:car-parking-lights{% else %}mdi:car-connected{% endif %}"
+          icon_color: "{% if is_state('binary_sensor.alpine_a290_data_stale','on') %}blue-grey{% else %}green{% endif %}"
           tap_action:
             action: call-service
             service: browser_mod.popup
@@ -920,13 +921,15 @@
                 cards:
                 - type: markdown
                   content: |-
-                    **Last Updated**
+                    **When the car last reported**
 
-                    The Alpine A290 add-on polls the Renault/Kamereon API automatically on its configured interval (Settings → Add-ons → Alpine A290 → Configuration → `poll_interval`).
+                    The time above is when the **car** last sent data — not when the add-on last polled. The two are different, and the difference is normal.
 
-                    The timestamp above is the last successful poll. There is nothing to refresh by hand — data updates in the background.
+                    The car commits a batch of data when it is **powered off** and then sleeps. It does not report again until it is driven. So a parked car shows a time that stops moving, and the tile reads **Car Parked**. That is expected — the readings are real, just from the end of the last journey.
 
-                    To poll more or less often, change `poll_interval` and restart the add-on.
+                    Mileage and Location only update after a completed journey. Battery, range and plug status refresh while the car is awake (briefly after power-on, and during a charge).
+
+                    There is nothing to refresh by hand. If you want to know whether the add-on itself is working, look at **Last Successful Poll** — if that is recent while this one is old, everything is fine and the car is simply parked.
                 - type: custom:mushroom-entity-card
                   entity: sensor.alpine_a290_last_updated
                   icon: mdi:refresh
@@ -1065,19 +1068,19 @@
                   .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_api_auth_failure') =='on' %}color:red;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.4;animation:none{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
           - type: conditional
             conditions:
-            - entity: binary_sensor.alpine_a290_data_stale
+            - entity: binary_sensor.alpine_a290_poll_failing
               state: 'on'
             card:
               type: custom:mushroom-entity-card
-              entity: binary_sensor.alpine_a290_data_stale
-              name: Stale Data
-              icon: mdi:database-alert
+              entity: binary_sensor.alpine_a290_poll_failing
+              name: Not Polling
+              icon: mdi:cloud-alert
               secondary_info: state
               tap_action:
                 action: call-service
                 service: browser_mod.popup
                 data:
-                  title: Data Stale
+                  title: Not Polling
                   content:
                     type: vertical-stack
                     cards:
@@ -1085,15 +1088,14 @@
                       content: |-
                         **What happened?**
 
-                        The Alpine A290 sensors have not refreshed within the expected time window (the `stale_hours` threshold, 6 hours by default).
+                        The add-on has not reached the Renault/Kamereon API for longer than the `stale_hours` threshold (36 hours by default).
 
-                        **What this means**
-
-                        Values may still be shown, but they may be old (stale). It will typically recover after the next successful poll.
+                        **This is not the same as a parked car.** A car that has not reported simply shows **Car Parked** with the time of its last update — that is normal. This card only appears when the *add-on* cannot get through at all.
 
                         **What to do?**
 
                         - Check the **Alpine A290 add-on** log (Settings → Add-ons → Alpine A290 → Log).
+                        - Check for an **API Auth Failure** card — expired or changed My Alpine credentials are the usual cause.
                         - Restart the add-on to trigger an immediate poll.
               hold_action:
                 action: none
@@ -1103,7 +1105,7 @@
                 style:
                   mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
                   mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
-                  .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_data_stale') =='on' %}color:red;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.4;animation:none{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+                  .: ha-state-icon{ {% if states('binary_sensor.alpine_a290_poll_failing') =='on' %}color:red;animation:pulse 1s linear infinite;{% else %}color:grey;opacity:0.4;animation:none{% endif %}}ha-card{background:none !important;box-shadow:none !important;border:none !important;}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
     background:
       opacity: 100
       alignment: center
