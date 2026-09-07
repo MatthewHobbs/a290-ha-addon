@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+    # labeled/unlabeled so adding (or removing) the docs-sync-ok waiver re-runs the gate —
+    # otherwise a red required check stays red until an unrelated push.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
 
 permissions:
@@ -53,6 +56,26 @@ jobs:
           sudo apt-get install -y -qq apparmor
           apparmor_parser -Q -K alpine_a290/apparmor.txt
           echo "apparmor.txt compiled OK"
+
+  docs-sync:
+    name: Docs sync
+    runs-on: ubuntu-latest
+    # After lint, deliberately. There is no point telling someone which doc they owe while the
+    # code does not even lint — the lint failure is the one to fix first, and a second red check
+    # underneath it is noise. `needs` also means a lint failure skips this rather than queueing
+    # a runner for a verdict nobody will read.
+    needs: [lint]
+    # PR-only: the check diffs base...HEAD, and a push to main has no pull_request payload.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0   # diffs base...HEAD and reads the base tree
+      - name: Documentation must track options, entities and version
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: python3 scripts/docs_sync_check.py "$BASE_SHA"
 
   test:
     name: Tests
