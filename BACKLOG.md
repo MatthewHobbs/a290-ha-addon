@@ -137,6 +137,19 @@ watching that timestamp rather than entity metadata. **Still open: the producer-
 Nothing yet publishes `offline` to `AVAIL_TOPIC` after N failed cycles, so a wedged loop is
 visible only to something actively watching the heartbeat, not to HA's own availability.
 
+**`expire_after` is the other half of this, merged in from its own entry (logged 2026-09-05).**
+Nothing currently bounds the age of a published value, so a value from a wedged producer renders
+exactly like a fresh one. Setting `expire_after` on the tracker and the volatile state entities
+makes them go `unavailable` on their own, without depending on the add-on being well enough to
+notice.
+
+Worth being precise about why it belongs here rather than as a separate concern: `expire_after`
+counts **message arrival**, not value change, and the poller republishes the whole state document
+every cycle whether or not anything changed. So it cannot fire for a car that is merely parked —
+it fires only when publishing actually stops, which is exactly the wedged-producer case above. An
+earlier reading of it as "bounds data age" was wrong; `data_stale` does that, and has done it
+from the car's own timestamp since v1.24.0.
+
 **Fix (original wording, heartbeat half now done):** publish a monotonic heartbeat or
 `last_publish` timestamp on each successful poll,
 so a consumer can distinguish "nothing changed" from "nothing published". A producer-side
@@ -145,19 +158,7 @@ stall visible the same way a crash is.
 
 ---
 
-## P2 — No `expire_after` on location and state entities
-
-**Component:** `renault-mqtt`
-**Logged:** 2026-09-05
-
-Nothing bounds the age of a published value. A fix from days ago renders identically to a
-fresh one. Setting `expire_after` on the tracker and the volatile state entities makes them
-go `unavailable` on their own once stale, which degrades honestly instead of lying
-confidently, and does not depend on the add-on being well enough to notice.
-
----
-
-## P2 — Retained discovery from removed builds creates permanent ghost entities
+## P3 — Retained discovery: document the manual clear (the routine already exists)
 
 **Component:** `renault-mqtt` (documentation + cleanup routine)
 **Logged:** 2026-09-05
@@ -186,10 +187,14 @@ A `state_topic` declared on a GPS tracker — the identical anti-pattern to P1 a
 this add-on inherited from the hand-built setup it replaced. Worth fixing in both places, and
 worth remembering that the pattern propagates by copying.
 
-**Fix:** document the clear procedure (publish a zero-length retained payload to the
-discovery topic), and consider shipping a cleanup routine that clears discovery topics for
-object-ids the running catalog no longer declares — the existing opt-out branch already does
-exactly this for the tracker, so the pattern is established.
+**The cleanup routine this entry proposed already exists** — checked 2026-09-07.
+`renault_mqtt/mqtt.py:135-136` publishes a zero-length retained payload for every retired and
+every unsupported sensor on **each** discovery publish, so an object-id the running catalog no
+longer declares is cleared automatically. That is why this drops from P2 to P3.
+
+**What is actually left:** documenting the *manual* clear for an entity that predates the
+catalog's knowledge of it (publish a zero-length retained payload to its discovery topic), since
+the automatic sweep only covers ids the catalog still lists.
 
 ---
 
@@ -435,7 +440,7 @@ or consider withholding it when the car is known to be asleep.
 
 ---
 
-## P2 — `gps_last_activity` measures the car, not the feed, so staleness fires on a parked car
+## ~~P2 — `gps_last_activity` measures the car, not the feed~~ — ADD-ON SIDE DONE
 
 **Component:** `alpine_a290` (and any consumer of `binary_sensor.a290_gps_stale`)
 **Logged:** 2026-09-05
@@ -459,7 +464,17 @@ timestamps.
 `Home` before `stale`, so a car at home never shows a staleness warning. The underlying
 sensor is still wrong for any parked-away-from-home case.
 
-**Fix:** derive staleness from **when the add-on last successfully fetched**, not from when
+> **The add-on half is complete (v1.24.0, #115).** This entry asked for a
+> `last_successful_poll` timestamp published on every completed cycle, keyed off instead of the
+> car's own activity — that is exactly `sensor.alpine_a290_last_successful_poll`, which now
+> exists alongside `binary_sensor.*_poll_failing`.
+>
+> What remains is **not in this repo.** `binary_sensor.a290_gps_stale` is not published by the
+> add-on at all — it appears only in a code comment and a test here. It is a user-side template
+> sensor, so re-pointing it at `last_successful_poll` is a Home Assistant config change, not an
+> add-on change. Kept only as a note to whoever owns that template.
+
+**Original fix (now shipped):** derive staleness from **when the add-on last successfully fetched**, not from when
 the car last moved. Publish a `last_successful_poll` timestamp on each completed cycle
 (this is the same heartbeat proposed in P1 — one field satisfies both), and key the
 staleness binary sensor off that. Then "stale" means "we have not heard from Kamereon",
