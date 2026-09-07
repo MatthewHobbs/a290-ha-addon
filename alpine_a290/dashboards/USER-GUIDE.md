@@ -62,9 +62,20 @@ current State of Charge (SoC — how full the battery is, as a %) against the Mi
 
 ### Health
 
-Three problem indicators: `binary_sensor.alpine_a290_api_auth_failure` (bad credentials /
-locale), `…_data_stale` (no successful poll within `stale_hours`), and `…_plug_state_suspect`
-(plug state disagrees with movement/charging — e.g. "Connected" but driven).
+Four problem indicators: `binary_sensor.alpine_a290_api_auth_failure` (bad credentials /
+locale), `…_data_stale`, `…_poll_failing`, and `…_plug_state_suspect` (plug state disagrees
+with movement/charging — e.g. "Connected" but driven).
+
+`…_data_stale` and `…_poll_failing` answer two different questions, and the difference matters:
+
+- **Data Stale** — the *car* has not reported for longer than `stale_hours`. The readings on
+  screen are real but old.
+- **Poll Failing** — the *add-on* has not reached Renault for longer than `stale_hours`.
+
+They are independent. A car parked in an underground car park goes Data Stale while polling
+stays perfectly healthy — that is the common case, and it is the one that matters, because the
+battery percentage on the dashboard is then hours or days out of date. `…_last_updated` shows
+when the car last reported; `…_last_successful_poll` shows when the add-on last got through.
 
 ### Test mode (optional)
 

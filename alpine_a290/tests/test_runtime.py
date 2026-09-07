@@ -1,6 +1,7 @@
 """Runtime/async coverage: poll_once, command dispatch, detection, MQTT wiring, health
 server, account resolution, and one happy + one failing iteration of main()."""
 import asyncio
+import json
 import logging
 import types
 
@@ -1059,3 +1060,110 @@ def test_failed_probe_stays_tripped_and_silent(caplog):
         main._BREAKERS.clear()
         main._BREAKER_FAILS.clear()
         main._BREAKER_SKIPS.clear()
+
+
+# --- data_stale measures the CAR, poll_failing measures the FEED (v1.24.0) -------------------
+# Regression cover for the defect where data_stale was wired to poll success and forced "off"
+# on every successful poll: a vehicle silent since 2026-09-04 was polled successfully every
+# five minutes for 68 hours and published as healthy, showing 55% while the car was at 83%.
+
+def _fresh(state, payload_iso, last_ok, hours=6):
+    return main.freshness_fields(state, payload_iso, hours * 3600, last_ok)
+
+
+def test_data_stale_fires_when_the_car_goes_quiet_though_every_poll_succeeds():
+    """THE reported incident. Polls all succeed, so poll_failing is correctly off — and the
+    68-hour-old payload must still raise data_stale. Before the fix this published "off"."""
+    now = main.now_ts()
+    out = _fresh({}, main.iso(now - 68 * 3600), last_ok=now)
+    assert out["data_stale"] == "on"
+    assert out["poll_failing"] == "off"
+
+
+def test_data_stale_is_off_while_the_car_is_reporting():
+    now = main.now_ts()
+    assert _fresh({}, main.iso(now - 600), last_ok=now) == {"data_stale": "off",
+                                                            "poll_failing": "off"}
+
+
+def test_poll_failure_ages_the_last_known_car_timestamp():
+    """No new payload, so the last car timestamp carries forward and keeps ageing. An outage
+    can neither make stale data look fresh nor invent staleness."""
+    now = main.now_ts()
+    state = {"last_payload_ts": now - 8 * 3600}
+    out = _fresh(state, None, last_ok=now - 8 * 3600)
+    assert out == {"data_stale": "on", "poll_failing": "on"}
+
+
+def test_a_transient_failure_raises_neither_signal():
+    """One missed poll against a car that reported recently is not an alarm — poll_failing keeps
+    the stale_hours tolerance data_stale used to apply on this path."""
+    now = main.now_ts()
+    out = _fresh({"last_payload_ts": now - 600}, None, last_ok=now - 300)
+    assert out == {"data_stale": "off", "poll_failing": "off"}
+
+
+def test_data_stale_is_omitted_until_a_car_timestamp_has_been_seen():
+    """A fresh install whose first polls fail has no basis for the claim. The key is omitted so
+    HA reads `unknown`; publishing "off" would restate the bug this replaces."""
+    out = _fresh({}, None, last_ok=0)
+    assert "data_stale" not in out
+    assert out["poll_failing"] == "on"
+
+
+def test_a_seen_car_timestamp_is_persisted_for_the_next_failure():
+    now = main.now_ts()
+    state = {}
+    _fresh(state, main.iso(now - 600), last_ok=now)
+    assert state["last_payload_ts"] == pytest.approx(now - 600, abs=2)
+
+
+def test_last_updated_is_not_fabricated_when_the_payload_carries_no_timestamp():
+    """`or iso(now_ts())` stamped a timestamp-less payload as arriving this instant, which made
+    staleness permanently unfireable — the GPS-sentinel failure in another guise."""
+    class _B(FakeBattery):
+        def __init__(self):
+            super().__init__()
+            self.timestamp = None
+
+    class _V(FakeVehicle):
+        async def get_battery_status(self):
+            return _B()
+
+    data, _ = asyncio.run(
+        main.poll_once(FakeVSession(_V()), {}, 52.0, {"pressure", "charge-mode"}, "km"))
+    assert data["last_updated"] is None
+
+
+def test_main_publishes_the_car_timestamp_verdict_not_the_poll_verdict(monkeypatch):
+    """End-to-end through main(): a successful poll returning an old payload must publish
+    data_stale on. This is the assertion that would have caught the original defect."""
+    old = main.iso(main.now_ts() - 68 * 3600)
+
+    async def poll(vs, state, cap, sup, du):
+        return ({"battery_level": 55, "last_updated": old}, None)
+
+    monkeypatch.setattr(main, "save_state", lambda s: None)
+    monkeypatch.setattr(main, "load_state", dict)
+    fc = _wire_main(monkeypatch, poll)
+    asyncio.run(main.main())
+
+    published = [json.loads(p) for t, p in fc.pubs if t == mqtt.STATE_TOPIC]
+    assert published, "no state document published"
+    assert published[0]["data_stale"] == "on"
+    assert published[0]["poll_failing"] == "off"
+    assert published[0]["last_successful_poll"]
+
+
+def test_main_failure_path_publishes_both_signals(monkeypatch):
+    async def poll(vs, state, cap, sup, du):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(main, "save_state", lambda s: None)
+    monkeypatch.setattr(main, "load_state", dict)
+    fc = _wire_main(monkeypatch, poll)
+    asyncio.run(main.main())
+
+    published = [json.loads(p) for t, p in fc.pubs if t == mqtt.STATE_TOPIC]
+    assert published[0]["poll_failing"] == "on"      # never succeeded in this process
+    assert "data_stale" not in published[0]          # and no car timestamp to judge

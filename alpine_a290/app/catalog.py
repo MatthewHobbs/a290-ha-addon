@@ -51,7 +51,13 @@ SENSORS = {
     "a290_tyre_pressure_fr":     ("Tyre Pressure Front Right", None, None, "measurement"),
     "a290_tyre_pressure_rl":     ("Tyre Pressure Rear Left", None, None, "measurement"),
     "a290_tyre_pressure_rr":     ("Tyre Pressure Rear Right", None, None, "measurement"),
+    # Two different questions, deliberately two different entities. last_updated is the CAR's
+    # own report time (from the battery-status payload) and drives a290_data_stale;
+    # last_successful_poll is OUR clock — when the add-on last reached Kamereon — and drives
+    # a290_poll_failing. Collapsing them is the defect this pair replaces: a car silent for
+    # three days was polled successfully every five minutes and read as healthy.
     "a290_last_updated":         ("Last Updated", "timestamp", None, None),
+    "a290_last_successful_poll": ("Last Successful Poll", "timestamp", None, None),
     "a290_last_charge_start":          ("Last Charge Start", "timestamp", None, None),
     "a290_last_charge_end":            ("Last Charge End", "timestamp", None, None),
     "a290_last_charge_start_soc":      ("Last Charge Start SoC", "battery", "%", None),
@@ -71,7 +77,12 @@ BINARY_SENSORS = {
     "a290_heated_seat_passenger": ("Heated Seat Passenger", None),
     "a290_plug_suspect":          ("Plug State Suspect", "problem"),
     "a290_api_auth_failure":      ("API Auth Failure", "problem"),
+    # data_stale = the CAR has not reported within stale_hours (payload timestamp age).
+    # poll_failing = WE cannot reach Kamereon. Before v1.24.0 data_stale carried the second
+    # meaning and never the first, so stale car data was invisible; poll_failing now carries
+    # the connectivity alarm so nothing is lost by data_stale taking its correct meaning.
     "a290_data_stale":            ("Data Stale", "problem"),
+    "a290_poll_failing":          ("Poll Failing", "problem"),
 }
 
 ICONS = {
@@ -87,6 +98,7 @@ ICONS = {
     "a290_climate_schedule_mode": "mdi:fan-clock",
     "a290_climate_ready_time":    "mdi:clock-check-outline",
     "a290_last_charge_type":      "mdi:ev-station",
+    "a290_last_successful_poll":  "mdi:cloud-check-outline",
     "a290_heated_steering_wheel": "mdi:steering",
     "a290_heated_seat_driver":    "mdi:car-seat-heater",
     "a290_heated_seat_passenger": "mdi:car-seat-heater",
