@@ -44,60 +44,63 @@ string `None`) alongside every location update so `location_name` is cleared eac
 
 ## P2 — UNTESTED: the dashboard render is not reproducible, so screenshots cannot be gated
 
-**Component:** `ui-tests/` (both dashboards) · **Logged:** 2026-09-07
+**Component:** `ui-tests/` · **Logged:** 2026-09-07 · *updated with instrumented measurements*
 
 **Marker: treat every committed file in `docs/screenshots/` as UNTESTED.** They are a plausible
-picture of the dashboards, not a verified one, and a diff between two of them proves nothing.
+picture of the dashboards, not a verified one.
 
-Measured over four full harness runs (identical code, identical seed, minutes apart):
+Run `UI_TESTS_DIAG=1 bash ui-tests/run.sh` to write a `.diag.json` beside each screenshot
+recording card count, scroll dimensions, pending images and `readyState` **at the moment of
+capture**. Everything below came from that; the two fixes attempted before it existed were
+guesses, and one of them made things worse.
 
-| Pair | bubble differing | standard differing |
-|---|---|---|
-| run 1 vs 2 | 6 / 20 | 4 / 10 |
-| run 3 vs 4 | 6 / 20 | 4 / 10 |
+### FIXED: the pop-up wrote blank screenshots over good ones
 
-**It is not a bubble-only problem** — the assumption worth killing early. Proportionally the
-*standard* dashboard is worse (40% vs 30%), and the split was identical across both pairs, so
-skipping bubble would not make the remainder trustworthy.
+The worst class, and a real bug rather than flakiness. The smart-charging pop-up capture wrapped
+its `wait_for_selector` in a bare `except: pass` and then screenshotted regardless — so when the
+pop-up failed to open, an **empty page** was written as the documentation screenshot. Measured at
+**24 cards on one run and 0 on the next**, identical page dimensions, **99.89% of pixels
+different**. Fixed with a completeness gate: reopen once, and if it still renders nothing, skip
+the capture and keep the committed file. Verified over two runs — zero-card captures went to 0,
+and the pop-up genuinely needed the retry (once, then twice).
 
-Two causes were found and fixed (v1.24.0+): five infinite CSS animations (`pulse`, `spin`,
-`flap-wiggle`, `flip180`, `socFillToTarget`) meant the page never stopped moving, and hard-coded
-seed timestamps rendered as relative text changed pixels whenever the wall clock crossed a unit
-boundary. Both are gone. **Neither moved the 20/30 number**, which is what says the remaining
-cause is separate.
+### The hypothesis that was WRONG
 
-**An attempted fix made it worse and was reverted — do not retry it as written.** Waiting for
-stable scroll dimensions + card count + image completion instead of a fixed sleep is the obvious
-next idea. A blank page is *stable*: the condition is satisfied instantly and captures an empty
-dashboard. `alpine-bubble__pixel_8.png` had been byte-identical at 169,749 bytes across two runs;
-with the wait it captured at 17,255 bytes at the same dimensions. Any retry needs a
-*completeness* condition (a known-good card count), not just a stability one.
+`JS_RENDERED` returns true as soon as ONE card exists, so it looked like the main captures were
+firing early and catching a half-built page. They were not: `alpine-standard__iphone_15` shows
+**253 cards in both runs**. The main dashboard is fully rendered at capture. Do not spend time
+there again.
 
-**Consequence:** the `Screenshot drift gate` that the `gotoad` twin runs as a required check
-cannot be adopted here. A byte-exact gate over this would be permanently red. That is why
-`refresh-screenshots` reports drift and attaches an artifact rather than failing, and why it no
-longer commits.
+### What remains, measured (two runs, identical code and seed)
 
-**Three distinct failure modes, measured by pixel-diffing run 3 against run 4** — worth knowing
-before assuming a single cause:
+| Class | Shots | Magnitude | Diagnosis |
+|---|---|---|---|
+| Rasterisation noise | 3 | **0.024–0.032%** (240–3072 px) | identical DOM *and* dimensions — anti-aliasing. Not fixable by waiting. |
+| Pop-up visual diff | 3 | **1.3–3.1%** (34k–111k px) | 24/24 cards, same size, yet large regions differ |
+| Page size differs | 2 | 734x5002 vs 724x5454 | **253/253 cards** — same content, different layout |
 
-| Shot | Pixels changed | Reading |
-|---|---|---|
-| `bubble__galaxy_s23` | 477 (0.02%), one 96x115 box | one icon — sub-pixel or an unfrozen animation frame |
-| `standard__android_narrow_bound` | page size differs (734x5002 vs 724x5454) | missing cards |
-| `bubble__pixel_7a` | 95% of the page | an entirely different render |
+**Next hypothesis, untested:** the size-differing pair is ~450px taller *and ~10px narrower*.
+Same content at a different width is the signature of a **scrollbar** appearing in one run and
+not the other, reflowing everything below it. `--hide-scrollbars` on the Chromium launch, or
+`scrollbar-gutter: stable`, would test it cheaply. Measure before believing it — the last two
+plausible fixes did not survive contact with the numbers.
 
-**Is it the seeded data changing over time?** Largely no. The time-varying data (the Last
-Activity timestamps) appears on every device's dashboard, so if that were the cause all 15 shots
-per dashboard would differ; only 3 do so consistently. The two large modes are missing or
-different content, which data cannot explain. One related bug WAS found and fixed by asking the
-question: the seed offsets sat at xx:30, exactly the rounding boundary, so a few seconds of drift
-between seeding and capture could flip "3 hours ago" to "4 hours ago". Now xx:12.
+### Consequence for the drift gate
 
-**Next investigation, not yet done:** the differing shots are not the same ones each pair, and
-some collapse to near-empty at correct dimensions, which points at cards painting after capture
-rather than at layout timing. Instrument one device across ten runs and diff the DOM, rather
-than guessing at another wait.
+A byte-exact gate (the `gotoad` model) **cannot work** while the rasterisation class exists: it
+would fail on 240 changed pixels out of a million. A **tolerance-based** comparison is the only
+viable form, and the numbers now say where to draw the line — genuine differences are >=1.3%,
+noise is <=0.032%. Two orders of magnitude apart, so a threshold near 0.5% separates them
+cleanly. That is why `refresh-screenshots` reports drift with an artifact rather than failing.
+
+### Do NOT retry this as written
+
+Waiting for stable scroll dimensions + card count + image completion instead of a fixed sleep is
+the obvious idea and it **made things worse**: a blank page is *stable*, so the condition was
+satisfied instantly and captured an empty dashboard. `alpine-bubble__pixel_8.png` had been
+byte-identical at 169,749 bytes across two runs; with the wait it captured at 17,255. Any retry
+needs a **completeness** condition (a known-good card count), which is what the pop-up gate now
+does.
 
 ---
 
