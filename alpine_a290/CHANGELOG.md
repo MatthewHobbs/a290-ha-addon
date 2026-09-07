@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.26.0
+
+- **Fixed: the climate schedule sensors go `unavailable` instead of blank.** This model
+  advertises `hvac-settings` as supported and the server answers `502000` to every call, so the
+  v1.23.1 circuit breaker stops calling it — and the two sensors it feeds were rendering as
+  **empty strings**, indistinguishable from "the car reported nothing". Their availability now
+  follows whether the add-on actually published a value, so a card can hide or grey them instead
+  of showing a blank. This was asked for on 5 September and is the half three releases of
+  breaker work left behind.
+- Picks up shared core `renault-mqtt` v0.16.0.
+
 ## 1.25.0
 
 - **The dashboard now says "Car Parked" instead of raising an alarm.** The Last Updated tile
