@@ -130,7 +130,15 @@ correction is worth recording because the faulty reasoning is easy to repeat:
 this add-on from the Home Assistant side must compare a value the producer actually varies
 (a heartbeat counter or a publish timestamp), not entity metadata.
 
-**Fix:** publish a monotonic heartbeat or `last_publish` timestamp on each successful poll,
+**Half of this shipped in v1.24.0 (a290 #115).** `sensor.alpine_a290_last_successful_poll`
+now publishes the poll clock on every successful cycle, which is exactly the heartbeat this
+entry asked for — a consumer can now distinguish "nothing changed" from "nothing published" by
+watching that timestamp rather than entity metadata. **Still open: the producer-side watchdog.**
+Nothing yet publishes `offline` to `AVAIL_TOPIC` after N failed cycles, so a wedged loop is
+visible only to something actively watching the heartbeat, not to HA's own availability.
+
+**Fix (original wording, heartbeat half now done):** publish a monotonic heartbeat or
+`last_publish` timestamp on each successful poll,
 so a consumer can distinguish "nothing changed" from "nothing published". A producer-side
 watchdog that publishes `offline` to `AVAIL_TOPIC` after N failed cycles would then make a
 stall visible the same way a crash is.
@@ -185,6 +193,27 @@ exactly this for the tracker, so the pattern is established.
 
 ---
 
+## P1 — Climate schedule sensors publish empty strings, not `unavailable`
+
+**Component:** `alpine_a290` (`main.py`) · **Logged:** 2026-09-05 · **still open**
+
+`sensor.alpine_a290_climate_schedule_mode` and `…_climate_ready_time` are fed by `hvac-settings`,
+which returns `502000` on every call for this model. When the v1.23.1 circuit breaker trips, the
+poller simply stops writing those two keys — so the retained state document omits them and both
+entities render as **empty strings** rather than `unavailable`.
+
+Empty is worse than unavailable: a card shows a blank value as though the car reported nothing,
+instead of HA marking the entity unavailable and letting a dashboard hide or grey it.
+
+**Fix:** withhold or explicitly mark the two entities unavailable when the breaker is tripped.
+
+**Why this is its own entry now.** It was a paragraph inside the `hvac-settings` 502 entry above,
+and was missed twice because of it — once when v1.23.0 shipped a gate that changed nothing, and
+again when v1.23.1 shipped the breaker and stopped at the log spam. It is the oldest unfinished
+item in this file: specified 2026-09-05, still not done across three releases.
+
+---
+
 ## P3 — Three concurrent Kamereon clients coexist without apparent harm
 
 **Component:** `alpine_a290` (documentation only)
@@ -228,7 +257,7 @@ Contribute the A5E1AE endpoint mapping to
 [hacf-fr/renault-api#1747](https://github.com/hacf-fr/renault-api/issues/1747), then drop the
 pin once a release carries it.
 
-**Status 2026-09-07 — tested, reported, branch pushed and safe; no PR opened yet.**
+**Status 2026-09-07 — DONE: both PRs are open upstream.**
 
 Filed upstream as [hacf-fr/renault-api#2250](https://github.com/hacf-fr/renault-api/issues/2250);
 maintainer `epenet` replied *"Feel free to create a PR"*. The work is **pushed to the fork** as
@@ -288,12 +317,10 @@ logging a warning each cycle.
 7h35m at a 5-minute interval, zero successes, across four distinct `error_reference` prefixes —
 so not one unhealthy backend node.
 
-**Partially actioned, and not the way this entry prescribed.** v1.23.1 ships a circuit breaker:
-three consecutive failures pause the call for the session, it retries every 12 polls (~hourly)
-and re-enables itself on recovery. That stops the log spam but **does not** degrade the
-entities — `sensor.*_climate_schedule_mode` and `*_climate_ready_time` currently publish as
-empty strings rather than `unavailable`, which is what this entry actually asked for. Finish
-that: withhold or mark unavailable the two entities the endpoint feeds.
+**Partially actioned.** v1.23.1 ships a circuit breaker: three consecutive failures pause the
+call for the session, it retries every 12 polls (~hourly) and re-enables itself on recovery.
+That stops the log spam. It does **not** degrade the entities — see the entry below, which was
+split out of this one because it kept being missed while buried here.
 
 Note also that gating on advertised support does not work here — `supports_endpoint()` reads a
 static per-model table which returns True for this endpoint, so v1.23.0 shipped a gate that
@@ -301,10 +328,43 @@ changed nothing. Only the call's behaviour is a usable signal.
 
 ---
 
-## P1 — `data_stale` measures the poll, not the car, so three days of silence read as healthy
+## P1 — r5 has the `data_stale` defect a290 fixed in v1.24.0
+
+**Component:** `renault_5` (`main.py`) · **Logged:** 2026-09-07 · **not started**
+
+`renault_5/app/main.py` still sets `data["data_stale"] = "off"` unconditionally on every
+successful poll, so an R5 that stops reporting reads as healthy indefinitely — the identical
+defect described (and fixed for the a290) below. It also carries the same
+`or iso(now_ts())` fabrication on `battery_last_activity`.
+
+The a290 side is complete and released, so per the a290-first rule this is now mirrorable:
+port `freshness_fields()`, add `r5_poll_failing` + `r5_last_successful_poll` to the catalog, and
+drop the fabricated timestamp fallback. **Entity names must stay r5's own** (forked-view
+backward compatibility), so this is not a copy-paste.
+
+---
+
+## ~~P1 — `data_stale` measures the poll, not the car, so three days of silence read as healthy~~ — DONE
 
 **Component:** `alpine_a290` (`main.py`)
-**Logged:** 2026-09-07
+**Logged:** 2026-09-07 · **Fixed:** 2026-09-07 (a290 #115, v1.24.0)
+
+> **Resolved.** `data_stale` now compares the timestamp inside the **battery-status** payload
+> against `stale_hours`. The poll-success signal moved to a new
+> `binary_sensor.*_poll_failing` carrying the identical old rule, so no alerting was lost, plus
+> a `sensor.*_last_successful_poll` heartbeat. Two corrections to the fix as specified below:
+>
+> - **Not `cockpit`.** The entry says "`cockpit`/`battery-status`", but cockpit commits only at
+>   power-off, so keying on it would mark every parked car stale — the very mistake the
+>   `gps_last_activity` entry describes. battery-status is the source.
+> - **`last_updated` was fabricating freshness.** `getattr(battery, "timestamp", None) or
+>   iso(now_ts())` stamped a timestamp-less payload as arriving that instant, which would have
+>   made staleness permanently unfireable. Removed; it now reads `unknown`.
+>
+> Note the consequence, since it looks like a regression and is not: a car parked longer than
+> `stale_hours` now reads `data_stale: on`, because the reading genuinely is that old. Paired
+> with `poll_failing: off` that means "working fine, car simply parked". Documented in v1.24.1.
+> **r5 has the identical defect and is NOT yet mirrored.**
 
 `binary_sensor.alpine_a290_data_stale` is derived from `state["last_success"]`, which records
 when the **poll** last succeeded — not when the **car** last reported. `main.py:624` sets it
