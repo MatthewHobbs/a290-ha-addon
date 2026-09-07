@@ -13,12 +13,18 @@ import asyncio
 import os
 import re
 import sys
+from datetime import datetime, timedelta, timezone
 
 import aiohttp
 import yaml
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DASH_DIR_DEFAULT = os.path.join(HERE, "..", "alpine_a290", "dashboards")
+def _ago(**delta):
+    """An ISO timestamp `delta` before now, for entities the frontend renders as relative time."""
+    return (datetime.now(timezone.utc) - timedelta(**delta)).isoformat()
+
+
 DASHBOARDS = {"alpine-standard": "front-end.txt", "alpine-bubble": "front-end-bubble.txt"}
 APP_DIR = os.path.join(HERE, "..", "alpine_a290", "app")
 
@@ -79,11 +85,20 @@ KNOWN = {
     "sensor.alpine_a290_last_charge_duration": ("42", {"unit_of_measurement": "min"}),
     "sensor.alpine_a290_last_charge_soc_recovered": ("55", {"unit_of_measurement": "%"}),
     "sensor.alpine_a290_last_charge_energy_recovered": ("28.6", {"unit_of_measurement": "kWh"}),
-    "sensor.alpine_a290_last_charge_start": ("2026-06-26T18:04:00+00:00", {"device_class": "timestamp"}),
-    "sensor.alpine_a290_last_charge_end": ("2026-06-26T18:46:00+00:00", {"device_class": "timestamp"}),
-    "sensor.alpine_a290_last_updated": ("2026-06-27T09:15:00+00:00", {"device_class": "timestamp"}),
-    "sensor.alpine_a290_hvac_last_activity": ("2026-06-27T08:50:00+00:00", {"device_class": "timestamp"}),
-    "sensor.alpine_a290_gps_last_activity": ("2026-06-27T09:10:00+00:00", {"device_class": "timestamp"}),
+    # Timestamps are seeded RELATIVE to the run, not as fixed dates. A device_class:timestamp
+    # sensor is rendered by mushroom as relative text ("2 months ago"), so a hard-coded date
+    # produces different PIXELS as the wall clock moves past each unit boundary — fine for an
+    # overflow check, fatal for comparing a screenshot against a committed one. Anchoring to
+    # now keeps the rendered text identical on every run ("3 hours ago" is always "3 hours
+    # ago"). Offsets are xx:12, NOT xx:30: half-past is exactly the rounding boundary, so if the
+    # frontend rounds to nearest rather than truncating, a few seconds of drift between
+    # seeding and capture flips "3 hours ago" to "4 hours ago" and changes the pixels. xx:12
+    # reads the same under either rule and leaves ~12 minutes of slack before any boundary.
+    "sensor.alpine_a290_last_charge_start": (_ago(hours=14, minutes=12), {"device_class": "timestamp"}),
+    "sensor.alpine_a290_last_charge_end": (_ago(hours=13, minutes=12), {"device_class": "timestamp"}),
+    "sensor.alpine_a290_last_updated": (_ago(hours=3, minutes=12), {"device_class": "timestamp"}),
+    "sensor.alpine_a290_hvac_last_activity": (_ago(hours=5, minutes=12), {"device_class": "timestamp"}),
+    "sensor.alpine_a290_gps_last_activity": (_ago(hours=4, minutes=12), {"device_class": "timestamp"}),
     # Demo Octopus Intelligent charger entities (Smart Charging card / bubble pop-up).
     "switch.demo_intelligent_smart_charge": ("on", {"icon": "mdi:ev-station"}),
     "switch.demo_intelligent_bump_charge": ("off", {"icon": "mdi:battery-plus-variant"}),
