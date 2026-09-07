@@ -1,21 +1,28 @@
-name: Refresh screenshots
+---
+name: Screenshot drift
 
-# Privileged companion to "UI Tests". Commits the freshly-rendered docs screenshots back to the
-# PR branch (a web-flow-signed commit via the GraphQL API, authored by the GitHub App bot).
+# Reports when the rendered dashboards no longer match the committed documentation screenshots,
+# and hands you the regenerated ones as an artifact. It does NOT write to the branch.
 #
-# It runs via `workflow_run`, so the workflow definition AND the scripts it runs come from the
-# DEFAULT branch (trusted) — never from the PR. It only *downloads* the render artifact (data)
-# and runs the repo's own `ui-tests/commit_screenshots.py`; it never executes the PR's version of
-# run.sh / seed.py / check_overflow.py / deploy.py. That's the whole point: the App token can't be
-# exfiltrated by a malicious same-repo PR branch editing a script that runs in the same job.
+# It used to. The old job committed refreshed PNGs straight to the PR head via a GitHub App
+# token, and that created a race with whoever was working on the PR:
 #
-# The write credential is a short-lived GitHub App installation token minted per-run from the
-# APP_ID / APP_PRIVATE_KEY secrets (replaces the manually-expiring SCREENSHOT_PAT). Being a
-# separate App — not the repo's GITHUB_TOKEN — its commit still re-triggers the PR's required
-# checks, and `createCommitOnBranch` signs it so it satisfies "require signed commits".
+#   push -> UI Tests -> render differs -> bot commits -> head moves -> your push is rejected
+#   (non-fast-forward), or the CLEAN verdict you just read is invalidated and the merge refused
 #
-# Note: a `workflow_run` workflow only takes effect once it is on the default branch, so this
-# file's first real execution is the next dashboard PR after it merges.
+# In one session on 2026-09-07 that rejected three pushes, twice mid-merge, and moved the head
+# five times across the two repos. The `[refresh-shots]` guard only stops the bot re-triggering
+# ITSELF; it does nothing about a human merging that commit and pushing again. CI writing to a
+# branch a human is working on is the race — so CI no longer writes to it.
+#
+# Why report rather than FAIL on drift (the gate the a290/r5 twin of gotoad's `Screenshot drift
+# gate` would be): the render is not yet reproducible. Two consecutive runs of the same code
+# against the same seed produced 10 of 30 screenshots differing, two of them at different page
+# DIMENSIONS (724x5454 vs 734x5002) — cards still land after capture, so `full_page` grabs a
+# different-height document. A hard gate over that would be permanently red. Freezing the
+# animations and anchoring the seeded timestamps fixed the fast oscillation; the remaining
+# layout settling has to be solved before this can become a required check.
+
 on:
   workflow_run:
     workflows: ["UI Tests"]
@@ -23,58 +30,37 @@ on:
 
 permissions:
   actions: read     # download the render artifact from the triggering run
-  contents: read
+  contents: read    # NOTE: read only. Nothing here writes to a branch any more.
 
 jobs:
-  refresh:
-    name: Commit refreshed screenshots
+  drift:
+    name: Screenshot drift
     runs-on: ubuntu-latest
-    # Same-repo PRs only (forks never receive the secret); only when the render succeeded; and
-    # skip the auto-refresh's own commit so it can't loop.
+    # Same-repo PRs only (forks cannot produce a trustworthy render), and only when the render
+    # actually succeeded — a failed render says nothing about drift.
     if: >-
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
-      !contains(github.event.workflow_run.head_commit.message, '[refresh-shots]')
+      github.event.workflow_run.head_repository.full_name == github.repository
     steps:
-      # Default ref = the default branch (trusted): this is main's commit_screenshots.py + resize.
+      # Default ref = the default branch (trusted): main's copy of the resize step.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-
-      - name: Check for the App credentials
-        id: app
-        env:
-          APP_ID: ${{ secrets.APP_ID }}
-          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
-        run: |
-          if [ -n "${APP_ID:-}" ] && [ -n "${APP_PRIVATE_KEY:-}" ]; then
-            echo "have=1" >> "$GITHUB_OUTPUT"
-          else
-            echo "No APP_ID / APP_PRIVATE_KEY secret — auto-refresh disabled (add the App credentials to enable)."
-            echo "have=0" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Download rendered screenshots
-        if: steps.app.outputs.have == '1'
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
           name: dashboard-screenshots
           path: ui-tests/screenshots
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
-
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
-        if: steps.app.outputs.have == '1'
         with:
           python-version: "3.14"
-
-      # Untrusted step: the render artifact is PR-controlled data, so Pillow decodes attacker-
-      # influenced PNGs here. The write token is deliberately NOT minted yet — nothing in this
-      # step's env can exfiltrate it if a decoder is exploited.
+      # The render artifact is PR-controlled data, so Pillow decodes attacker-influenced PNGs
+      # here. There is no longer any write credential in this workflow for such an exploit to
+      # reach — the App token and its contents:write scope are gone entirely.
       - name: Copy + resize the phone shots
-        if: steps.app.outputs.have == '1'
         run: |
           set -euo pipefail
-          # Pinned: this step parses PR-rendered PNGs, so keep its deps fixed.
           python3 -m pip install --quiet "pillow==12.2.0"
           cp ui-tests/screenshots/alpine-standard__iphone_15_pro.png docs/screenshots/standard-iphone-15-pro.png
           cp ui-tests/screenshots/alpine-standard__galaxy_s24.png docs/screenshots/standard-galaxy-s24.png
@@ -89,23 +75,35 @@ jobs:
               if im.width > 700:
                   im.resize((700, round(im.height * 700 / im.width))).save(p)
           "
-
-      # Mint the write credential only AFTER the untrusted image handling above, and scope it to
-      # Contents only. The token exists just long enough for the trusted commit script below.
-      - name: Mint a short-lived App installation token
-        id: token
-        if: steps.app.outputs.have == '1'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+      - name: Report drift (never fails the build — see the header)
+        id: drift
+        run: |
+          # Porcelain, not `git diff`, so an ADDED or REMOVED shot is reported too.
+          drift="$(git status --porcelain -- docs/screenshots/)"
+          if [ -n "$drift" ]; then
+            {
+              echo "### Documentation screenshots drifted"
+              echo
+              echo '```'
+              echo "$drift"
+              echo '```'
+              echo
+              echo "Regenerated screenshots are attached to this run as **regenerated-screenshots**."
+              echo "Download and commit them yourself if the change is real."
+              echo
+              echo "This does not fail the build, and nothing was committed to your branch."
+              echo "The render is not yet reproducible — two runs of identical code differ — so"
+              echo "drift here is not proof that anything actually changed."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "drifted=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "Screenshots match the committed documentation." >> "$GITHUB_STEP_SUMMARY"
+            echo "drifted=0" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload the regenerated screenshots
+        if: steps.drift.outputs.drifted == '1'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-          permission-contents: write
-
-      - name: Commit the refreshed screenshots to the PR branch
-        if: steps.app.outputs.have == '1'
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          BRANCH: ${{ github.event.workflow_run.head_branch }}
-          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-          COMMIT_TOKEN: ${{ steps.token.outputs.token }}
-        run: python3 ui-tests/commit_screenshots.py
+          name: regenerated-screenshots
+          path: docs/screenshots/
+          retention-days: 7
