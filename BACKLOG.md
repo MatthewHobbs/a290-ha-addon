@@ -415,6 +415,51 @@ data are different conditions and deserve different entities.
 
 ---
 
+## P2 — `Refresh Location` should be opt-in, not published by default
+
+**Component:** `alpine_a290` + `renault_5` (catalog / config schema) · **Logged:** 2026-09-07
+
+The button is destructive on a parked car and has no established upside on this platform. It
+should be gated behind a new `enable_refresh_location` option defaulting to **`false`**.
+
+**Why it is destructive.** Invoking it on a vehicle that cannot obtain a fix replaces the last
+valid cached position with `gpsLatitude 91` / `gpsLongitude 181` on a *current* timestamp, and
+that state persists until the next completed journey — 18 hours, observed. There is no call that
+restores it; only driving does.
+
+**Why it is now WORSE than before the v1.23.0 fix, which is the part worth understanding.** That
+release made the add-on reject the sentinel, so the tracker keeps its last known position and
+Home Assistant looks perfectly healthy. But rejection only protects *our* entity — the Kamereon
+data is still overwritten, which is why Renault's own app reported "We are unable to geolocate
+your vehicle" for those 18 hours. The damage did not go away; it went **silent**. A user now
+presses the button, sees nothing wrong in HA, and has a broken position in the official app.
+
+**Why there is no upside to weigh against it.** `location` commits at power-off together with
+`cockpit` — it is a trip-end event, not live telemetry (see the update-cadence section in
+`DOCS.md`). A parked car has nothing newer to fetch, and the one tested invocation returned the
+sentinel. On a moving car `location` was observed not to update at all during an 18-minute drive.
+
+**Fix:**
+
+- New option `enable_refresh_location`, default `false`, with the warning in its description.
+- Gate BOTH the discovery publish and the inbound command on it, exactly as `publish_location`
+  already gates them (`mqtt.py` publishes the button only when the endpoint is supported and
+  `PUBLISH_LOCATION`; `main.py` ignores the command via `LOCATION_CMDS`). Gating at the source
+  matters because the entity is pressable from voice, automations and any dashboard — a
+  confirmation on the bundled dashboard would only cover one path.
+- Prominent CHANGELOG entry: existing installs lose the button until they opt in. That is a
+  visible change and should not be a quiet line.
+
+**Open question for r5.** The harm mechanism is platform-level — a sleeping car cannot obtain a
+fix — and the R5 is the same CMF-BEV / KCM platform, so it very likely applies. But it is
+**untested there**, and the standing rule is not to assume A290 behaviour holds for R5. Suggested:
+default `false` in both for consistency, and say plainly in r5's changelog that it is
+precautionary rather than observed.
+
+Runtime change in both add-ons: needs container verification and a release each.
+
+---
+
 ## P2 — `actions/refresh-location` is destructive on a parked vehicle
 
 **Component:** `alpine_a290` (Refresh Location button) + upstream docs
@@ -434,9 +479,10 @@ with an identical timestamp; they are trip-end events, not continuous telemetry.
 and `hvac-status` refresh independently while parked. So `91/181` means "no fix available right
 now", **not** a fault — a parked car simply keeps serving its last committed fix.
 
-v1.23.1 already rejects `91/181` rather than publishing it, which is the important half. What
-remains is user-facing: the button is presented as harmless and is not. Either warn in `DOCS.md`,
-or consider withholding it when the car is known to be asleep.
+v1.23.1 already rejects `91/181` rather than publishing it, which protects our entity but **not
+the car's data** — Renault's own app still showed no position for 18 hours. See the entry above,
+which proposes the actual remedy: make the button opt-in behind `enable_refresh_location`,
+defaulting to off, rather than documenting a hazard and leaving it enabled.
 
 ---
 
