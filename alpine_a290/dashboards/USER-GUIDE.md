@@ -38,15 +38,16 @@ current State of Charge (SoC — how full the battery is, as a %) against the Mi
   `…_gps_last_activity`, `…_last_updated`.
 
   **These stop moving when the car is parked, and that is normal.** The car commits its data at
-  **ignition-off** and then sleeps; polling a sleeping car returns the same trip-end values.
+  **power-off** and then sleeps; polling a sleeping car returns the same trip-end values.
   Measured on a real A290 after a drive ending 12:03 UTC: battery-status 12:03:20, location
   12:02:41, climate 11:46 — all three still unchanged eight hours later, still parked.
 
   So **Mileage** and **Location** only move after a completed journey, and battery/range/plug
-  values only refresh while the car is awake (briefly after ignition, and during a charge).
+  values only refresh while the car is awake (briefly after power-on, and during a charge).
   Nothing here updates again until the car is driven.
 - **Location** — Home Assistant's built-in `map` card, driven by
-  `device_tracker.alpine_a290_location`. Updates around key-off / next drive.
+  `device_tracker.alpine_a290_location`. Updates when the car is powered off at the end of a
+  journey, and not again until the next one.
 - **Climate presets** (read from My Alpine / the car): Preconditioning Temperature
   (`…_preconditioning_temperature`), Heated Steering Wheel and Driver/Passenger Seats
   (`binary_sensor.alpine_a290_heated_*`).
@@ -79,7 +80,7 @@ with movement/charging — e.g. "Connected" but driven).
 
 - **Data Stale** — the *car* has not reported for longer than `stale_hours`. The readings on
   screen are real but old. **A car parked overnight will show this on, and that is expected** —
-  the car commits data at ignition-off and then sleeps, so the readings genuinely are older than
+  the car commits data at power-off and then sleeps, so the readings genuinely are older than
   your threshold. Paired with **Poll Failing** off, it reads as "all working, car simply parked".
 - **Poll Failing** — the *add-on* has not reached Renault for longer than `stale_hours`.
 

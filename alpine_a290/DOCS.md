@@ -206,7 +206,7 @@ your broker is shared with other apps or devices, restrict who can publish to
 
 **Most of what this app shows is only refreshed when the car finishes a journey.** The add-on
 polls Renault every `poll_interval` seconds, but the *car* does not report continuously — it
-commits a batch of data at **ignition-off** and then goes to sleep. Polling a sleeping car
+commits a batch of data when it is **powered off** and then goes to sleep. Polling a sleeping car
 returns the same trip-end values indefinitely.
 
 Measured on a real A290, parked after a drive that ended at 12:03 UTC — three separate endpoints
@@ -223,11 +223,11 @@ Eight hours later, still parked, every one of those was unchanged.
 **So a value that looks "stuck" on a parked car is almost always correct and simply
 trip-end-old.** It will not move until the car is driven again. Specifically:
 
-- **Mileage** and **Location** commit together at ignition-off. They are trip-end events, not
+- **Mileage** and **Location** commit together when the car is powered off. They are trip-end events, not
   live telemetry — a parked car keeps serving its last committed position, which is why the map
   pin does not follow anything while the car sits.
 - **Battery, range, plug and charging status** refresh while the car is *awake* — for a couple of
-  minutes after ignition, and during a charge session — then freeze with everything else once it
+  minutes after it is powered on, and during a charge session — then freeze with everything else once it
   sleeps.
 - **Climate** (`hvac_last_activity`) updates when the climate system runs, including a remote
   preconditioning start.
