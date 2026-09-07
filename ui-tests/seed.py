@@ -90,13 +90,15 @@ KNOWN = {
     # produces different PIXELS as the wall clock moves past each unit boundary — fine for an
     # overflow check, fatal for comparing a screenshot against a committed one. Anchoring to
     # now keeps the rendered text identical on every run ("3 hours ago" is always "3 hours
-    # ago"). Offsets sit mid-unit on purpose so a slow run cannot tick across a boundary
-    # mid-capture and change the text between two devices in the same pass.
-    "sensor.alpine_a290_last_charge_start": (_ago(hours=14, minutes=30), {"device_class": "timestamp"}),
-    "sensor.alpine_a290_last_charge_end": (_ago(hours=13, minutes=48), {"device_class": "timestamp"}),
-    "sensor.alpine_a290_last_updated": (_ago(hours=3, minutes=30), {"device_class": "timestamp"}),
-    "sensor.alpine_a290_hvac_last_activity": (_ago(hours=5, minutes=30), {"device_class": "timestamp"}),
-    "sensor.alpine_a290_gps_last_activity": (_ago(hours=4, minutes=30), {"device_class": "timestamp"}),
+    # ago"). Offsets are xx:12, NOT xx:30: half-past is exactly the rounding boundary, so if the
+    # frontend rounds to nearest rather than truncating, a few seconds of drift between
+    # seeding and capture flips "3 hours ago" to "4 hours ago" and changes the pixels. xx:12
+    # reads the same under either rule and leaves ~12 minutes of slack before any boundary.
+    "sensor.alpine_a290_last_charge_start": (_ago(hours=14, minutes=12), {"device_class": "timestamp"}),
+    "sensor.alpine_a290_last_charge_end": (_ago(hours=13, minutes=12), {"device_class": "timestamp"}),
+    "sensor.alpine_a290_last_updated": (_ago(hours=3, minutes=12), {"device_class": "timestamp"}),
+    "sensor.alpine_a290_hvac_last_activity": (_ago(hours=5, minutes=12), {"device_class": "timestamp"}),
+    "sensor.alpine_a290_gps_last_activity": (_ago(hours=4, minutes=12), {"device_class": "timestamp"}),
     # Demo Octopus Intelligent charger entities (Smart Charging card / bubble pop-up).
     "switch.demo_intelligent_smart_charge": ("on", {"icon": "mdi:ev-station"}),
     "switch.demo_intelligent_bump_charge": ("off", {"icon": "mdi:battery-plus-variant"}),

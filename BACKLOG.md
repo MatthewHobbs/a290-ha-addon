@@ -78,6 +78,22 @@ cannot be adopted here. A byte-exact gate over this would be permanently red. Th
 `refresh-screenshots` reports drift and attaches an artifact rather than failing, and why it no
 longer commits.
 
+**Three distinct failure modes, measured by pixel-diffing run 3 against run 4** — worth knowing
+before assuming a single cause:
+
+| Shot | Pixels changed | Reading |
+|---|---|---|
+| `bubble__galaxy_s23` | 477 (0.02%), one 96x115 box | one icon — sub-pixel or an unfrozen animation frame |
+| `standard__android_narrow_bound` | page size differs (734x5002 vs 724x5454) | missing cards |
+| `bubble__pixel_7a` | 95% of the page | an entirely different render |
+
+**Is it the seeded data changing over time?** Largely no. The time-varying data (the Last
+Activity timestamps) appears on every device's dashboard, so if that were the cause all 15 shots
+per dashboard would differ; only 3 do so consistently. The two large modes are missing or
+different content, which data cannot explain. One related bug WAS found and fixed by asking the
+question: the seed offsets sat at xx:30, exactly the rounding boundary, so a few seconds of drift
+between seeding and capture could flip "3 hours ago" to "4 hours ago". Now xx:12.
+
 **Next investigation, not yet done:** the differing shots are not the same ones each pair, and
 some collapse to near-empty at correct dimensions, which points at cards painting after capture
 rather than at layout timing. Instrument one device across ten runs and diff the DOM, rather
