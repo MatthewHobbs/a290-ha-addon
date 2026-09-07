@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.25.0
+
+- **The dashboard now says "Car Parked" instead of raising an alarm.** The Last Updated tile
+  leads with *when the car last reported* and shows a parking-lights icon with **Car Parked**
+  when it has been asleep, or **Last Updated** with a green connected icon when it is reporting.
+  The time is the headline, because that is the useful fact.
+- **The red pulsing "Stale Data" card now means "Not Polling".** It was triggered by
+  `data_stale`, which since v1.24.0 measures how old the *car's* reading is — so it would have
+  pulsed red every night for a car that was simply parked. It now triggers on
+  `binary_sensor.alpine_a290_poll_failing`: the add-on cannot reach Renault, which is the case
+  actually worth alarming about. Its pop-up spells out the difference.
+- **`stale_hours` now defaults to 36 hours, up from 6.** Six hours was the right threshold when
+  this measured poll health; for "how old is the car's reading" it is shorter than a normal
+  overnight park. 36 hours is longer than an ordinary parking gap while still catching a car
+  that has genuinely stopped reporting. **Existing installations keep their configured value** —
+  change it yourself if you want the new default.
+- Corrects the Last Updated pop-up, which still said the timestamp was "the last successful
+  poll". It is the car's report time; **Last Successful Poll** is the add-on's.
+
 ## 1.24.1
 
 - **Documents when the values actually update — and why a parked car looks "stuck".** The car
