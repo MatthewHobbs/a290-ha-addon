@@ -26,7 +26,7 @@ venv:
 lint:
     yamllint -c .yamllint alpine_a290 repository.yaml
     shellcheck alpine_a290/run.sh
-    ruff check alpine_a290/app alpine_a290/tests scripts
+    ruff check alpine_a290/app alpine_a290/tests scripts ui-tests
 
 test: venv
     .venv/bin/python -m pytest alpine_a290/tests -q --cov=alpine_a290/app --cov-report=term-missing --cov-fail-under=95
