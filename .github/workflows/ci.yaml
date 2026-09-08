@@ -162,16 +162,30 @@ jobs:
       # Companion to the VIN guard. A real home location leaked into BACKLOG.md prose for three
       # days (b79940a -> caught 2026-09-08) and no scanner has a rule for it: the privacy review
       # checked the committed SCREENSHOTS for coordinates and correctly found none, because the
-      # leak was in narrative text. High-precision coordinates belong in seeded test data, never
-      # in docs or findings. ui-tests/ is excluded - its fixture is deliberately Trafalgar Square.
-      - name: No real coordinates in docs or findings
+      # leak was in narrative text.
+      #
+      # The first version of this guard covered .md/.txt/.yaml only and MISSED the same
+      # coordinates sitting in a .py test fixture - the identical shape as the VIN leak, and found
+      # within the hour. So it now covers source too. ui-tests/ is excluded: its seeded fixture is
+      # deliberately a real coordinate (Trafalgar Square) and is not personal data.
+      #
+      # Test fixtures needing a valid fix should use a deliberately low-precision pair such as
+      # 51.5 / -0.1 - in range, not the 0/0 or 91/181 sentinels the parser rejects, and below the
+      # four-decimal threshold this pattern looks for.
+      - name: No real coordinates committed
         run: |
-          if git grep -nIE '[-+]?[0-9]{1,3}\.[0-9]{4,}[,[:space:]]+[-+]?[0-9]{1,3}\.[0-9]{4,}' \
-               -- '*.md' '*.txt' '*.yaml' ':!ui-tests/**'; then
-            echo "::error::A high-precision coordinate pair is committed in prose. Redact it - location is PII."
+          # Allow an arbitrary separator between the pair: the real leak was
+          # `gpsLatitude=<lat>, gpsLongitude=<lon>`, which an adjacent-pair pattern misses.
+          # A deliberate synthetic fixture opts out with a `synthetic-coords:` marker on the line
+          # above, which is auditable in review - rather than excluding whole directories, since
+          # the leak was in a test fixture in the first place.
+          if git grep -nIE '[0-9]{1,3}\.[0-9]{4,}.{0,25}[-+]?[0-9]{1,3}\.[0-9]{4,}' \
+               -- '*.md' '*.txt' '*.yaml' '*.py' '*.js' '*.json' \
+             | grep -v 'synthetic-coords'; then
+            echo "::error::A high-precision coordinate pair is committed. Redact it, or mark a deliberate fixture with 'synthetic-coords:'. Location is PII."
             exit 1
           fi
-          echo "no coordinate pairs found in prose"
+          echo "no unmarked coordinate pairs found"
 
       - name: Trivy filesystem scan (vulns, misconfig, secrets)
         run: |
