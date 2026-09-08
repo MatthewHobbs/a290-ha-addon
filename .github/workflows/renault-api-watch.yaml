@@ -1,0 +1,96 @@
+name: renault-api watch
+
+# renault-api is deliberately excluded from BOTH dependency bots: Dependabot ignores it
+# (.github/dependabot.yml) and Renovate does not manage Python at all (.github/renovate.json).
+# That is correct - per-model endpoint support is hard-coded in the library, so the pin is only
+# ever moved by hand after a container-verified review. But "do not auto-update it" had quietly
+# become "do not tell me about it", so a release could ship unnoticed.
+#
+# This watches for a release NEWER than the pin in requirements.in and files one issue about it.
+# It never edits a file: an approval-gated Renovate rule was considered and rejected, because its
+# only available action edits requirements.in alone and leaves the hash-locked requirements.txt
+# behind - and nothing in CI compares the pair, so that drift would be silent.
+on:
+  schedule:
+    - cron: "0 6 * * 6"   # Saturdays 06:00 UTC, matching the dependency-bot cadence
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report only, file no issue"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: renault-api-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Check for a newer renault-api release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Compare the pin against the latest upstream release
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pinned="$(sed -n 's/^renault-api==\([0-9][0-9.]*\).*/\1/p' alpine_a290/app/requirements.in)"
+          latest="$(gh release view --repo hacf-fr/renault-api --json tagName -q .tagName | sed 's/^v//')"
+          [ -n "$pinned" ] || { echo "::error::could not read the renault-api pin from requirements.in"; exit 1; }
+          [ -n "$latest" ] || { echo "::error::could not read the latest renault-api release"; exit 1; }
+          echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          # Sort -V puts the newer last; equal means nothing to do.
+          if [ "$pinned" = "$latest" ] || \
+             [ "$(printf '%s\n%s\n' "$pinned" "$latest" | sort -V | tail -1)" = "$pinned" ]; then
+            echo "newer=false" >> "$GITHUB_OUTPUT"
+            echo "pinned $pinned is current (latest upstream $latest)"
+          else
+            echo "newer=true" >> "$GITHUB_OUTPUT"
+            echo "newer release available: $pinned -> $latest"
+          fi
+
+      - name: File an issue (de-duped by an embedded marker)
+        if: steps.check.outputs.newer == 'true' && inputs.dry_run != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PINNED: ${{ steps.check.outputs.pinned }}
+          LATEST: ${{ steps.check.outputs.latest }}
+        run: |
+          set -euo pipefail
+          marker="<!-- renault-api-watch:${LATEST} -->"
+          found="$(gh issue list --state all --search "$marker in:body" --json number -q 'length')"
+          if [ "$found" != "0" ]; then
+            echo "already filed for ${LATEST}"
+            exit 0
+          fi
+          gh label create "renault-api" --color 5319E7 --force \
+            --description "Upstream renault-api release affecting the pinned endpoint table"
+          sed -e "s/__LATEST__/${LATEST}/g" -e "s/__PINNED__/${PINNED}/g" \
+            .github/templates/renault-api-release.md > /tmp/issue-body.md
+          gh issue create \
+            --title "renault-api ${LATEST} is available (pinned: ${PINNED})" \
+            --label "renault-api" \
+            --body-file /tmp/issue-body.md
+
+      - name: Summary
+        if: always()
+        env:
+          PINNED: ${{ steps.check.outputs.pinned }}
+          LATEST: ${{ steps.check.outputs.latest }}
+          NEWER: ${{ steps.check.outputs.newer }}
+        run: |
+          {
+            echo "### renault-api watch"
+            echo
+            echo "- pinned: \`${PINNED:-unknown}\`"
+            echo "- latest upstream: \`${LATEST:-unknown}\`"
+            echo "- newer available: \`${NEWER:-unknown}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
