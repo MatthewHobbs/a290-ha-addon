@@ -56,9 +56,13 @@ current State of Charge (SoC — how full the battery is, as a %) against the Mi
 
 - **Remote Control** — native MQTT buttons published by the app (no Home Assistant `renault` integration):
   - `button.alpine_a290_sound_horn`, `…_flash_lights`, `…_start_climate`, `…_stop_climate`,
-    and `…_refresh_location`.
-  - **No charge buttons:** Renault forbids remote charge-start/stop on the A290, so neither
-    dashboard includes a charge tile.
+    and `…_start_charging`.
+  - **Refresh Location is off by default.** It is destructive on a parked car — it replaces
+    the position Renault holds with "no fix" until you next complete a journey. Set
+    `enable_refresh_location: true` if you want it back.
+  - **No charge tile:** Start Charging exists as a button but neither bundled dashboard
+    shows it — use the Smart Charging **Charge Now** control or the car's timer. (Remote
+    charge-*stop* is genuinely unavailable on this model.)
   - **Start Climate** preconditions to the app's `precondition_temperature` (default 20 °C);
     HVAC can lag if the car is asleep, and stop may be unreliable — both are Renault-side limits.
 - **Charge limits** — writable sliders, set on the car via `set_battery_soc`:
@@ -97,8 +101,8 @@ panels without a real session. It's off by default and not needed for normal use
 
 ## Bubble dashboard
 
-The same entities and data, styled with **Bubble Card**. The bubble version does not include
-the Start Charging tile.
+The same entities and data, styled with **Bubble Card**. Neither bundled dashboard includes a
+Start Charging tile — the button exists, it just isn't on the shipped layouts.
 
 ---
 
