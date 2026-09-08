@@ -6,6 +6,47 @@ shared engine repo but are tracked here because they surface as A290 add-on beha
 
 ---
 
+## P2 — Evidence asymmetry: a290 is observed on a real car, r5 can never be
+
+**Component:** `alpine_a290` + `renault_5` (evidence base, not code) · **Logged:** 2026-09-08
+
+Worth stating once, because it silently weights every cross-repo decision and an audit pass
+overstated it in both directions.
+
+**The a290 is well observed.** Four `Observed live:` findings in this file, `Established by
+testing on 2026-09-07`, refresh-location "verified, response in 12s" in CLAUDE.md, the controlled
+press/no-press experiment published upstream in hacf-fr/renault-api#2250 §3, and the 68-hour
+observation that produced the v1.24.0 `data_stale` fix. Every material defect this quarter was
+found by watching a real car, not by a gate. What a290 lacks is an **automated** live test: the
+mandatory container verify blackholes the three Renault hosts, so it verifies process, not
+behaviour. Ad-hoc human observation is doing that work.
+
+**The r5 has none, and structurally cannot.** The maintainer owns an A290. The R5 E-Tech and the
+A290 **share the CMF-BEV / KCM platform but are different models** with different endpoint tables
+(`R5E1VE` vs `A5E1AE`), and r5's own CLAUDE.md is explicit that it is *ported from* the a290 and
+continues Topolino65's project for third-party R5 owners. r5 has no `BACKLOG.md`, no `observed`
+claims in its changelog, and no route to a live check.
+
+**Consequences, which are the actionable part:**
+
+- Every r5 change lands on a weaker evidence base than the equivalent a290 change, permanently.
+  Anything mirrored as "precautionary, not observed" should say so in r5's changelog — the
+  Refresh Location gate is the current example.
+- The standing rule "never assume A290 == R5" is not caution, it is the only control available.
+- **r5 has no backlog of its own**, so r5-specific findings are recorded here or nowhere. That is
+  how its missing `renault_api` logger clamp and missing aiohttp timeout went unrecorded for
+  releases.
+- **r5's CLAUDE.md line 60 still says "unlike the A290, which forbids charge-start".** False since
+  v1.19.0 — the same stale claim corrected in a290's README, USER-GUIDE and module docstring on
+  2026-09-08. Fourth and fifth instances of one error, sitting in the twin. Fix when the r5 mirror
+  wave lands.
+
+**Not a call to buy an R5.** The proportionate answers are: a fake/recorded Kamereon client so the
+container gate can verify behaviour without any car, and honest labelling of what is observed
+versus inferred.
+
+---
+
 ## P1 — Two PII leaks reached the public repo, and neither was found by a scanner or the panel
 
 **Component:** repo-wide (fixtures + findings prose) · **Logged:** 2026-09-08 · *both fixed forward*
