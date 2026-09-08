@@ -41,13 +41,25 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          pinned="$(sed -n 's/^renault-api==\([0-9][0-9.]*\).*/\1/p' alpine_a290/app/requirements.in)"
+          # Capture the whole version, not just digits and dots: a pre-release pin such as
+          # 0.5.14b1 must not truncate to 0.5.14, or the final release is never reported.
+          pin_of() { sed -n "s/^renault-api==\\([^ #\\\\]*\\).*/\\1/p" "$1" | head -1; }
+          pinned="$(pin_of alpine_a290/app/requirements.in)"
+          locked="$(pin_of alpine_a290/app/requirements.txt)"
           latest="$(gh release view --repo hacf-fr/renault-api --json tagName -q .tagName | sed 's/^v//')"
           [ -n "$pinned" ] || { echo "::error::could not read the renault-api pin from requirements.in"; exit 1; }
+          [ -n "$locked" ] || { echo "::error::could not read the renault-api pin from requirements.txt"; exit 1; }
           [ -n "$latest" ] || { echo "::error::could not read the latest renault-api release"; exit 1; }
+          # The issue body tells the reader to bump both files and warns that nothing in CI
+          # compares them. This job would inherit that blind spot if it read only the .in:
+          # a bump landing in .in alone would read as current here while the image kept
+          # installing the old release. So compare them, and fail loudly when they disagree.
+          if [ "$pinned" != "$locked" ]; then
+            echo "::error::requirements.in pins $pinned but requirements.txt pins $locked - the pair has drifted"
+            exit 1
+          fi
           echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
-          # Sort -V puts the newer last; equal means nothing to do.
           if [ "$pinned" = "$latest" ] || \
              [ "$(printf '%s\n%s\n' "$pinned" "$latest" | sort -V | tail -1)" = "$pinned" ]; then
             echo "newer=false" >> "$GITHUB_OUTPUT"
@@ -58,7 +70,14 @@ jobs:
           fi
 
       - name: File an issue (de-duped by an embedded marker)
-        if: steps.check.outputs.newer == 'true' && inputs.dry_run != true
+        # Boolean workflow_dispatch inputs arrive as the STRINGS "true"/"false" over the REST
+        # API and `gh workflow run -f`. A bare truthiness test would treat the string "false"
+        # as true (non-empty strings are truthy) and silently skip filing when a real run was
+        # asked for - the same silent-miss this job exists to prevent. Compare both forms.
+        if: >-
+          steps.check.outputs.newer == 'true' &&
+          !(github.event_name == 'workflow_dispatch' &&
+            (inputs.dry_run == true || inputs.dry_run == 'true'))
         env:
           GH_TOKEN: ${{ github.token }}
           PINNED: ${{ steps.check.outputs.pinned }}
@@ -66,13 +85,18 @@ jobs:
         run: |
           set -euo pipefail
           marker="<!-- renault-api-watch:${LATEST} -->"
-          found="$(gh issue list --state all --search "$marker in:body" --json number -q 'length')"
-          if [ "$found" != "0" ]; then
+          gh label create "renault-api" --color 5319E7 --force \
+            --description "Upstream renault-api release affecting the pinned endpoint table"
+          # List the labelled issues and substring-match the bodies, rather than gh issue list
+          # --search. GitHub's search ANDs tokens anywhere in the body and splits on hyphens, so an
+          # unquoted marker matches issues that merely contain the words separately - which would
+          # report "already filed" and silently swallow the notification this job exists to send.
+          # Same reasoning, and the same shape, as already_filed() in ha_cadence_watch.py.
+          if gh api "repos/${GITHUB_REPOSITORY}/issues?labels=renault-api&state=all&per_page=100" \
+               --jq '.[].body' 2>/dev/null | grep -Fq "$marker"; then
             echo "already filed for ${LATEST}"
             exit 0
           fi
-          gh label create "renault-api" --color 5319E7 --force \
-            --description "Upstream renault-api release affecting the pinned endpoint table"
           sed -e "s/__LATEST__/${LATEST}/g" -e "s/__PINNED__/${PINNED}/g" \
             .github/templates/renault-api-release.md > /tmp/issue-body.md
           gh issue create \
