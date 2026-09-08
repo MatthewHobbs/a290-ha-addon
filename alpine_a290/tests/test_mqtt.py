@@ -137,14 +137,24 @@ def test_refresh_location_button_cleared_when_location_disabled(monkeypatch):
     btn_topic = f"{mqtt.DISCOVERY_PREFIX}/button/{mqtt.NODE}/{cmd}/config"
     eps = set(catalog.OPTIONAL_ENDPOINTS) | {catalog.REFRESH_LOCATION_EP}
 
-    # location on: the refresh-location button is published
+    # location on AND opted in: the refresh-location button is published
     monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", True)
+    monkeypatch.setattr(mqtt, "ENABLE_REFRESH_LOCATION", True)
     c = StubClient()
     mqtt.publish_discovery(c, eps, "km")
     assert "command_topic" in c.pub[btn_topic]
 
     # location off: the button is cleared even though the endpoint is supported
     monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", False)
+    c = StubClient()
+    mqtt.publish_discovery(c, eps, "km")
+    assert c.pub[btn_topic] == ""
+
+    # opted out (the shipped default): cleared even with location on and the endpoint supported.
+    # This is the case an existing install upgrades into, so the button must be actively cleared
+    # rather than merely not re-published — HA only drops the entity on a retained empty payload.
+    monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", True)
+    monkeypatch.setattr(mqtt, "ENABLE_REFRESH_LOCATION", False)
     c = StubClient()
     mqtt.publish_discovery(c, eps, "km")
     assert c.pub[btn_topic] == ""
