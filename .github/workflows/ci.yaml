@@ -159,6 +159,20 @@ jobs:
           fi
           echo "no VIN-shaped strings found"
 
+      # Companion to the VIN guard. A real home location leaked into BACKLOG.md prose for three
+      # days (b79940a -> caught 2026-09-08) and no scanner has a rule for it: the privacy review
+      # checked the committed SCREENSHOTS for coordinates and correctly found none, because the
+      # leak was in narrative text. High-precision coordinates belong in seeded test data, never
+      # in docs or findings. ui-tests/ is excluded - its fixture is deliberately Trafalgar Square.
+      - name: No real coordinates in docs or findings
+        run: |
+          if git grep -nIE '[-+]?[0-9]{1,3}\.[0-9]{4,}[,[:space:]]+[-+]?[0-9]{1,3}\.[0-9]{4,}' \
+               -- '*.md' '*.txt' '*.yaml' ':!ui-tests/**'; then
+            echo "::error::A high-precision coordinate pair is committed in prose. Redact it - location is PII."
+            exit 1
+          fi
+          echo "no coordinate pairs found in prose"
+
       - name: Trivy filesystem scan (vulns, misconfig, secrets)
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin

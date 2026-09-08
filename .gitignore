@@ -28,3 +28,4 @@ secrets.yaml
 
 # Local `just ci` virtualenv (uv)
 .venv/
+.adv-review/
