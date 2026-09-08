@@ -6,6 +6,47 @@ shared engine repo but are tracked here because they surface as A290 add-on beha
 
 ---
 
+## P1 — Claude Code permission grants accumulate here forever, and will again
+
+**Component:** `.claude/settings.local.json` (local, gitignored) · **Logged:** 2026-09-08
+
+Claude Code writes a "Yes, and don't ask again" Bash approval into this repo's
+`.claude/settings.local.json` permanently. There is no session-only option for Bash approvals —
+only file-modification approvals expire at session end — so every one-off approval ever granted
+here stayed live for every future session. A cross-repo scan found 1,843 such rules across 13
+files; this repo held **169** of them.
+
+**Pruned 2026-09-08: 169 → 135.** Option (c) was chosen — drop the dangerous and the dead, keep
+the routine — over emptying the list entirely. Emptying matches the stated policy, but it taxes
+the workflow this repo actually runs (the `Read(…/r5-ha-addon/**)` rules are how the a290-first
+mirror reads the sibling), and it invites reflexive re-approval at *worse* granularity than the
+list it replaced.
+
+The 34 removed: 6 codex invocations (bare and `/opt/homebrew/bin` forms), `docker run *`,
+`gh api *`, `git push *`, `git reset *`, 8 interpreter `-c`/`-e` forms, 2 `curl` rules, and 17
+rules pointing at `/tmp` or `/private/tmp` paths that no longer exist. (14 + 3 — three of the
+dead-path rules were also interpreter forms.)
+
+Backup: `/Users/matt/.claude/backups/a290-settings-local-20260908-170419.json`
+
+**This will re-accumulate.** Nothing here prevents it: the file grows again the moment
+"don't ask again" is clicked. What actually neutralises the dangerous classes is the user-scope
+`deny`/`ask` block in `~/.claude/settings.json` — permission rules resolve deny → ask → allow and
+a user-scope rule outranks a project-level allow, so those classes stay blocked no matter what
+this file accumulates. **Do not read a pruned list as a control.** The pruning is hygiene.
+
+**Two findings from the audit that outlive the cleanup, and are NOT fixed:**
+
+- **A deny rule is bypassable by absolute path.** `Bash(codex *)` matches `codex exec …` but not
+  `/opt/homebrew/bin/codex exec …`, and this repo carried exactly that full-path allow. 46 of the
+  52 wildcard allows here were unshadowed by user scope, not 6 — the "already neutralised" framing
+  held only for the classes the block happens to name. Worth tightening at user scope, since a
+  per-repo prune does nothing for the next repo.
+- **`Bash(gh auth *)` and `Bash(gh secret *)` are in neither `deny` nor `ask`.** `gh auth token`
+  prints the GitHub token to stdout; `gh secret set` writes repository secrets, which this repo's
+  release pipeline depends on. Both were live allows here. Also uncovered: `curl`/`wget` were not
+  in `ask` at the time of the scan (they are now).
+
 ## ~~P1 — Tracker discovery declares a `state_topic` that nothing ever writes~~ — DONE
 
 **Component:** `renault-mqtt` — `renault_mqtt/mqtt.py:165-172`
