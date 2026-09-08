@@ -4,7 +4,10 @@ A290/CMF-BEV (model A5E1AE) quirks: batteryCapacity is always 0 (we use the conf
 capacity); chargingStatus is a float ChargeState decoded via the library enum;
 chargingInstantaneousPower units are unreliable; batteryTemperature/internalTemperature are
 often absent. Control buttons (ACTION_BUTTONS) are gated on supports_endpoint(); charge-start
-is forbidden on this model, so it's never shipped.
+became available for this model in renault-api 0.5.13 and is shipped (it clears the car's own
+scheduled programs, so it is a no-op under external scheduling such as Octopus Intelligent).
+refresh-location is supported but withheld unless enable_refresh_location is set — it is
+destructive on a parked car; see the option's description in DOCS.md.
 """
 import asyncio
 import inspect
@@ -288,8 +291,10 @@ COMMAND_ACTIONS = {
     "refresh_location": lambda v: v.refresh_location(),
 }
 
-# Command suffixes that trigger a location refresh — rejected when location publishing is off
-# (the button is also cleared in publish_discovery), so an opted-out install can't refresh.
+# Command suffixes that trigger a location refresh — rejected unless the user has opted in AND
+# location publishing is on (publish_discovery clears the button in the same cases). Gating the
+# command as well as the button is the point: the entity is pressable from voice, automations and
+# any dashboard, so hiding it alone would leave every other path working.
 LOCATION_CMDS = {obj[_P:] for obj, (_n, _i, ep) in ACTION_BUTTONS.items() if ep == REFRESH_LOCATION_EP}
 
 # Command suffixes (topic tail) that map to writable numbers rather than button actions.
@@ -346,6 +351,11 @@ async def run_command(cmd, payload=""):
         return
     if cmd in LOCATION_CMDS and not mqtt.PUBLISH_LOCATION:
         LOG.info("Ignoring '%s' — location is disabled (publish_location: false)", cmd)
+        return
+    if cmd in LOCATION_CMDS and not mqtt.ENABLE_REFRESH_LOCATION:
+        LOG.info("Ignoring '%s' — refresh-location is off (enable_refresh_location: false). "
+                 "On a parked car it replaces the car's recorded position with 'no fix' until "
+                 "the next completed journey; see DOCS.md before enabling it.", cmd)
         return
     action = COMMAND_ACTIONS.get(cmd)
     if action is None:
