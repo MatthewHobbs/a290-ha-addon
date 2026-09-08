@@ -78,8 +78,9 @@ safe). To pull in a later layout update, set `redeploy_dashboard: true` and rest
 ### 4. Control buttons + optional extras
 
 - **Control buttons:** the app publishes these **natively over MQTT** — no Home Assistant `renault` integration needed: `button.alpine_a290_sound_horn`, `…_flash_lights`,
-  `…_start_climate`, `…_stop_climate`, `…_refresh_location`, `…_start_charging`. Each is gated
-  on what the platform supports. Charge-start (renault-api 0.5.13) starts a charge only by
+  `…_start_climate`, `…_stop_climate`, `…_start_charging`. Each is gated
+  on what the platform supports. `…_refresh_location` is **not published by default** — it is
+  destructive on a parked car, so it needs `enable_refresh_location: true` (see DOCS.md). Charge-start (renault-api 0.5.13) starts a charge only by
   clearing the car's **built-in** timer — it's a **no-op** under external scheduling like
   Octopus Intelligent (use the tariff's "charge now" / the car's physical timer instead);
   charge-*stop* stays unavailable. The bundled dashboards include no charge tile.

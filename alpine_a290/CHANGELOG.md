@@ -18,8 +18,10 @@
 - Establishing this took a controlled test on a real A290 — a valid fix survived days of parking,
   the press replaced it, the next journey restored it — and is documented upstream in
   [hacf-fr/renault-api#2250](https://github.com/hacf-fr/renault-api/issues/2250).
-- Corrects the poller's own module docstring, which still claimed charge-start was forbidden on
-  this model. It has shipped since v1.19.0.
+- **Corrects four places that still said charge-start is forbidden on the A290.** It has shipped
+  since v1.19.0 — the claim survived in the add-on README, the user guide, and the poller's own
+  module docstring. The user guide also implied the standard dashboard carries a Start Charging
+  tile; neither bundled dashboard does.
 - Picks up shared core `renault-mqtt` v0.17.0.
 
 ## 1.26.0
