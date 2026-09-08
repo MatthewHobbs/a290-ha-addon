@@ -28,3 +28,4 @@ local editor settings
 
 # Local `just ci` virtualenv (uv)
 .venv/
+.adv-review/
