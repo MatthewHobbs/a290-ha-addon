@@ -792,6 +792,7 @@ def test_supports_handles_sync_and_async():
 
 def test_run_command_rejects_refresh_location_when_location_disabled(monkeypatch):
     monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", False)
+    monkeypatch.setattr(mqtt, "ENABLE_REFRESH_LOCATION", True)
     called = {"n": 0}
 
     async def fake_login(ws, locale):
@@ -802,6 +803,39 @@ def test_run_command_rejects_refresh_location_when_location_disabled(monkeypatch
     (cmd,) = tuple(main.LOCATION_CMDS)
     asyncio.run(main.run_command(cmd))
     assert called["n"] == 0            # rejected before any login/dispatch
+
+
+@pytest.mark.parametrize("publish_location,enable_refresh,dispatched", [
+    (True,  True,  True),    # opted in -> the only combination that reaches the car
+    (True,  False, False),   # the shipped default
+    (False, True,  False),
+    (False, False, False),
+])
+def test_run_command_gates_refresh_location_on_the_opt_in(
+        monkeypatch, publish_location, enable_refresh, dispatched):
+    """Withholding the discovery button is not enough on its own: the entity is pressable from
+    voice, automations and any dashboard, all of which publish to the same command topic. So the
+    command itself must be rejected, and rejected BEFORE the login - a refused press must not even
+    authenticate, let alone reach actions/refresh-location."""
+    monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", publish_location)
+    monkeypatch.setattr(mqtt, "ENABLE_REFRESH_LOCATION", enable_refresh)
+    logins = {"n": 0}
+    refreshed = {"n": 0}
+
+    class Veh:
+        async def refresh_location(self):
+            refreshed["n"] += 1
+
+    async def fake_login(ws, locale):
+        logins["n"] += 1
+        return Veh()
+
+    monkeypatch.setattr(main, "_login_vehicle", fake_login)
+    (cmd,) = tuple(main.LOCATION_CMDS)
+    asyncio.run(main.run_command(cmd))
+
+    assert refreshed["n"] == (1 if dispatched else 0)
+    assert logins["n"] == (1 if dispatched else 0)
 
 
 def test_poll_once_skips_hvac_settings_when_the_car_does_not_advertise_it():

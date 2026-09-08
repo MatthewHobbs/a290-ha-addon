@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.27.0
+
+- **The Refresh Location button is now off by default, and existing installs will lose it.**
+  That is deliberate: on a parked car the button is destructive. The car is asleep and usually
+  cannot get a GPS fix, and its "no position" answer then **replaces the last known position that
+  Renault holds**, on a current timestamp so it looks like fresh data. Only completing a journey
+  restores it — which, for a car driven occasionally rather than daily, can mean weeks. Your car
+  is not affected; only its recorded position is.
+- **Why you may not have noticed.** Since v1.23.0 the add-on rejects the bad coordinates, so Home
+  Assistant kept showing your last good position and looked perfectly healthy — while Renault's
+  own app showed "We are unable to geolocate your vehicle". The fix protected the dashboard, not
+  the car's record, so the damage became invisible rather than going away. That is why the button
+  had to be withheld rather than its output filtered.
+- **To get the button back**, set `enable_refresh_location: true` on the Configuration page. It
+  also needs `publish_location: true`. The option's description spells out the trade-off.
+- Establishing this took a controlled test on a real A290 — a valid fix survived days of parking,
+  the press replaced it, the next journey restored it — and is documented upstream in
+  [hacf-fr/renault-api#2250](https://github.com/hacf-fr/renault-api/issues/2250).
+- Corrects the poller's own module docstring, which still claimed charge-start was forbidden on
+  this model. It has shipped since v1.19.0.
+- Picks up shared core `renault-mqtt` v0.17.0.
+
 ## 1.26.0
 
 - **Fixed: the climate schedule sensors go `unavailable` instead of blank.** This model
