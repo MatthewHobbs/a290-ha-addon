@@ -6,9 +6,93 @@ shared engine repo but are tracked here because they surface as A290 add-on beha
 
 ---
 
+## P2 — Evidence asymmetry: a290 is observed on a real car, r5 can never be
+
+**Component:** `alpine_a290` + `renault_5` (evidence base, not code) · **Logged:** 2026-09-08
+
+Worth stating once, because it silently weights every cross-repo decision and an audit pass
+overstated it in both directions.
+
+**The a290 is well observed.** Four `Observed live:` findings in this file, `Established by
+testing on 2026-09-07`, refresh-location "verified, response in 12s" in CLAUDE.md, the controlled
+press/no-press experiment published upstream in hacf-fr/renault-api#2250 §3, and the 68-hour
+observation that produced the v1.24.0 `data_stale` fix. Every material defect this quarter was
+found by watching a real car, not by a gate. What a290 lacks is an **automated** live test: the
+mandatory container verify blackholes the three Renault hosts, so it verifies process, not
+behaviour. Ad-hoc human observation is doing that work.
+
+**The r5 has none, and structurally cannot.** The maintainer owns an A290. The R5 E-Tech and the
+A290 **share the CMF-BEV / KCM platform but are different models** with different endpoint tables
+(`R5E1VE` vs `A5E1AE`), and r5's own CLAUDE.md is explicit that it is *ported from* the a290 and
+continues Topolino65's project for third-party R5 owners. r5 has no `BACKLOG.md`, no `observed`
+claims in its changelog, and no route to a live check.
+
+**Consequences, which are the actionable part:**
+
+- Every r5 change lands on a weaker evidence base than the equivalent a290 change, permanently.
+  Anything mirrored as "precautionary, not observed" should say so in r5's changelog — the
+  Refresh Location gate is the current example.
+- The standing rule "never assume A290 == R5" is not caution, it is the only control available.
+- **r5 has no backlog of its own**, so r5-specific findings are recorded here or nowhere. That is
+  how its missing `renault_api` logger clamp and missing aiohttp timeout went unrecorded for
+  releases.
+- **r5's CLAUDE.md line 60 still says "unlike the A290, which forbids charge-start".** False since
+  v1.19.0 — the same stale claim corrected in a290's README, USER-GUIDE and module docstring on
+  2026-09-08. Fourth and fifth instances of one error, sitting in the twin. Fix when the r5 mirror
+  wave lands.
+
+**Not a call to buy an R5.** The proportionate answers are: a fake/recorded Kamereon client so the
+container gate can verify behaviour without any car, and honest labelling of what is observed
+versus inferred.
+
+---
+
+## P1 — Two PII leaks reached the public repo, and neither was found by a scanner or the panel
+
+**Component:** repo-wide (fixtures + findings prose) · **Logged:** 2026-09-08 · *both fixed forward*
+
+The only **demonstrated** privacy incidents this project has had. Both were committed to a public
+repository, both sat there for days, and neither was found by tooling or by a fourteen-specialist
+audit — they surfaced from greps run for unrelated reasons.
+
+| What | Where | Public for | Found by |
+|---|---|---|---|
+| Real VIN `VYSP01…` (4 occurrences) | `tests/test_runtime.py`, a test fixture | 2026-09-04 → 09-08 | a grep checking credentials hadn't leaked during container work |
+| Home coordinates, ~11 m, labelled "at home" | `BACKLOG.md` prose, this file | 2026-09-05 → 09-08 | the adversarial sign-off lane, cross-model |
+
+**Why nothing caught them.** gitleaks and trivy have no VIN or coordinate rule. The privacy review
+explicitly checked the committed *screenshots* for a leaked VIN and coordinates and correctly found
+none — the leaks were in a **fixture** and in **narrative text**, which is where nobody looks. The
+add-on's redaction net masks values at runtime and cannot see source.
+
+**Fixed forward, with guards** (a290 #130 and this entry's PR): the VIN replaced with
+`VF1STUBVIN0000000` — deliberately invalid, since real VINs exclude I, O and Q, so it cannot match
+its own guard — and the coordinates redacted while keeping the finding's meaning. CI now fails on
+any VIN-shaped 17-character string, and on any high-precision coordinate pair in `*.md`/`*.txt`/
+`*.yaml` outside `ui-tests/` (whose Trafalgar Square fixture is deliberately a real coordinate).
+
+**Accepted residual, stated rather than assumed.** Git history was **not** rewritten. Both values
+remain in the history of a public repo and may be mirrored by forks or caches; rewriting signed,
+linear history under `enforce_admins` was judged disruptive for limited benefit, and neither value
+can be rotated the way a token can. **This is a decision, not an oversight** — revisit it if the
+repo's visibility or the maintainer's threat model changes.
+
+**Still unscanned:** history has been checked only for VIN, coordinate and email shapes. Nothing has
+scanned it for tokens, Kamereon account ids or Supervisor tokens.
+
+**The generalisable lesson, which is why this is P1 rather than closed:** the audit's blind spot was
+*category*, not depth — application code was reviewed exhaustively while fixtures, committed data
+and the findings file itself were not reviewed at all. Any future audit should sweep those first,
+because they are cheap to check and are where both real incidents lived.
+
+---
+
 ## P1 — A failed poll blanks ~40 entities: the retained state document is replaced, not merged
 
-**Component:** `alpine_a290` (`main.py:692-698`) · **Logged:** 2026-09-08 (full panel audit)
+**Component:** `alpine_a290` (`main.py:704-708`) · **Logged:** 2026-09-08 (full panel audit)
+**Citations re-anchored to HEAD 2026-09-08** — the audit ran on the pre-#129 tree, so every
+a290 line number in the entries below was low by 3-10. The stale numbers landed on
+plausible-but-wrong code, which is the worst kind of wrong.
 
 On **any** exception in `poll_once` — one network blip, one 401, a Gigya hiccup — the `except`
 branch publishes a **four-key** document to `mqtt.STATE_TOPIC` with `retain=True`:
@@ -21,8 +105,8 @@ climate-schedule entry above spent three releases fixing, except here it hits th
 from the **first** failed poll. Only two entities carry the compound availability that would save
 them (`catalog.py` `DATA_GATED_SENSORS`).
 
-**The intent was the opposite.** The comment at `main.py:683-686` says "No new payload, so the
-last known car timestamp simply ages" — prior values were meant to persist. And `main.py:701`
+**The intent was the opposite.** The comment at `main.py:694-696` says "No new payload, so the
+last known car timestamp simply ages" — prior values were meant to persist. And `main.py:711-712`
 does `_LATEST["data"].update(...)`, which **merges**, so the status panel and MQTT disagree about
 what the add-on knows.
 
@@ -34,17 +118,22 @@ publishing `{**last_data, **fresh}`.
 
 `tests/test_runtime.py` asserts the partial document, so **the suite currently encodes the bug**.
 
+**Correction:** "the suite encodes the bug" was overstated. `test_runtime.py` `test_main_failure_path_publishes_both_signals` asserts on the partial document, but since
+`_LATEST["data"]` starts `{}` the proposed merge fix still passes it — the suite fails to
+*detect* the bug rather than encoding it. Also "four-key" is three on a fresh install:
+`data_stale` is conditionally omitted.
+
 **Fix:** merge rather than replace, and add a test asserting `battery_level` survives a failed
 poll. This undercuts the freshness framework v1.24.0 shipped: instead of showing stale-but-plausible
 data, a single transient failure erases it.
 
 ---
 
-## P1 — r5 leaks access tokens at `log_level: debug`; a290 does not
+## P2 — r5 leaks access tokens at `log_level: debug`; a290 does not
 
 **Component:** `renault_5` (`app/main.py`) · **Logged:** 2026-09-08
 
-`alpine_a290/app/main.py:120-121` clamps the `renault_api`, `renault_api.kamereon` and
+`alpine_a290/app/main.py:123-124` clamps the `renault_api`, `renault_api.kamereon` and
 `renault_api.gigya` loggers to INFO, so the library's DEBUG records — which include full request
 URLs and response bodies — are never created. **r5 has no equivalent.** It attaches the redaction
 filter, but that scrubs *configured* secrets (username, password, VIN, account_id, Supervisor
@@ -61,7 +150,7 @@ rule exists to keep features in step, not to delay a security fix on the twin.
 
 ## P1 — Endpoint support is probed once at startup and never re-probed
 
-**Component:** `alpine_a290` (`main.py:640-645`) · **Logged:** 2026-09-08
+**Component:** `alpine_a290` (`main.py:650-655`) · **Logged:** 2026-09-08
 
 A transient boot-time login failure — HA restarting after a power cut, DNS not yet up — leaves
 `supported` nearly empty. `publish_discovery` then writes **empty retained configs**, which is how
@@ -80,7 +169,7 @@ definite negative.
 
 ---
 
-## P1 — "Lockstep" is a human promise with no enforcing artifact, and it has already failed both ways
+## P1/P2 — "Lockstep" is a human promise with no enforcing artifact, and it has already failed both ways
 
 **Component:** `alpine_a290` + `renault_5` + CI · **Logged:** 2026-09-08
 
@@ -88,9 +177,9 @@ Nothing in either repo's CI compares the twins. Three divergences confirmed by r
 
 | | a290 | r5 |
 |---|---|---|
-| `renault_api` logger clamp | ✅ `main.py:120-121` | ❌ absent (own P1 above) |
+| `renault_api` logger clamp | ✅ `main.py:123-124` | ❌ absent (own P1 above) |
 | aiohttp session timeout | ✅ `API_TIMEOUT` on all three sessions | ❌ none on `main.py:231,354,390` |
-| Signal handlers before startup I/O | ❌ registered at `main.py:648`, after `detect_supported`/`mqtt_connect`/`publish_discovery`/`run_deploy` | ✅ registered at `main.py:677`, before all four |
+| Signal handlers before startup I/O | ❌ registered at `main.py:658`, after `detect_supported`/`mqtt_connect`/`publish_discovery`/`run_deploy` | ✅ registered at `main.py:677`, before all four |
 
 Each repo carries a hardening fix the other already has. The drift runs in **both** directions,
 which is what makes it invisible: neither repo looks behind.
@@ -107,7 +196,7 @@ reason. That converts lockstep from intent into an artifact, and would have caug
 
 ---
 
-## P1 — The Bubble dashboard has none of the alarm semantics the standard one has
+## P2 — The Bubble dashboard has none of the alarm semantics the standard one has
 
 **Component:** `alpine_a290/dashboards/front-end-bubble.txt` · **Logged:** 2026-09-08
 
@@ -178,6 +267,10 @@ does assert, so this is inconsistency, not house style.
 Line coverage measures execution, not verification. That is how a retained-state wipe passed a 95%
 gate at 99.26%.
 
+**And the figure is narrower than it reads.** `ci.yaml:130` measures `--cov=alpine_a290/app`
+only, so `renault_mqtt` — which builds every discovery payload — is outside the number entirely.
+The core has its own 100% gate, but nothing measures the two together.
+
 **Fix:** assert `(AVAIL_TOPIC, "online")` is published, assert the auth flag for an auth-shaped
 error, and drive 2-3 consecutive failures to pin the backoff doubling and its cap.
 
@@ -215,8 +308,13 @@ So a normally-used car sits at `data_stale: on` for much of its life. The logic 
 to ignore it.
 
 `poll_failing` is the signal that means something is actually wrong, and v1.25.0 already re-pointed
-the red pulsing card at it. Open question: does `data_stale` earn a default-visible alarm at all,
-or should the threshold be a week-plus?
+the red pulsing card at it. Open question: does `data_stale` earn a default-visible alarm at all?
+
+**Correction:** an earlier draft of this entry proposed "a week-plus" threshold. That is
+**unsettable** — `config.yaml:57` constrains `stale_hours` to `int(1,48)`. Raising the ceiling is
+part of the change, not a detail. Note also this entry's premise is **reasoned, not observed**:
+there is no telemetry, and it reads in the same register as the observed entries, which it should
+not.
 
 Related and unresolved: v1.25.0 changed the default 6→36 but existing installs keep their
 configured value, so the installed base is permanently split with no telemetry to tell which half
@@ -365,7 +463,7 @@ retained on that topic — including one left by an older build — permanently 
 coordinates.
 
 **Observed live:** `device_tracker.alpine_a290_location` read `online` while its own
-attributes carried valid coordinates at home (`51.9473, -0.6274`, accuracy 11 m) and
+attributes carried a valid fix at home (coordinates redacted; accuracy 11 m) and
 `in_zones` correctly resolved `[garage, parking, home]`. The entity could never report
 `home` regardless of where the car was.
 
