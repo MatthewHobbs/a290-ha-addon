@@ -145,6 +145,20 @@ jobs:
           python3 -m pip install --quiet pip-audit
           pip-audit -r alpine_a290/app/requirements.txt
 
+      # gitleaks/trivy have no VIN rule, which is how a real VIN sat in a test fixture on a
+      # public repo for four days (#91 -> caught 2026-09-08). A VIN is PII: it ties one physical
+      # car to this repo, and this add-on publishes that car's location. Real VINs are 17 chars
+      # from A-HJ-NPR-Z0-9 - I, O and Q are excluded by the standard, so a deliberately fake stub
+      # containing one of those (VF1STUBVIN0000000) does not match and needs no allowlist.
+      # A genuine false positive should be renamed or line-excluded, never allowlisted wholesale.
+      - name: No VIN-shaped strings committed
+        run: |
+          if git grep -nIE '\b[A-HJ-NPR-Z0-9]{17}\b' -- . ':!*.png' ':!*.webp' ':!*.ttf'; then
+            echo "::error::A VIN-shaped 17-character string is committed. VINs are PII - use a stub containing I, O or Q (e.g. VF1STUBVIN0000000)."
+            exit 1
+          fi
+          echo "no VIN-shaped strings found"
+
       - name: Trivy filesystem scan (vulns, misconfig, secrets)
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
