@@ -484,8 +484,8 @@ def test_resolve_account_matches_vin_garage(monkeypatch):
     # The A290 lives under MYALPINE, not MYRENAULT — pick the account whose garage holds the VIN,
     # not the one whose type happens to be MYRENAULT.
     monkeypatch.delenv("A290_ACCOUNT_ID", raising=False)
-    monkeypatch.setenv("A290_VIN", "vysp01a0175326907")  # lower-case: match must be case-insensitive
-    garages = {"acct-renault": [], "acct-alpine": [ns(vin="VYSP01A0175326907")]}
+    monkeypatch.setenv("A290_VIN", "vf1stubvin0000000")  # lower-case: match must be case-insensitive
+    garages = {"acct-renault": [], "acct-alpine": [ns(vin="VF1STUBVIN0000000")]}
 
     class Account:
         def __init__(self, aid):
@@ -509,7 +509,7 @@ def test_resolve_account_matches_vin_garage(monkeypatch):
 def test_resolve_account_skips_failing_account(monkeypatch):
     # A garage lookup that errors on one account must not abort discovery — keep scanning.
     monkeypatch.delenv("A290_ACCOUNT_ID", raising=False)
-    monkeypatch.setenv("A290_VIN", "VYSP01A0175326907")
+    monkeypatch.setenv("A290_VIN", "VF1STUBVIN0000000")
 
     class Account:
         def __init__(self, aid):
@@ -518,7 +518,7 @@ def test_resolve_account_skips_failing_account(monkeypatch):
         async def get_vehicles(self):
             if self.aid == "acct-bad":
                 raise RuntimeError("kamereon 500")
-            return ns(vehicleLinks=[ns(vin="VYSP01A0175326907")])
+            return ns(vehicleLinks=[ns(vin="VF1STUBVIN0000000")])
 
     class Client:
         async def get_person(self):
