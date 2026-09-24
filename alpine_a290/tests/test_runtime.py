@@ -65,7 +65,7 @@ class FakeVehicle:
         return ns(chargeMode="always")
 
     async def get_location(self):
-        return ns(gpsLatitude=51.512345, gpsLongitude=-0.123456, lastUpdateTime="t")
+        return ns(gpsLatitude=51.512345, gpsLongitude=-0.123456, lastUpdateTime="t")  # synthetic-coords: 6 dp load-bearing, rounding asserted below
 
     async def get_details(self):
         return ns(raw_data={"vin": "SECRET", "batteryLevel": 60})
@@ -129,7 +129,7 @@ def test_poll_once_full(monkeypatch):
     assert data["charge_schedule_mode"] == "Scheduled Charge"
     assert data["scheduled_charge_start"] == "02:30" and data["scheduled_charge_duration"] == 360
     assert data["climate_schedule_mode"] == "Scheduled" and data["climate_ready_time"] == "Mon 07:15"
-    assert attrs["latitude"] == 51.5123 and attrs["longitude"] == -0.1235   # rounded to 4 dp
+    assert attrs["latitude"] == 51.5123 and attrs["longitude"] == -0.1235   # synthetic-coords: the fixture above, rounded to 4 dp
     assert attrs["gps_accuracy"] == 11                                       # ~11 m at 4 dp
     assert data["available_energy"] == 30.0                                  # reported by the car
 
@@ -875,7 +875,7 @@ def test_sentinel_fix_does_not_advance_gps_last_activity():
 def test_valid_fix_does_advance_gps_last_activity():
     class _V(FakeVehicle):
         async def get_location(self):
-            return types.SimpleNamespace(gpsLatitude=51.9473, gpsLongitude=-0.6274,
+            return types.SimpleNamespace(gpsLatitude=51.5, gpsLongitude=-0.1,   # synthetic: valid, in-range, deliberately low-precision
                                          lastUpdateTime="2026-09-06T17:37:31Z")
 
     data, loc_attrs = asyncio.run(
@@ -953,7 +953,7 @@ def test_rejected_fix_carries_the_last_good_timestamp_forward():
 def test_valid_fix_records_the_timestamp_for_later_carry_forward():
     class _V(FakeVehicle):
         async def get_location(self):
-            return types.SimpleNamespace(gpsLatitude=51.9473, gpsLongitude=-0.6274,
+            return types.SimpleNamespace(gpsLatitude=51.5, gpsLongitude=-0.1,   # synthetic: valid, in-range, deliberately low-precision
                                          lastUpdateTime="2026-09-06T17:37:31Z")
 
     st = {}

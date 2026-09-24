@@ -145,33 +145,14 @@ jobs:
           python3 -m pip install --quiet pip-audit
           pip-audit -r alpine_a290/app/requirements.txt
 
-      # gitleaks/trivy have no VIN rule, which is how a real VIN sat in a test fixture on a
-      # public repo for four days (#91 -> caught 2026-09-08). A VIN is PII: it ties one physical
-      # car to this repo, and this add-on publishes that car's location. Real VINs are 17 chars
-      # from A-HJ-NPR-Z0-9 - I, O and Q are excluded by the standard, so a deliberately fake stub
-      # containing one of those (VF1STUBVIN0000000) does not match and needs no allowlist.
-      # A genuine false positive should be renamed or line-excluded, never allowlisted wholesale.
-      - name: No VIN-shaped strings committed
+      # gitleaks/trivy have no rule for a VIN or a home location, and both have leaked into this
+      # public repo (a VIN in a test fixture, #91; coordinates in prose and then in fixtures,
+      # caught 2026-09-08). The rules and their history live in the script. Self-test first:
+      # a guard that cannot fail is not a guard, and the inline version of this could not.
+      - name: No committed PII (VINs, coordinates)
         run: |
-          if git grep -nIE '\b[A-HJ-NPR-Z0-9]{17}\b' -- . ':!*.png' ':!*.webp' ':!*.ttf'; then
-            echo "::error::A VIN-shaped 17-character string is committed. VINs are PII - use a stub containing I, O or Q (e.g. VF1STUBVIN0000000)."
-            exit 1
-          fi
-          echo "no VIN-shaped strings found"
-
-      # Companion to the VIN guard. A real home location leaked into BACKLOG.md prose for three
-      # days (b79940a -> caught 2026-09-08) and no scanner has a rule for it: the privacy review
-      # checked the committed SCREENSHOTS for coordinates and correctly found none, because the
-      # leak was in narrative text. High-precision coordinates belong in seeded test data, never
-      # in docs or findings. ui-tests/ is excluded - its fixture is deliberately Trafalgar Square.
-      - name: No real coordinates in docs or findings
-        run: |
-          if git grep -nIE '[-+]?[0-9]{1,3}\.[0-9]{4,}[,[:space:]]+[-+]?[0-9]{1,3}\.[0-9]{4,}' \
-               -- '*.md' '*.txt' '*.yaml' ':!ui-tests/**'; then
-            echo "::error::A high-precision coordinate pair is committed in prose. Redact it - location is PII."
-            exit 1
-          fi
-          echo "no coordinate pairs found in prose"
+          python3 scripts/pii_check.py --self-test
+          python3 scripts/pii_check.py
 
       - name: Trivy filesystem scan (vulns, misconfig, secrets)
         run: |
@@ -184,11 +165,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069  # v4.4.1
       # The base image is pinned in the Dockerfile (FROM ghcr.io/home-assistant/base:<tag>),
       # so no BUILD_FROM build-arg is needed.
       - name: Build image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a  # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc  # v7.4.0
         with:
           context: ./alpine_a290
           push: false
