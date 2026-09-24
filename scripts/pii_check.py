@@ -1,0 +1,146 @@
+#!/usr/bin/env python3
+"""pii-check: refuse committed VINs and high-precision coordinate pairs.
+
+This repo is public and the add-on publishes one real car's identity and location. Three
+real-PII leaks reached it in two days (a VIN in a test fixture, home coordinates in BACKLOG.md
+prose, the same coordinates in two test fixtures), each found by a grep run for another reason.
+No scanner has a rule for either shape, so this is the rule.
+
+It replaces two inline CI steps that could not fail when they should have: the coordinate step
+piped `git grep` into `grep -v` under the default Actions shell (no pipefail), so a failing
+`git grep` read as "clean"; and it scanned an extension allowlist that missed shipped text such
+as panel.html. Here every tracked text file is scanned, and anything that stops the scan exits 2.
+CI and `just ci` both run it, so a leak is caught before push rather than after publication.
+
+Rules, applied to every git-tracked text file:
+  VIN         a 17-character string over A-HJ-NPR-Z0-9. Real VINs never contain I, O or Q, so a
+              stub such as VF1STUBVIN0000000 does not match and needs no exemption.
+  coordinates two numbers with 4+ decimals, the first a valid latitude and the second a valid
+              longitude, within GAP characters of each other on one line or across two adjacent
+              lines (pretty-printed JSON/YAML puts them on consecutive lines).
+
+A deliberate synthetic coordinate fixture opts out with a trailing `# synthetic-coords: <why>`
+(or `//`) comment on the SAME line as either number. JSON cannot carry one: use a pair below
+four decimals instead (e.g. 51.5 / -0.1), which is also the preferred fix everywhere else.
+
+Usage: pii_check.py [--self-test]
+Exit 0 = clean, 1 = PII found, 2 = the check itself could not run.
+"""
+import re
+import subprocess
+import sys
+
+SKIP_SUFFIXES = (".png", ".webp", ".jpg", ".jpeg", ".gif", ".ico", ".ttf", ".woff", ".woff2")
+GAP = 80
+
+VIN = re.compile(r"\b[A-HJ-NPR-Z0-9]{17}\b")
+NUM = re.compile(r"(?<![\d.])[-+]?\d{1,3}\.\d{4,}(?![\d.])")
+MARKER = re.compile(r"(#|//)\s*synthetic-coords:")
+
+
+def vin_hits(lines):
+    return [i for i, line in enumerate(lines) if VIN.search(line)]
+
+
+def _pair_in(text):
+    nums = list(NUM.finditer(text))
+    for a, b in zip(nums, nums[1:], strict=False):
+        if b.start() - a.end() <= GAP and abs(float(a.group())) <= 90 and abs(float(b.group())) <= 180:
+            return True
+    return False
+
+
+def coord_hits(lines):
+    hits = []
+    for i, line in enumerate(lines):
+        if MARKER.search(line):
+            continue
+        if _pair_in(line):
+            hits.append(i)
+            continue
+        # A pair split across this line and the next; either line may carry the marker.
+        nxt = lines[i + 1] if i + 1 < len(lines) else ""
+        if NUM.search(line) and NUM.search(nxt) and not MARKER.search(nxt) and _pair_in(line + " " + nxt):
+            hits.append(i)
+    return hits
+
+
+def tracked_files():
+    out = subprocess.run(["git", "ls-files", "-z"], capture_output=True)
+    if out.returncode != 0:
+        print(f"pii-check: git ls-files failed: {out.stderr.decode(errors='replace').strip()}", file=sys.stderr)
+        sys.exit(2)
+    return [p for p in out.stdout.decode().split("\0") if p and not p.lower().endswith(SKIP_SUFFIXES)]
+
+
+def read_text(path):
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError as e:
+        print(f"pii-check: cannot read {path}: {e}", file=sys.stderr)
+        sys.exit(2)
+    if b"\0" in data[:8192]:
+        return None
+    return data.decode("utf-8", errors="replace").splitlines()
+
+
+def scan():
+    files = tracked_files()
+    if not files:
+        print("pii-check: no tracked files found; refusing to report clean", file=sys.stderr)
+        return 2
+    found = False
+    for path in files:
+        lines = read_text(path)
+        if lines is None:
+            continue
+        for rule, hits in (("VIN-shaped string", vin_hits(lines)), ("coordinate pair", coord_hits(lines))):
+            for i in hits:
+                found = True
+                print(f"::error file={path},line={i + 1}::{rule} committed ({path}:{i + 1})")
+    if found:
+        print("PII found. VINs: use a stub containing I, O or Q (e.g. VF1STUBVIN0000000). Coordinates: "
+              "use a pair below four decimals, or mark a deliberate fixture with a same-line "
+              "'# synthetic-coords: <why>' comment.")
+        return 1
+    print(f"pii-check: {len(files)} tracked files, no VINs or unmarked coordinate pairs")
+    return 0
+
+
+def self_test():
+    # Built at runtime so this file never contains the shapes it rejects.
+    lat, lon = "12." + "3456", "-45." + "6789"
+    vin = "VF1" + "A" * 14
+    cases = [
+        ("vin", [f"vin: {vin}"], True),
+        ("vin stub with I/O/Q", ["vin: VF1STUBVIN0000000"], False),
+        ("pair, one line", [f"gpsLatitude={lat}, gpsLongitude={lon}"], True),
+        ("pair, other keys between", [f'"latitude": {lat}, "gps_accuracy": 8, "source_type": "gps", "longitude": {lon}'], True),
+        ("pair, two lines", [f"latitude: {lat}", f"longitude: {lon}"], True),
+        ("marker, same line", [f"x = ({lat}, {lon})  # synthetic-coords: test"], False),
+        ("marker, js comment", [f"f({lat}, {lon}); // synthetic-coords: test"], False),
+        ("marker, second line of a split pair", [f"latitude: {lat}", f"longitude: {lon}  # synthetic-coords: t"], False),
+        ("marker word in prose does not exempt", [f"the synthetic-coords marker was not used for {lat}, {lon}"], True),
+        ("low precision", ["gpsLatitude=51.5, gpsLongitude=-0.1"], False),
+        ("out of range first number", [f"ratio 123.{'4567'} vs {lon}"], False),
+    ]
+    failed = 0
+    for name, lines, want in cases:
+        got = bool(vin_hits(lines) if name.startswith("vin") else coord_hits(lines))
+        if got != want:
+            failed += 1
+            print(f"pii-check self-test FAILED: {name}: expected {'hit' if want else 'clean'}", file=sys.stderr)
+    if failed:
+        return 2
+    print(f"pii-check self-test: {len(cases)} cases ok")
+    return 0
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["--self-test"]:
+        sys.exit(self_test())
+    if sys.argv[1:]:
+        print("usage: pii_check.py [--self-test]", file=sys.stderr)
+        sys.exit(2)
+    sys.exit(scan())

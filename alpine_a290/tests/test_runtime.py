@@ -129,7 +129,7 @@ def test_poll_once_full(monkeypatch):
     assert data["charge_schedule_mode"] == "Scheduled Charge"
     assert data["scheduled_charge_start"] == "02:30" and data["scheduled_charge_duration"] == 360
     assert data["climate_schedule_mode"] == "Scheduled" and data["climate_ready_time"] == "Mon 07:15"
-    assert attrs["latitude"] == 51.5123 and attrs["longitude"] == -0.1235   # rounded to 4 dp
+    assert attrs["latitude"] == 51.5123 and attrs["longitude"] == -0.1235   # synthetic-coords: the fixture above, rounded to 4 dp
     assert attrs["gps_accuracy"] == 11                                       # ~11 m at 4 dp
     assert data["available_energy"] == 30.0                                  # reported by the car
 

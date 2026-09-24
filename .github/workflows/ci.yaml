@@ -145,47 +145,14 @@ jobs:
           python3 -m pip install --quiet pip-audit
           pip-audit -r alpine_a290/app/requirements.txt
 
-      # gitleaks/trivy have no VIN rule, which is how a real VIN sat in a test fixture on a
-      # public repo for four days (#91 -> caught 2026-09-08). A VIN is PII: it ties one physical
-      # car to this repo, and this add-on publishes that car's location. Real VINs are 17 chars
-      # from A-HJ-NPR-Z0-9 - I, O and Q are excluded by the standard, so a deliberately fake stub
-      # containing one of those (VF1STUBVIN0000000) does not match and needs no allowlist.
-      # A genuine false positive should be renamed or line-excluded, never allowlisted wholesale.
-      - name: No VIN-shaped strings committed
+      # gitleaks/trivy have no rule for a VIN or a home location, and both have leaked into this
+      # public repo (a VIN in a test fixture, #91; coordinates in prose and then in fixtures,
+      # caught 2026-09-08). The rules and their history live in the script. Self-test first:
+      # a guard that cannot fail is not a guard, and the inline version of this could not.
+      - name: No committed PII (VINs, coordinates)
         run: |
-          if git grep -nIE '\b[A-HJ-NPR-Z0-9]{17}\b' -- . ':!*.png' ':!*.webp' ':!*.ttf'; then
-            echo "::error::A VIN-shaped 17-character string is committed. VINs are PII - use a stub containing I, O or Q (e.g. VF1STUBVIN0000000)."
-            exit 1
-          fi
-          echo "no VIN-shaped strings found"
-
-      # Companion to the VIN guard. A real home location leaked into BACKLOG.md prose for three
-      # days (b79940a -> caught 2026-09-08) and no scanner has a rule for it: the privacy review
-      # checked the committed SCREENSHOTS for coordinates and correctly found none, because the
-      # leak was in narrative text.
-      #
-      # The first version of this guard covered .md/.txt/.yaml only and MISSED the same
-      # coordinates sitting in a .py test fixture - the identical shape as the VIN leak, and found
-      # within the hour. So it now covers source too. ui-tests/ is excluded: its seeded fixture is
-      # deliberately a real coordinate (Trafalgar Square) and is not personal data.
-      #
-      # Test fixtures needing a valid fix should use a deliberately low-precision pair such as
-      # 51.5 / -0.1 - in range, not the 0/0 or 91/181 sentinels the parser rejects, and below the
-      # four-decimal threshold this pattern looks for.
-      - name: No real coordinates committed
-        run: |
-          # Allow an arbitrary separator between the pair: the real leak was
-          # `gpsLatitude=<lat>, gpsLongitude=<lon>`, which an adjacent-pair pattern misses.
-          # A deliberate synthetic fixture opts out with a `synthetic-coords:` marker on the line
-          # above, which is auditable in review - rather than excluding whole directories, since
-          # the leak was in a test fixture in the first place.
-          if git grep -nIE '[0-9]{1,3}\.[0-9]{4,}.{0,25}[-+]?[0-9]{1,3}\.[0-9]{4,}' \
-               -- '*.md' '*.txt' '*.yaml' '*.py' '*.js' '*.json' \
-             | grep -v 'synthetic-coords'; then
-            echo "::error::A high-precision coordinate pair is committed. Redact it, or mark a deliberate fixture with 'synthetic-coords:'. Location is PII."
-            exit 1
-          fi
-          echo "no unmarked coordinate pairs found"
+          python3 scripts/pii_check.py --self-test
+          python3 scripts/pii_check.py
 
       - name: Trivy filesystem scan (vulns, misconfig, secrets)
         run: |

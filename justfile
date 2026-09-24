@@ -7,7 +7,7 @@
 # the Tier-0 container boot - see CLAUDE.md.
 
 # Local CI gate - the same commands remote CI runs, for the checks it covers.
-ci: lint test
+ci: lint pii test
 
 # Test env built exactly as CI builds it. requirements.txt is hash-pinned, so it installs
 # alone; the core is then added --no-deps at the SHA the Dockerfile pins, so local tests
@@ -22,6 +22,11 @@ venv:
     echo "renault-mqtt pinned to ${CORE_REF}"
     uv pip install --python .venv --quiet --no-deps \
       "renault-mqtt @ git+https://github.com/MatthewHobbs/renault-mqtt@${CORE_REF}"
+
+# Same command as the Security job's PII step, so a leak is caught before it is published.
+pii:
+    python3 scripts/pii_check.py --self-test
+    python3 scripts/pii_check.py
 
 lint:
     yamllint -c .yamllint alpine_a290 repository.yaml
