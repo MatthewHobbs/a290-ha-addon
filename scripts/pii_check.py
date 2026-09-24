@@ -37,7 +37,8 @@ GAP = 80
 # excluding lower case keeps digit runs inside hex hashes from matching.
 VIN = re.compile(r"(?<![A-Za-z0-9])[A-HJ-NPR-Z0-9]{17}(?![A-Za-z0-9])")
 NUM = re.compile(r"(?<![\d.])[-+]?\d{1,3}\.\d{4,}(?![\d.])")
-MARKER = re.compile(r"(#|//)\s*synthetic-coords:")
+# A trailing comment only: nothing quoted may follow it, or a string value could carry it.
+MARKER = re.compile(r"(#|//)\s*synthetic-coords:[^\"'`]*$")
 
 
 def vin_hits(lines):
@@ -128,6 +129,7 @@ def self_test():
         ("marker, same line", [f"x = ({lat}, {lon})  # synthetic-coords: test"], False),
         ("marker, js comment", [f"f({lat}, {lon}); // synthetic-coords: test"], False),
         ("marker, second line of a split pair", [f"latitude: {lat}", f"longitude: {lon}  # synthetic-coords: t"], False),
+        ("marker inside a string value", [f'{{"note": "# synthetic-coords: x", "latitude": {lat}, "longitude": {lon}}}'], True),
         ("marker word in prose does not exempt", [f"the synthetic-coords marker was not used for {lat}, {lon}"], True),
         ("low precision", ["gpsLatitude=51.5, gpsLongitude=-0.1"], False),
         ("longitude first, beyond 90", [f"longitude: 151.{'2093'}, latitude: -33.{'8688'}"], True),
