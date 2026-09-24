@@ -73,7 +73,9 @@ any VIN-shaped 17-character string and any high-precision coordinate pair. The f
 guard scanned prose only and missed the third row. Its replacement, `scripts/pii_check.py` (#135),
 scans every tracked text file. It runs in CI's Security job and in `just ci`, self-tests that each
 rule can fail, and exempts a synthetic fixture only through a same-line `# synthetic-coords:` comment.
-The inline version it replaced passed whenever `git grep` itself failed (no pipefail).
+The inline version it replaced reported clean whenever `git grep` itself failed: inside `if`, a
+failed pipeline is indistinguishable from "no match", with or without pipefail. Reproduced
+locally on 2026-09-24 with an invalid pathspec, which exited 0 and printed the clean message.
 
 **Accepted residual, stated rather than assumed.** Git history was **not** rewritten. Both values
 remain in the history of a public repo and may be mirrored by forks or caches; rewriting signed,
