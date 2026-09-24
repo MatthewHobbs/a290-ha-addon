@@ -47,7 +47,7 @@ versus inferred.
 
 ---
 
-## P1 — Two PII leaks reached the public repo, and neither was found by a scanner or the panel
+## P1 — Three PII leaks reached the public repo, and none was found by a scanner or the panel
 
 **Component:** repo-wide (fixtures + findings prose) · **Logged:** 2026-09-08 · *both fixed forward*
 
@@ -59,6 +59,7 @@ audit — they surfaced from greps run for unrelated reasons.
 |---|---|---|---|
 | Real VIN `VYSP01…` (4 occurrences) | `tests/test_runtime.py`, a test fixture | 2026-09-04 → 09-08 | a grep checking credentials hadn't leaked during container work |
 | Home coordinates, ~11 m, labelled "at home" | `BACKLOG.md` prose, this file | 2026-09-05 → 09-08 | the adversarial sign-off lane, cross-model |
+| The same coordinates, as a fixture | `tests/test_runtime.py`, two tests | 2026-09-06 → #135 | a grep run while fixing the row above |
 
 **Why nothing caught them.** gitleaks and trivy have no VIN or coordinate rule. The privacy review
 explicitly checked the committed *screenshots* for a leaked VIN and coordinates and correctly found
@@ -68,14 +69,22 @@ add-on's redaction net masks values at runtime and cannot see source.
 **Fixed forward, with guards** (a290 #130 and this entry's PR): the VIN replaced with
 `VF1STUBVIN0000000` — deliberately invalid, since real VINs exclude I, O and Q, so it cannot match
 its own guard — and the coordinates redacted while keeping the finding's meaning. CI now fails on
-any VIN-shaped 17-character string, and on any high-precision coordinate pair in `*.md`/`*.txt`/
-`*.yaml` outside `ui-tests/` (whose Trafalgar Square fixture is deliberately a real coordinate).
+any VIN-shaped 17-character string and any high-precision coordinate pair. The first coordinate
+guard scanned prose only and missed the third row. Its replacement, `scripts/pii_check.py` (#135),
+scans every tracked text file. It runs in CI's Security job and in `just ci`, self-tests that each
+rule can fail, and exempts a synthetic fixture only through a same-line `# synthetic-coords:` comment.
+The inline version it replaced passed whenever `git grep` itself failed (no pipefail).
 
 **Accepted residual, stated rather than assumed.** Git history was **not** rewritten. Both values
 remain in the history of a public repo and may be mirrored by forks or caches; rewriting signed,
 linear history under `enforce_admins` was judged disruptive for limited benefit, and neither value
 can be rotated the way a token can. **This is a decision, not an oversight** — revisit it if the
-repo's visibility or the maintainer's threat model changes.
+repo's visibility or the maintainer's threat model changes. The fixture copy (third row) is the
+same values in the same history, so the same decision covers it.
+
+**The r5 twin still carries the same pair** in its `tests/test_runtime.py`, and it has no
+coordinate guard. That repo is public too. It was handed to the r5 session on 2026-09-24 and is
+tracked there.
 
 **Still unscanned:** history has been checked only for VIN, coordinate and email shapes. Nothing has
 scanned it for tokens, Kamereon account ids or Supervisor tokens.
@@ -400,7 +409,8 @@ explicitly; the sibling still carries it.
 
 ## P1 — Claude Code permission grants accumulate here forever, and will again
 
-**Component:** `.claude/settings.local.json` (local, gitignored) · **Logged:** 2026-09-08
+**Component:** `.claude/settings.local.json` (local, gitignored) · **Logged:** 2026-09-08 ·
+**Pruned again:** 2026-09-09 · **Changed, unlogged:** 2026-09-20
 
 Claude Code writes a "Yes, and don't ask again" Bash approval into this repo's
 `.claude/settings.local.json` permanently. There is no session-only option for Bash approvals —
@@ -420,6 +430,72 @@ rules pointing at `/tmp` or `/private/tmp` paths that no longer exist. (14 + 3 �
 dead-path rules were also interpreter forms.)
 
 Backup: `/Users/matt/.claude/backups/a290-settings-local-20260908-170419.json`
+
+### Second prune, 2026-09-09: 135 → 73
+
+A second `/prune-grants` run one day later. The command's carried-over figure for this repo was
+still **169**; the measured count was **135**. That is not drift and not a wrong path — it is
+exactly the 34 the 2026-09-08 prune above removed. The carried-over table was captured before
+that prune and was never refreshed.
+
+**Option (c) again** — drop the dangerous and the dead, keep the routine — for the same reason
+as before: the surviving list is the `just ci` toolchain (`ruff`, `yamllint`, `hadolint`,
+`shellcheck`, `bandit`, `trivy`, `pip-audit`, `actionlint`, the pinned `ui-tests/run.sh`
+invocations) plus the `Read(…/r5-ha-addon/**)` rules the lockstep mirror depends on. Emptying
+those taxes the workflow and invites reflexive re-approval at worse granularity.
+
+**62 removed — 48 dead, 14 dangerous:**
+
+- *Dead (48):* 33 one-off `echo "…: $?"` status lines, several embedding PR numbers now closed
+  (a290 #7, #8, #15, #82, #83, #84; r5 #51, #52, #53) or the `v1.16.3` tag; 9 `[ -s "$d/…output" ]`
+  predicates naming temp files from sessions long gone; 6 malformed or meaningless fragments
+  (`Bash(break)`, `Bash(awk NR==296 || NR==301 …)`, bare `awk`/`xargs` pipe stages).
+- *Dangerous (14):* `git add *`, `git commit *`, `git rebase *`, `git config *`, `gh pr *`
+  (covers `gh pr merge`), `gh release *`, `gh workflow *`, `gh secret *`, `gh auth *`,
+  `docker rm *`, `pip install *`, `uv pip *`, and both `python3 *` forms (bare and the
+  `/Library/Frameworks/…/3.14/bin/` absolute path).
+
+**This closes a finding logged yesterday.** The 2026-09-08 entry recorded `Bash(gh auth *)` and
+`Bash(gh secret *)` as live allows in neither `deny` nor `ask` at user scope — `gh auth token`
+prints the GitHub token, `gh secret set` writes the secrets the release pipeline depends on.
+Both are now gone from this file. The user-scope gap they exposed is **not** closed by that:
+the next repo to be granted them is unprotected, so the tightening noted below still stands.
+
+**A wildcard allow subsumes the dangerous form it does not spell.** Yesterday's prune removed
+"8 interpreter `-c`/`-e` forms" and still left `Bash(python3 *)` behind, which grants
+`python3 -c '<anything>'` without containing the string `-c`. The first pass of this run
+repeated the error and reported *zero* interpreter rules, because the scan matched rule text
+literally. Classification has to consider what a pattern **permits**, not what it spells.
+The narrow `python3 -m pytest alpine_a290/tests …` grant was kept.
+
+**No backup was taken and this prune is irreversible.** That is deliberate and a change from
+the 2026-09-08 run: a copy of a permission list is itself a store of permission rules embedding
+internal hostnames and API paths, it sits inside the config directory, `claude project purge`
+does not reach it, and it accumulates one file per repo per run. Verification used shell
+variables instead (`BEFORE`/`AFTER` over `del(.permissions.allow)`), which proved only
+`permissions.allow` changed and left nothing on disk. **The 2026-09-08 backup named above is
+already gone** — `~/.claude/backups/` holds only Claude Code's own rolling `.claude.json`
+snapshots, no per-repo permission copies. Checked, not assumed.
+
+Post-prune state verified: 73 rules, valid JSON, `permissions` still the only top-level key
+(no `hooks`/`env`/`mcpServers` were ever present here, so nothing else was at risk), file still
+present, still matched by `.gitignore:23`, still untracked. `just ci` green — lint clean,
+150 tests passed, coverage 99.27% against the 95% gate. Note `just ci` covers lint + test only;
+the `security` and `build` jobs were not run, and no repo file was touched by this prune.
+
+### Third change, 2026-09-20: 73 → 67, not logged at the time
+
+Found on 2026-09-24 by a review, not recorded by whoever made it. The file now holds **67** rules.
+The 6 removed are all r5-mirror rules: the three `Read(…/r5-ha-addon/…)` grants the 2026-09-09
+prune deliberately kept, plus three r5 one-off lint and read commands. Two byte-identical 73-rule
+copies were left beside it as `settings.local.json.bak-20260920T…Z`. That is the backup the
+2026-09-09 run chose not to take, for the reason given above. They were not gitignored, so a
+`git add -A` would have published them. `.gitignore` now covers `settings.local.json*`.
+
+**Not established:** whether this was a deliberate prune, which session made it, or why the
+r5 `Read` grants went. Their removal means reading the twin from a session here now prompts.
+The two `.bak` files are still on disk. Deleting them is the owner's call, not a cleanup to do
+silently.
 
 **This will re-accumulate.** Nothing here prevents it: the file grows again the moment
 "don't ask again" is clicked. What actually neutralises the dangerous classes is the user-scope

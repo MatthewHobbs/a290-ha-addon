@@ -19,8 +19,9 @@ secrets.yaml
 .env
 *.local
 
-# Claude Code — personal/local settings only (CLAUDE.md and any shared .claude/ config stay tracked)
-.claude/settings.local.json
+# Claude Code — personal/local settings only (CLAUDE.md and any shared .claude/ config stay tracked).
+# The glob covers the timestamped backups a prune leaves beside it: they hold the same rules.
+.claude/settings.local.json*
 
 # Editor / IDE
 .vscode/
