@@ -84,9 +84,9 @@ can be rotated the way a token can. **This is a decision, not an oversight** —
 repo's visibility or the maintainer's threat model changes. The fixture copy (third row) is the
 same values in the same history, so the same decision covers it.
 
-**The r5 twin still carries the same pair** in its `tests/test_runtime.py`, and it has no
-coordinate guard. That repo is public too. It was handed to the r5 session on 2026-09-24. r5 has
-no backlog of its own, so this entry is the record until it does.
+**The r5 twin needs the same fixture review and guard.** Handed to the r5 session on 2026-09-24.
+r5 has no backlog of its own, so this entry is the record until it does. Deliberately not more
+specific here: this file is public.
 
 **Still unscanned:** history has been checked only for VIN, coordinate and email shapes. Nothing has
 scanned it for tokens, Kamereon account ids or Supervisor tokens.
