@@ -118,7 +118,7 @@ KNOWN = {
 DEFAULTS = {
     "binary_sensor": ("off", {}),
     "number": ("50", {"min": 15, "max": 100, "step": 5, "mode": "slider", "unit_of_measurement": "%"}),
-    "device_tracker": ("home", {"latitude": 51.5074, "longitude": -0.1278, "gps_accuracy": 8, "source_type": "gps"}),
+    "device_tracker": ("home", {"latitude": 51.5074, "longitude": -0.1278, "gps_accuracy": 8, "source_type": "gps"}),  # synthetic-coords: Trafalgar Square, a public landmark
     "switch": ("off", {}),
     "button": ("unknown", {}),
     # Test-mode helpers (a290_test_* package): default idle so the panels stay hidden and the
