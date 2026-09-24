@@ -875,7 +875,7 @@
           entity: sensor.alpine_a290_last_charge_type
           name: Type
           icon: mdi:ev-plug-type2
-          styles: .bubble-icon-container{${(()=>{const active=hass.states["binary_sensor.alpine_a290_charging"]?.state==="on";if(active)return "color:grey !important;opacity:0.35;";const t=(state||"").toLowerCase().trim();if(t==="not rated")return "color:red !important;";if(t==="rapid dc")return "color:green !important;";if(t==="fast dc")return "color:orange !important;";if(t==="fast ac")return "color:blue !important;";if(t==="slow ac")return "color:red !important;";return "";})()}}
+          styles: .bubble-icon-container{${(()=>{const active=hass.states["binary_sensor.alpine_a290_charging"]?.state==="on";if(active)return "color:grey !important;opacity:0.35;";const t=(state||"").toLowerCase().trim();if(t==="home")return "color:green !important;";if(t==="rapid/public")return "color:orange !important;";return "";})()}}
         - type: custom:bubble-card
           card_type: button
           button_type: state
