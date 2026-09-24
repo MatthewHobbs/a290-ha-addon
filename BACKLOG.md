@@ -49,7 +49,7 @@ versus inferred.
 
 ## P1 — Three PII leaks reached the public repo, and none was found by a scanner or the panel
 
-**Component:** repo-wide (fixtures + findings prose) · **Logged:** 2026-09-08 · *both fixed forward*
+**Component:** repo-wide (fixtures + findings prose) · **Logged:** 2026-09-08 · *all three fixed forward*
 
 The only **demonstrated** privacy incidents this project has had. Both were committed to a public
 repository, both sat there for days, and neither was found by tooling or by a fourteen-specialist
@@ -85,8 +85,8 @@ repo's visibility or the maintainer's threat model changes. The fixture copy (th
 same values in the same history, so the same decision covers it.
 
 **The r5 twin still carries the same pair** in its `tests/test_runtime.py`, and it has no
-coordinate guard. That repo is public too. It was handed to the r5 session on 2026-09-24 and is
-tracked there.
+coordinate guard. That repo is public too. It was handed to the r5 session on 2026-09-24. r5 has
+no backlog of its own, so this entry is the record until it does.
 
 **Still unscanned:** history has been checked only for VIN, coordinate and email shapes. Nothing has
 scanned it for tokens, Kamereon account ids or Supervisor tokens.
@@ -495,7 +495,8 @@ copies were left beside it as `settings.local.json.bak-20260920T…Z`. That is t
 `git add -A` would have published them. `.gitignore` now covers `settings.local.json*`.
 
 **Not established:** whether this was a deliberate prune, which session made it, or why the
-r5 `Read` grants went. Their removal means reading the twin from a session here now prompts.
+r5 `Read` grants went. Nothing at user scope pre-approves reading the twin either, so a session
+here no longer has standing read access to it; whether that prompts depends on the session's mode.
 The two `.bak` files are still on disk. Deleting them is the owner's call, not a cleanup to do
 silently.
 
