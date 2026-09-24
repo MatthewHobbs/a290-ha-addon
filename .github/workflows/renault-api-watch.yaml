@@ -60,8 +60,12 @@ jobs:
           fi
           echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          # sort -V ranks 0.5.14b1 above 0.5.14 (GNU and BSD alike), so a pre-release pin would
+          # hide its own final release. Compare keys with a ~ before any a/b/rc suffix instead:
+          # ~ sorts before the end of the string.
+          vkey() { printf '%s\n' "$1" | sed -E 's/(a|b|rc)([0-9]+)$/~\1\2/'; }
           if [ "$pinned" = "$latest" ] || \
-             [ "$(printf '%s\n%s\n' "$pinned" "$latest" | sort -V | tail -1)" = "$pinned" ]; then
+             [ "$(printf '%s\n%s\n' "$(vkey "$pinned")" "$(vkey "$latest")" | sort -V | tail -1)" = "$(vkey "$pinned")" ]; then
             echo "newer=false" >> "$GITHUB_OUTPUT"
             echo "pinned $pinned is current (latest upstream $latest)"
           else
