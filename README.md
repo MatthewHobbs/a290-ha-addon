@@ -117,8 +117,8 @@ key needed.
   `number.alpine_a290_charge_target_soc` (55–100 %) — sliders that set the car's charge limits
   via `set_battery_soc` (`soc-levels`). These cover the one capability Home Assistant's `renault` integration had over the app, so it's no longer needed.
 - **Debug:** set `debug_dump: true` to log every readable API endpoint (secrets redacted)
-  to the app Log — the safe way to diagnose the API (unlike `log_level: debug`, which
-  the library would use to print access tokens).
+  to the app Log — the safe way to diagnose the API. `log_level: debug` adds no API detail:
+  the add-on suppresses the library's debug records, which would carry unredacted responses.
 
 ## Alpine A290 API support
 
