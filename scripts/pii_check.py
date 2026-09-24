@@ -47,11 +47,15 @@ def vin_hits(lines):
 
 def _pair_in(text):
     nums = list(NUM.finditer(text))
-    for a, b in zip(nums, nums[1:], strict=False):
-        x, y = abs(float(a.group())), abs(float(b.group()))
-        # Either order: JSON/YAML key order is not fixed, and GeoJSON is longitude-first.
-        if b.start() - a.end() <= GAP and max(x, y) <= 180 and min(x, y) <= 90:
-            return True
+    # Every pair within GAP, not just neighbours: an altitude or accuracy can sit between them.
+    for i, a in enumerate(nums):
+        for b in nums[i + 1:]:
+            if b.start() - a.end() > GAP:
+                break
+            x, y = abs(float(a.group())), abs(float(b.group()))
+            # Either order: JSON/YAML key order is not fixed, and GeoJSON is longitude-first.
+            if max(x, y) <= 180 and min(x, y) <= 90:
+                return True
     return False
 
 
@@ -85,8 +89,8 @@ def read_text(path):
     except OSError as e:
         print(f"pii-check: cannot read {path}: {e}", file=sys.stderr)
         sys.exit(2)
-    if b"\0" in data[:8192]:
-        return None
+    # No binary sniffing: one NUL byte would hide the whole file. Known binary types are skipped
+    # by suffix above; an unlisted one that trips a rule fails loudly and gets its suffix added.
     return data.decode("utf-8", errors="replace").splitlines()
 
 
@@ -98,8 +102,6 @@ def scan():
     found = False
     for path in files:
         lines = read_text(path)
-        if lines is None:
-            continue
         for rule, hits in (("VIN-shaped string", vin_hits(lines)), ("coordinate pair", coord_hits(lines))):
             for i in hits:
                 found = True
@@ -125,6 +127,7 @@ def self_test():
         ("digit run inside a hex hash", ["sha256:9f9a" + "f" + "1" * 17 + "f99"], False),
         ("pair, one line", [f"gpsLatitude={lat}, gpsLongitude={lon}"], True),
         ("pair, other keys between", [f'"latitude": {lat}, "gps_accuracy": 8, "source_type": "gps", "longitude": {lon}'], True),
+        ("pair with an altitude between", [f"latitude: {lat}, altitude: 250.{'1234'}, longitude: {lon}"], True),
         ("pair, two lines", [f"latitude: {lat}", f"longitude: {lon}"], True),
         ("marker, same line", [f"x = ({lat}, {lon})  # synthetic-coords: test"], False),
         ("marker, js comment", [f"f({lat}, {lon}); // synthetic-coords: test"], False),
