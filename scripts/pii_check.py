@@ -15,8 +15,8 @@ CI and `just ci` both run it, so a leak is caught before push rather than after 
 Rules, applied to every git-tracked text file:
   VIN         a 17-character string over A-HJ-NPR-Z0-9. Real VINs never contain I, O or Q, so a
               stub such as VF1STUBVIN0000000 does not match and needs no exemption.
-  coordinates two numbers with 4+ decimals, the first a valid latitude and the second a valid
-              longitude, within GAP characters of each other on one line or across two adjacent
+  coordinates two numbers with 4+ decimals forming a valid latitude/longitude in either order,
+              within GAP characters of each other on one line or across two adjacent
               lines (pretty-printed JSON/YAML puts them on consecutive lines).
 
 A deliberate synthetic coordinate fixture opts out with a trailing `# synthetic-coords: <why>`
@@ -33,7 +33,9 @@ import sys
 SKIP_SUFFIXES = (".png", ".webp", ".jpg", ".jpeg", ".gif", ".ico", ".ttf", ".woff", ".woff2")
 GAP = 80
 
-VIN = re.compile(r"\b[A-HJ-NPR-Z0-9]{17}\b")
+# Neighbours are any letter or digit, but not underscore: \b let `car_<VIN>` through, and
+# excluding lower case keeps digit runs inside hex hashes from matching.
+VIN = re.compile(r"(?<![A-Za-z0-9])[A-HJ-NPR-Z0-9]{17}(?![A-Za-z0-9])")
 NUM = re.compile(r"(?<![\d.])[-+]?\d{1,3}\.\d{4,}(?![\d.])")
 MARKER = re.compile(r"(#|//)\s*synthetic-coords:")
 
@@ -45,7 +47,9 @@ def vin_hits(lines):
 def _pair_in(text):
     nums = list(NUM.finditer(text))
     for a, b in zip(nums, nums[1:], strict=False):
-        if b.start() - a.end() <= GAP and abs(float(a.group())) <= 90 and abs(float(b.group())) <= 180:
+        x, y = abs(float(a.group())), abs(float(b.group()))
+        # Either order: JSON/YAML key order is not fixed, and GeoJSON is longitude-first.
+        if b.start() - a.end() <= GAP and max(x, y) <= 180 and min(x, y) <= 90:
             return True
     return False
 
@@ -115,6 +119,9 @@ def self_test():
     cases = [
         ("vin", [f"vin: {vin}"], True),
         ("vin stub with I/O/Q", ["vin: VF1STUBVIN0000000"], False),
+        ("vin after an underscore", [f"car_{vin}"], True),
+        ("vin inside a longer run", [f"X{vin}"], False),
+        ("digit run inside a hex hash", ["sha256:9f9a" + "f" + "1" * 17 + "f99"], False),
         ("pair, one line", [f"gpsLatitude={lat}, gpsLongitude={lon}"], True),
         ("pair, other keys between", [f'"latitude": {lat}, "gps_accuracy": 8, "source_type": "gps", "longitude": {lon}'], True),
         ("pair, two lines", [f"latitude: {lat}", f"longitude: {lon}"], True),
@@ -123,7 +130,8 @@ def self_test():
         ("marker, second line of a split pair", [f"latitude: {lat}", f"longitude: {lon}  # synthetic-coords: t"], False),
         ("marker word in prose does not exempt", [f"the synthetic-coords marker was not used for {lat}, {lon}"], True),
         ("low precision", ["gpsLatitude=51.5, gpsLongitude=-0.1"], False),
-        ("out of range first number", [f"ratio 123.{'4567'} vs {lon}"], False),
+        ("longitude first, beyond 90", [f"longitude: 151.{'2093'}, latitude: -33.{'8688'}"], True),
+        ("both beyond 90", [f"ratio 123.{'4567'} vs 145.{'6789'}"], False),
     ]
     failed = 0
     for name, lines, want in cases:
