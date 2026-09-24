@@ -76,8 +76,10 @@ KNOWN = {
     "sensor.alpine_a290_drive_side": ("RHD", {"icon": "mdi:steering"}),
     "sensor.alpine_a290_hvac_status": ("Idle", {"icon": "mdi:fan"}),
     "sensor.alpine_a290_charge_mode": ("Scheduled", {"icon": "mdi:ev-station"}),
-    "sensor.alpine_a290_charge_target_soc": ("80", {"unit_of_measurement": "%", "device_class": "battery"}),
-    "sensor.alpine_a290_minimum_soc": ("20", {"unit_of_measurement": "%", "device_class": "battery"}),
+    # Writable numbers, not sensors: the dashboards read number.* (catalog.NUMBERS). Seeded as
+    # sensor.* they were never referenced, and the numbers fell back to the generic "50".
+    "number.alpine_a290_charge_target_soc": ("80", {"min": 55, "max": 100, "step": 5, "mode": "slider", "unit_of_measurement": "%"}),
+    "number.alpine_a290_minimum_soc": ("20", {"min": 15, "max": 45, "step": 5, "mode": "slider", "unit_of_measurement": "%"}),
     "sensor.alpine_a290_hvac_soc_threshold": ("40", {"unit_of_measurement": "%", "device_class": "battery"}),
     "sensor.alpine_a290_preconditioning_temperature": ("20", {"unit_of_measurement": "°C"}),
     "sensor.alpine_a290_last_charge_type": ("Rapid/Public", {"icon": "mdi:ev-station"}),
