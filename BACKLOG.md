@@ -51,8 +51,8 @@ versus inferred.
 
 **Component:** repo-wide (fixtures + findings prose) · **Logged:** 2026-09-08 · *all three fixed forward*
 
-The only **demonstrated** privacy incidents this project has had. Both were committed to a public
-repository, both sat there for days, and neither was found by tooling or by a fourteen-specialist
+The only **demonstrated** privacy incidents this project has had. All three were committed to a public
+repository, all sat there for days, and none was found by tooling or by a fourteen-specialist
 audit — they surfaced from greps run for unrelated reasons.
 
 | What | Where | Public for | Found by |
@@ -94,7 +94,7 @@ scanned it for tokens, Kamereon account ids or Supervisor tokens.
 **The generalisable lesson, which is why this is P1 rather than closed:** the audit's blind spot was
 *category*, not depth — application code was reviewed exhaustively while fixtures, committed data
 and the findings file itself were not reviewed at all. Any future audit should sweep those first,
-because they are cheap to check and are where both real incidents lived.
+because they are cheap to check and are where all three real incidents lived.
 
 ---
 
