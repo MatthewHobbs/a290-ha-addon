@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.27.1
+
+- **Bubble dashboard: the Last Charge Type icon is coloured again.** It was matching labels the
+  add-on never publishes (`Rapid DC`, `Fast AC` and so on), so the icon stayed uncoloured whatever
+  the charge. It now matches the two values the sensor actually reports, the same way the
+  standard dashboard does: **Home** green, **Rapid/Public** orange. Re-copy or redeploy the Bubble
+  dashboard to pick it up (`redeploy_dashboard: true`, or paste `front-end-bubble.txt` again).
+
 ## 1.27.0
 
 - **The Refresh Location button is now off by default, and existing installs will lose it.**
