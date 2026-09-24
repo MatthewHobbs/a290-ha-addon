@@ -63,7 +63,7 @@ map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dash
 | `gps_precision` | Decimal places the car's GPS is rounded to before publishing (1–6, default **4** ≈ 11 m). Coarsens the location on the retained MQTT topic for privacy; raise to 5–6 for a more precise map pin, lower to 2–3 for more privacy. Only relevant when `publish_location: true`. |
 | `precondition_temperature` | Target cabin temperature (°C, 16–27, default 20) used by the **Start Climate** button. |
 | `log_level` | `info` normally; `debug` for troubleshooting. |
-| `debug_dump` | `false` by default. When `true`, logs the decoded data from all readable API endpoints **once per restart**, to help diagnose what your car does/doesn't expose. Redaction is **best-effort**: it masks your VIN, account id, username/password, contact and identifier fields, GPS, vehicle delivery/registration dates, privacy-mode settings and the build-spec render URLs — but it can't guarantee every field is caught, so treat the whole dump as personal data and **do not paste it publicly** (share it privately if you need help). Turn off again once captured (it's verbose). Prefer this over `log_level: debug` for API diagnostics: the library's own debug logging would expose access tokens. |
+| `debug_dump` | `false` by default. When `true`, logs the decoded data from all readable API endpoints **once per restart**, to help diagnose what your car does/doesn't expose. Redaction is **best-effort**: it masks your VIN, account id, username/password, contact and identifier fields, GPS, vehicle delivery/registration dates, privacy-mode settings and the build-spec render URLs — but it can't guarantee every field is caught, so treat the whole dump as personal data and **do not paste it publicly** (share it privately if you need help). Turn off again once captured (it's verbose). Prefer this over `log_level: debug` for API diagnostics: the add-on suppresses the library's own debug logging, which would carry the raw, unredacted responses. |
 | `deploy_dashboard` | `standard` (default), `bubble`, `both`, or `none`. Auto-installs that dashboard — see below. `both` installs the standard dashboard at your `dashboard_url_path` and the bubble one with a `-bubble` suffix (e.g. `alpine-a290` and `alpine-a290-bubble`). Set `none` to skip dashboard deployment. |
 | `dashboard_url_path` | URL slug for the deployed dashboard (default `alpine-a290`; with `both`, the bubble one is suffixed `-bubble`). |
 | `redeploy_dashboard` | `true` re-pushes the dashboard config on next start (to pick up an update). Default `false` so your edits are never overwritten. |
@@ -93,9 +93,9 @@ data. Here's what it handles, and where it lives:
 - **Logs** — normal logs never contain credentials. API/HTTP error strings are **redacted**
   (VIN and account id masked) before they're logged or shown on the status panel.
   `debug_dump: true` logs full API responses through a best-effort redactor (see above) —
-  still don't paste those publicly. Never use `log_level: debug` for troubleshooting: the
-  underlying `renault-api` library prints access tokens at that level, which is exactly why
-  `debug_dump` exists.
+  still don't paste those publicly. `log_level: debug` does not help with API problems: at that
+  level the underlying `renault-api` library would log raw, unredacted API responses, so the
+  add-on suppresses those records. `debug_dump` is the redacted way to see them.
 
 ## Smart Charging card
 

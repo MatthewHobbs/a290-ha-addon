@@ -169,8 +169,10 @@ deleted once merged.
 - **Secrets never get logged.** The credentials (My Alpine username/password, VIN,
   account_id, GPS) are sensitive. `debug_dump: true` logs decoded API responses but routes
   everything through `_debug_redact` first; never add a logging path that bypasses it, and
-  never use `log_level: debug` for diagnosis (the library prints access tokens at that
-  level — `debug_dump` exists precisely to avoid that).
+  never lift the `renault_api` logger clamp in `main.py` (`setup_logging`). At DEBUG, renault-api
+  0.5.13 logs full, unredacted Kamereon request and response bodies (VIN, account ids, unrounded
+  GPS) and the app's API-key config — not access tokens, whose JWT is a header it never logs.
+  The clamp keeps those records from ever being created; `debug_dump` is the redacted route.
 - **Dashboards live in the add-on.** The old `a290-dashboard-view` repo is archived; all
   dashboard work happens in `alpine_a290/dashboards/`. Typography is intentionally uniform
   across tabs (no per-screen font/size changes); overflow is handled by `white-space:normal`

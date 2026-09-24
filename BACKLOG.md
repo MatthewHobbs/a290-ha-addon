@@ -140,7 +140,7 @@ data, a single transient failure erases it.
 
 ---
 
-## P2 — r5 leaks access tokens at `log_level: debug`; a290 does not
+## P2 — r5 logs raw API responses at `log_level: debug`; a290 does not
 
 **Component:** `renault_5` (`app/main.py`) · **Logged:** 2026-09-08
 
@@ -148,12 +148,15 @@ data, a single transient failure erases it.
 `renault_api.gigya` loggers to INFO, so the library's DEBUG records — which include full request
 URLs and response bodies — are never created. **r5 has no equivalent.** It attaches the redaction
 filter, but that scrubs *configured* secrets (username, password, VIN, account_id, Supervisor
-token); a Gigya access token is not one of them and passes straight through.
+token), so the rest of a response passes straight through: unrounded GPS and account data.
 
-CLAUDE.md documents this exact hazard in prose ("never use `log_level: debug` for diagnosis — the
-library prints access tokens at that level"). a290 defends in code; r5 defends only in prose.
+**Corrected 2026-09-24:** this entry and CLAUDE.md said the library prints *access tokens*. It
+does not. At renault-api 0.5.13 its only three DEBUG calls log the API-key config response,
+Kamereon request bodies and full Kamereon response bodies; the Gigya JWT travels as a header and
+is never logged. Found by the r5 session, confirmed here by reading the library, the core and
+aiohttp. The clamp is still needed; the stated reason was wrong. a290 defends in code; r5 does not.
 
-Verified by reading both files. This is a live credential-disclosure path in shipped Tier-0 code,
+Verified by reading both files. This is a live personal-data disclosure path in shipped code,
 and it is the one finding in this audit that should not wait behind the a290-first rule — that
 rule exists to keep features in step, not to delay a security fix on the twin.
 
@@ -363,6 +366,24 @@ on a real HA host. It decides whether the watchdog half of the wedged-poll P1 is
 redundant, so settle it before building that.
 
 ---
+
+## P3 — Bubble's bottom bar draws two labels on top of each other, and the gate cannot see it
+
+**Component:** `alpine_a290/dashboards/front-end-bubble.txt` (bottom navigation) · **Logged:** 2026-09-24
+
+In every Bubble screenshot checked, the pill at the bottom of the main menu shows two labels
+("Test" and "Home") and two icons drawn over each other. That covers the committed
+`docs/screenshots/bubble-galaxy-s24.png` from 2026-09-07 and today's local gate run on
+iPhone 15 Pro. The same committed screenshot also clips "Smart Charging" to "Smart Chargin";
+today's run does not, so that one is intermittent or capture-timing.
+
+**Why nothing failed:** `ui-tests/check_overflow.py` fails on text *truncation* and on
+`hui-error-card`. Two complete labels stacked in the same box are neither, so the gate passes.
+
+**Not established:** the cause. The likely candidates are two buttons whose visibility conditions
+both hold under the seeded state, or a transition captured mid-animation. Neither has been checked.
+Not a regression from any change on 2026-09-24.
+
 
 ## P3 — Accessibility and client-performance cluster in the dashboards
 
