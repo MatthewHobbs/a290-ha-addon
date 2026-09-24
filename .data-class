@@ -1,0 +1,5 @@
+# Data class and audience for this repo (global CLAUDE.md; ADR 0003 rows 17-18 in claude-config).
+# Owner-approved 2026-09-24. The class decides what may leave the machine: public means either
+# review provider may see it. Change it only with the owner's approval, never to unblock a review.
+class: public
+audience: others

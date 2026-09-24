@@ -5,8 +5,10 @@ Home Assistant **add-on** for the **Alpine A290** EV. It polls the Renault/Kamer
 / `button.*` / `number.*` entities over **MQTT auto-discovery** — no shell scripts, no
 `venv`, no `secrets.yaml`. Credentials are entered on the add-on's Configuration page.
 
-**Tier 0.** Global rules (dual review, container-verify, trunk/merge policy, Conventional
-Commits, HA cadence) live in `~/.claude/CLAUDE.md`; this file is A290-specifics only.
+**Data class: Public. Audience: others** (`.data-class`, owner-approved 2026-09-24). Public
+means either provider may review it; others install it, so runtime changes get the container
+boot below. Global rules (review, trunk/merge policy, Conventional Commits, HA cadence) live in
+`~/.claude/CLAUDE.md`; this file is A290-specifics only.
 
 A sibling repo, **`MatthewHobbs/r5-ha-addon`**, is the Renault 5 port of the same code.
 **Keep the two in lockstep** — most feature/fix work here should be mirrored there
