@@ -41,6 +41,9 @@ unavailable — stop at the charger.)
 
 ## Requirements
 
+**Home Assistant 2026.8.1 or newer.** The dashboards are render-tested on that version and on the
+current stable release; the Supervisor will not install or update the app on anything older.
+
 Install these **before** the dashboards will render correctly.
 
 ### Apps (Settings → Apps)

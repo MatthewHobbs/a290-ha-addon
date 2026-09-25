@@ -12,7 +12,7 @@ PY="${PYTHON:-python3}"
 # Pinned (not :stable) so the render is deterministic — a floating tag made the truncation
 # gate flake as HA/card versions moved under it. Renovate proposes this and the card pins below as
 # one grouped PR (.github/renovate.json); keep the image:tag and URL shapes its regexes expect.
-HA_IMAGE="${HA_IMAGE:-ghcr.io/home-assistant/home-assistant:2026.7.1}"
+HA_IMAGE="${HA_IMAGE:-ghcr.io/home-assistant/home-assistant:2026.9.3}"
 CONFIG="$(mktemp -d)"
 
 cleanup() {
