@@ -11,6 +11,7 @@ import argparse
 import json
 import os
 import sys
+import traceback
 
 from playwright.sync_api import sync_playwright
 
@@ -149,6 +150,16 @@ JS_POPUP_SHOWS = r"""
   return findOpen(document);
 }
 """
+
+
+def _failing_step(err):
+    """The deepest line of THIS file `err` came through, plus its message's first line. The last
+    traceback frame is inside Playwright, which cannot tell a screenshot timeout from a scan one."""
+    here = os.path.abspath(__file__)
+    frames = [f for f in traceback.extract_tb(err.__traceback__) if os.path.abspath(f.filename) == here]
+    where = f"line {frames[-1].lineno}: {frames[-1].line}" if frames else "outside check_overflow.py"
+    msg = (str(err).strip().splitlines() or [""])[0]
+    return f"{where} — {msg}"
 
 
 def _write_diag(page, shot_path):
@@ -332,27 +343,34 @@ def run():
                             page.evaluate("() => { location.hash = '#alpine-charging'; }")
                             try:  # the pop-up's inner cards lazy-render (Bubble Card)
                                 page.wait_for_function(JS_POPUP_SHOWS, arg="Charge Target", timeout=8000)
-                                opened = True
+                                page.wait_for_timeout(800)
+                                page.evaluate(JS_DISMISS_TOASTS)
+                                # Re-check after the settle: seen opening is not still open. The
+                                # pop-up can close in that window, or the page reload under it: HA
+                                # reloads once, ~3s after a context's first load, as its service
+                                # worker takes control (measured on Bubble 3.2.5 and 3.4.0; blocking
+                                # service workers removes it), leaving the pop-up sliding in below
+                                # the viewport. Treated as a failed open, so the reopen recovers it.
+                                opened = page.evaluate(JS_POPUP_SHOWS, "Charge Target")
                             except Exception:
                                 opened = False
-                            page.wait_for_timeout(800)
                             if opened:
                                 break
                             print(f"    [popup empty {popup_attempt + 1}/2] {dash} @ "
-                                  f"{dev['name']}: pop-up never opened on screen — reopening")
+                                  f"{dev['name']}: pop-up not open on screen — reopening")
                             page.evaluate("() => { location.hash = ''; }")
                             page.wait_for_timeout(400)
                         else:
                             print(f"    [popup skipped] {dash} @ {dev['name']}: pop-up never "
-                                  f"opened; not overwriting the committed screenshot")
-                            raise RuntimeError("smart-charging pop-up never opened on screen")
-                        page.evaluate(JS_DISMISS_TOASTS)
+                                  f"stayed open; not overwriting the committed screenshot")
+                            raise RuntimeError("smart-charging pop-up never stayed open on screen")
                         pshot = os.path.join(args.out, f"{dash}__smart_charging__{slug}.png")
                         _write_diag(page, pshot)
                         page.screenshot(path=pshot, full_page=True, animations="disabled")
                         issues += _stable_issues(page)
                     except Exception as err:
-                        print(f"    pop-up capture skipped ({type(err).__name__}) — not failing the gate")
+                        print(f"    pop-up capture skipped ({type(err).__name__}) — not failing the gate\n"
+                              f"      at {_failing_step(err)}")
                 # De-dupe: the pop-up scan re-walks the whole document, so a main-dashboard finding
                 # can otherwise appear twice when both the main view and the pop-up are flagged.
                 _seen, _uniq = set(), []
