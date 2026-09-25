@@ -22,6 +22,7 @@ on:
       - '!alpine_a290/dashboards/*.md'
       - '!alpine_a290/dashboards/**/*.md'
       - 'alpine_a290/app/deploy.py'
+      - 'alpine_a290/config.yaml'
       - 'ui-tests/**'
       - '.github/workflows/ui-tests.yaml'
   pull_request:
@@ -40,6 +41,7 @@ on:
       - '!alpine_a290/dashboards/*.md'
       - '!alpine_a290/dashboards/**/*.md'
       - 'alpine_a290/app/deploy.py'
+      - 'alpine_a290/config.yaml'
       - 'ui-tests/**'
       - '.github/workflows/ui-tests.yaml'
   workflow_dispatch:
@@ -49,8 +51,14 @@ permissions:
 
 jobs:
   responsive:
-    name: Dashboard responsive render (mobile matrix)
+    name: Dashboard responsive render (mobile matrix, ${{ matrix.leg }})
     runs-on: ubuntu-latest
+    # Both ends of the supported range (global rule): the Renovate-tracked stable pin in run.sh,
+    # and the declared minimum, read from config.yaml so the test cannot drift from the claim.
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [stable, minimum]
     steps:
       # Default checkout: for a PR this renders the merge ref (the PR's dashboard/deploy.py
       # changes). This job holds NO secrets — committing the refreshed screenshots back to the
@@ -68,9 +76,28 @@ jobs:
           python3 -m pip install --quiet aiohttp PyYAML playwright pillow
           python3 -m playwright install --with-deps chromium
 
+      - name: Pick the Home Assistant image for this leg
+        id: ha
+        run: |
+          # A stable pin behind current stable means this leg is not testing what users run.
+          # Renovate proposes the bump; until it merges, say so visibly rather than failing every PR.
+          if [ "${{ matrix.leg }}" = stable ]; then
+            pin="$(sed -n 's/^HA_IMAGE=.*home-assistant:\([0-9][0-9.]*\)}.*/\1/p' ui-tests/run.sh)"
+            cur="$(curl -fsS -A 'ha-minimum-check (MatthewHobbs HA add-ons)' https://version.home-assistant.io/stable.json \
+                   | python3 -c 'import sys,json;print(json.load(sys.stdin)["homeassistant"]["default"])')"
+            [ -n "$pin" ] && [ -n "$cur" ] || { echo "::error::could not read the pin or current stable"; exit 1; }
+            [ "$pin" = "$cur" ] || echo "::warning::UI gate stable pin $pin is behind current stable $cur - merge the Renovate 'UI gate render inputs' PR"
+            echo "stable leg: pin $pin, current stable $cur"
+          fi
+          if [ "${{ matrix.leg }}" = minimum ]; then
+            v="$(sed -n 's/^homeassistant: *"\{0,1\}\([0-9][0-9.]*\)"\{0,1\}.*/\1/p' alpine_a290/config.yaml)"
+            [ -n "$v" ] || { echo "::error::no homeassistant: minimum in alpine_a290/config.yaml"; exit 1; }
+            echo "image=ghcr.io/home-assistant/home-assistant:$v" >> "$GITHUB_OUTPUT"
+          fi
       - name: Render dashboards across the mobile device matrix
         env:
           UI_TESTS_DARK: "1"   # render dark (the truncation gate is colour-agnostic)
+          HA_IMAGE: ${{ steps.ha.outputs.image }}   # empty on the stable leg: run.sh keeps its pin
         run: bash ui-tests/run.sh
 
       # The refreshed docs screenshots are committed by the separate "Refresh screenshots"
@@ -80,6 +107,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: dashboard-screenshots
+          # Screenshot drift reads the stable leg's artifact by this exact name.
+          name: ${{ matrix.leg == 'stable' && 'dashboard-screenshots' || 'dashboard-screenshots-minimum' }}
           path: ui-tests/screenshots/
           if-no-files-found: warn

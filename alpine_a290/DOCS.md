@@ -20,6 +20,9 @@ version). With the optional `charger_*` options set, a **Smart Charging** sectio
 
 ## Before you start — install these first
 
+It needs **Home Assistant 2026.8.1 or newer** (the dashboards are render-tested on that version
+and on the current stable release).
+
 The app **deploys the standard dashboard for you by default** (`deploy_dashboard: standard`),
 so install its frontend cards via **HACS → Frontend** *before you start the app for the
 first time* — otherwise the dashboard renders as *"Custom element doesn't exist"* with broken

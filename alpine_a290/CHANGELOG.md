@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.28.0
+
+- **Requires Home Assistant 2026.8.1 or newer**, now declared in the app's manifest. If your Home
+  Assistant is still on 2026.7 or older, update it first: the Supervisor will not offer this
+  version until you do. The bundled dashboards are render-tested on 2026.8.1 and on the current
+  stable release. Nothing else changes: no options, entities or dashboards move.
+
 ## 1.27.1
 
 - **Bubble dashboard: the Last Charge Type icon is coloured again.** It was matching labels the

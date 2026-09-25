@@ -54,7 +54,7 @@
       ]
     },
     {
-      "description": "The UI gate's render inputs move together, as ui-tests/run.sh requires: one PR carrying the Home Assistant image and all four cards, so the gate on that PR confirms the exact combination it will then pin. groupSingleUpdates keeps a lone bump (e.g. only a new Home Assistant) on that same group branch rather than a per-dependency PR; Renovate's default does not apply group settings to a single update. separateMajorMinor is off for the same reason: a major (a new year for Home Assistant, a card's major version) would otherwise split into a second PR and the gate would never see the combination.",
+      "description": "The UI gate's render inputs move together, as ui-tests/run.sh requires: one PR carrying the Home Assistant image and all four cards, so the gate on that PR confirms the exact combination it will then pin. groupSingleUpdates keeps a lone bump (e.g. only a new Home Assistant) on that same group branch rather than a per-dependency PR; Renovate's default does not apply group settings to a single update. separateMajorMinor is off for the same reason: a major (a new year for Home Assistant, a card's major version) would otherwise split into a second PR and the gate would never see the combination. It runs at any time rather than the repo's Saturday schedule: the gate's stable leg must track current stable (global rule), so a new Home Assistant release should reach a PR within hours, not up to a week.",
       "matchManagers": [
         "custom.regex"
       ],
@@ -68,7 +68,10 @@
       "groupName": "UI gate render inputs",
       "commitMessageTopic": "the UI gate's Home Assistant and card pins",
       "groupSingleUpdates": true,
-      "separateMajorMinor": false
+      "separateMajorMinor": false,
+      "schedule": [
+        "at any time"
+      ]
     }
   ],
   "customManagers": [
