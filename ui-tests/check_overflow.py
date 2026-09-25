@@ -270,7 +270,12 @@ def run():
                 # oscillated between two byte sizes all day (143783 <-> 143801). reduced_motion
                 # asks the page not to start them; screenshot(animations="disabled") below is the
                 # belt-and-braces that freezes anything that ignores the preference.
-                reduced_motion="reduce")
+                reduced_motion="reduce",
+                # On older HA (seen on 2026.7.x and 2026.8.x, never 2026.9.x) the frontend's service
+                # worker reloads the page ~3s after first load; landing in a capture it destroys the
+                # context mid-screenshot ("waiting for fonts" timeouts, lost pop-up shots). The gate
+                # checks layout, which a service worker does not change, so it is kept out entirely.
+                service_workers="block")
             ctx.add_init_script(init)
             page = ctx.new_page()
             for dash in args.dashboards:
