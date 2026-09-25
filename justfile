@@ -7,7 +7,7 @@
 # the Tier-0 container boot - see CLAUDE.md.
 
 # Local CI gate - the same commands remote CI runs, for the checks it covers.
-ci: lint pii test
+ci: lint pii ha-min test
 
 # Test env built exactly as CI builds it. requirements.txt is hash-pinned, so it installs
 # alone; the core is then added --no-deps at the SHA the Dockerfile pins, so local tests
@@ -27,6 +27,11 @@ venv:
 pii:
     python3 scripts/pii_check.py --self-test
     python3 scripts/pii_check.py
+
+# Same command as the Lint job's minimum-HA step (reads current stable live).
+ha-min:
+    python3 scripts/ha_minimum_check.py --self-test
+    python3 scripts/ha_minimum_check.py alpine_a290/config.yaml
 
 lint:
     yamllint -c .yamllint alpine_a290 repository.yaml
