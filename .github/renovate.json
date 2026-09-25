@@ -3,7 +3,8 @@
   "description": [
     "Renovate covers what Dependabot cannot see in this repo: the CORE_REF git-SHA pin in the Dockerfile, which no manifest describes, and the Dockerfile base and build-stage images.",
     "Python is deliberately left to Dependabot. requirements.txt is a hash-locked pip-compile output installed with --require-hashes, and it carries no pip-compile header, so Renovate cannot regenerate the hashes and would leave the lock inconsistent.",
-    "renault-api stays manual regardless of tooling: per-model endpoint support is hard-coded in the library, so it is bumped by hand after a container-verified review."
+    "renault-api stays manual regardless of tooling: per-model endpoint support is hard-coded in the library, so it is bumped by hand after a container-verified review.",
+    "It also tracks the UI gate's render inputs in ui-tests/run.sh - the Home Assistant image and the four custom cards - which are pinned for a deterministic render, so without a bot they only move when someone remembers, and the gate drifts behind the Home Assistant users actually run."
   ],
   "extends": [
     "config:recommended",
@@ -47,7 +48,27 @@
         "custom.regex"
       ],
       "groupName": "renault-mqtt core",
-      "commitMessageTopic": "the renault-mqtt core"
+      "commitMessageTopic": "the renault-mqtt core",
+      "matchDepNames": [
+        "MatthewHobbs/renault-mqtt"
+      ]
+    },
+    {
+      "description": "The UI gate's render inputs move together, as ui-tests/run.sh requires: one PR carrying the Home Assistant image and all four cards, so the gate on that PR confirms the exact combination it will then pin. groupSingleUpdates keeps a lone bump (e.g. only a new Home Assistant) on that same group branch rather than a per-dependency PR; Renovate's default does not apply group settings to a single update. separateMajorMinor is off for the same reason: a major (a new year for Home Assistant, a card's major version) would otherwise split into a second PR and the gate would never see the combination.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDepNames": [
+        "ghcr.io/home-assistant/home-assistant",
+        "piitaya/lovelace-mushroom",
+        "custom-cards/button-card",
+        "thomasloven/lovelace-card-mod",
+        "Clooos/Bubble-Card"
+      ],
+      "groupName": "UI gate render inputs",
+      "commitMessageTopic": "the UI gate's Home Assistant and card pins",
+      "groupSingleUpdates": true,
+      "separateMajorMinor": false
     }
   ],
   "customManagers": [
@@ -68,6 +89,50 @@
       "depNameTemplate": "MatthewHobbs/renault-mqtt",
       "datasourceTemplate": "github-tags",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "description": [
+        "The Home Assistant image the UI gate renders on. Stable releases only: the regex versioning rejects beta (2026.10.0b1), dev and the floating stable/latest tags, which made the gate flake before it was pinned. Home Assistant's monthly release is the version's minor here."
+      ],
+      "managerFilePatterns": [
+        "/(^|/)ui-tests/run\\.sh$/"
+      ],
+      "matchStrings": [
+        "HA_IMAGE=\"\\$\\{HA_IMAGE:-(?<depName>ghcr\\.io/home-assistant/home-assistant):(?<currentValue>\\d+\\.\\d+\\.\\d+)\\}\""
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": [
+        "Cards the UI gate downloads as GitHub release assets (mushroom, button-card).",
+        "Strict vX.Y.Z versioning rather than semver-coerced, as for the jsDelivr cards below: only a v-prefixed three-part release is a candidate, so button-card's -dev pre-releases are never proposed."
+      ],
+      "managerFilePatterns": [
+        "/(^|/)ui-tests/run\\.sh$/"
+      ],
+      "matchStrings": [
+        "https://github\\.com/(?<depName>[^/\\s]+/[^/\\s]+)/releases/download/(?<currentValue>v\\d+\\.\\d+\\.\\d+)/"
+      ],
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": [
+        "Cards the UI gate fetches from jsDelivr at a git tag (card-mod, Bubble Card). jsDelivr serves the tag, so track tags.",
+        "Strict vX.Y.Z versioning, not semver-coerced: card-mod also carries bare legacy tags 4 to 14, which semver-coerced reads as 14.0.0 and proposes over v4.2.1 (seen on the r5 twin's dashboard), plus v4.2.1-202604 and -beta/-rc tags on both repos."
+      ],
+      "managerFilePatterns": [
+        "/(^|/)ui-tests/run\\.sh$/"
+      ],
+      "matchStrings": [
+        "https://cdn\\.jsdelivr\\.net/gh/(?<depName>[^/@\\s]+/[^/@\\s]+)@(?<currentValue>v\\d+\\.\\d+\\.\\d+)/"
+      ],
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
     }
   ]
 }
