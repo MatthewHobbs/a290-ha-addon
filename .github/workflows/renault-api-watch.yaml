@@ -60,12 +60,15 @@ jobs:
           fi
           echo "pinned=$pinned" >> "$GITHUB_OUTPUT"
           echo "latest=$latest" >> "$GITHUB_OUTPUT"
-          # sort -V ranks 0.5.14b1 above 0.5.14 (GNU and BSD alike), so a pre-release pin would
-          # hide its own final release. Compare keys with a ~ before any a/b/rc suffix instead:
-          # ~ sorts before the end of the string.
-          vkey() { printf '%s\n' "$1" | sed -E 's/(a|b|rc)([0-9]+)$/~\1\2/'; }
-          if [ "$pinned" = "$latest" ] || \
-             [ "$(printf '%s\n%s\n' "$(vkey "$pinned")" "$(vkey "$latest")" | sort -V | tail -1)" = "$(vkey "$pinned")" ]; then
+          # sort -V ranks 0.5.14b1 and 0.5.14.dev1 above 0.5.14 (GNU and BSD alike), so a
+          # pre-release or dev pin would hide its own final release. Compare keys instead, with
+          # a ~ before any a/b/rc suffix and ~~ before .devN: ~~ < ~ < end of string, which is
+          # the PEP 440 order dev < a/b/rc < final, compound 0.5.14rc1.dev2 < 0.5.14rc1 included.
+          vkey() { printf '%s\n' "$1" | sed -E -e 's/\.(dev[0-9]+)$/~~\1/' -e 's/([0-9])(a|b|rc)([0-9]+)(~~dev[0-9]+)?$/\1~\2\3\4/'; }
+          pk="$(vkey "$pinned")"
+          lk="$(vkey "$latest")"
+          if [ "$pk" = "$lk" ] || \
+             [ "$(printf '%s\n%s\n' "$pk" "$lk" | sort -V | tail -1)" = "$pk" ]; then
             echo "newer=false" >> "$GITHUB_OUTPUT"
             echo "pinned $pinned is current (latest upstream $latest)"
           else
@@ -96,8 +99,13 @@ jobs:
           # unquoted marker matches issues that merely contain the words separately - which would
           # report "already filed" and silently swallow the notification this job exists to send.
           # Same reasoning, and the same shape, as already_filed() in ha_cadence_watch.py.
-          if gh api "repos/${GITHUB_REPOSITORY}/issues?labels=renault-api&state=all&per_page=100" \
-               --jq '.[].body' 2>/dev/null | grep -Fq "$marker"; then
+          # Capture, then match: piped under pipefail, grep -q exiting at the first hit SIGPIPEs gh
+          # once the bodies outgrow the pipe buffer, and exit 141 reads as "not filed" - a duplicate.
+          # --paginate, or only the first 100 labelled issues are ever searched. No 2>/dev/null:
+          # a failed listing must fail the step, not read as "not filed".
+          bodies="$(gh api --paginate "repos/${GITHUB_REPOSITORY}/issues?labels=renault-api&state=all&per_page=100" \
+               --jq '.[].body')"
+          if grep -Fq "$marker" <<<"$bodies"; then
             echo "already filed for ${LATEST}"
             exit 0
           fi
