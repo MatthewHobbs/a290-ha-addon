@@ -103,7 +103,9 @@ The gate runs **two legs**: that stable pin, and the declared minimum (`homeassi
 from the claim. The stable leg warns (does not fail) while its pin lags current stable; the fix is
 merging Renovate's render-inputs PR. `scripts/ha_minimum_check.py` (CI Lint job, `just ha-min`)
 fails if the minimum is missing or newer than the `.1` of the month before current stable, read
-live from `version.home-assistant.io/stable.json`.
+live from `version.home-assistant.io/stable.json`, or is not a published release on PyPI (exact
+spelling, no pre-releases); an unreachable PyPI fails the step too. The script is shared verbatim
+with r5, so change it in both repos together.
 
 Ruff config (`ruff.toml`): line-length 120, target py314, `select = E,F,W,B,I`,
 `ignore = E501,B008`.
