@@ -66,7 +66,14 @@ jobs:
           cp ui-tests/screenshots/alpine-standard__galaxy_s24.png docs/screenshots/standard-galaxy-s24.png
           cp ui-tests/screenshots/alpine-bubble__iphone_15_pro.png docs/screenshots/bubble-iphone-15-pro.png
           cp ui-tests/screenshots/alpine-bubble__galaxy_s24.png docs/screenshots/bubble-galaxy-s24.png
-          cp ui-tests/screenshots/alpine-bubble__smart_charging__iphone_15_pro.png docs/screenshots/smart-charging-iphone-15-pro.png
+          # check_overflow.py skips a pop-up it could not confirm open rather than save the wrong
+          # view, so this shot can be absent; keep the committed one and say so instead of failing.
+          popup=ui-tests/screenshots/alpine-bubble__smart_charging__iphone_15_pro.png
+          if [ -f "$popup" ]; then
+            cp "$popup" docs/screenshots/smart-charging-iphone-15-pro.png
+          else
+            echo "Smart Charging pop-up was not captured on iphone_15_pro this run; the committed screenshot is kept." >> "$GITHUB_STEP_SUMMARY"
+          fi
           python3 -c "
           from PIL import Image
           for f in ['standard-iphone-15-pro.png', 'standard-galaxy-s24.png']:
