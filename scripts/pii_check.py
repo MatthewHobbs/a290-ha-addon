@@ -45,7 +45,8 @@ MARKER = re.compile(r"(#|//)\s*synthetic-coords:[^\"'`]*$")
 # `key:` with nothing after the colon but a comment. A block scalar (`key: |`) has content there.
 KEY_ONLY = re.compile(r"""^(\s*)(?:-\s+)?(?:"[^"]*"|'[^']*'|[^\s#"'-][^#]*?)\s*:\s*(?:#.*)?$""")
 # A lone, optionally quoted number, as a split key's value. A mapping (`x: 1.2345`) is not one.
-BARE_NUM = re.compile(r"""^(\s*)["']?[-+]?\d{1,3}\.\d{4,}["']?\s*,?\s*(?:(?:#|//).*)?$""")
+# JSON may close its object or array on the same line (`<n>}]`, `<n>},`); nothing else may follow.
+BARE_NUM = re.compile(r"""^(\s*)["']?[-+]?\d{1,3}\.\d{4,}["']?\s*,?\s*(?:[}\]]+\s*,?\s*)?(?:(?:#|//).*)?$""")
 BLANK_OR_COMMENT = re.compile(r"^\s*(?:#.*)?$")
 
 
@@ -180,6 +181,13 @@ def self_test():
         ("block scalars are not split keys", ["a: |", f"  {lat}", "b: >", f"  {lon}"], False),
         ("value not deeper than its key", ["a:", f"{lat}", "b:", f"{lon}"], False),
         ("comment ending in a colon is not a key", [f"gain: {lat}", "# offset:", f"  {lon}"], False),
+        ("split JSON, last property closes the object", ["{", '  "latitude":', f"    {lat},", '  "longitude":', f"    {lon}}}"], True),
+        ("split JSON, last value closes an array", ["[", '  "latitude":', f"    {lat},", '  "longitude":', f"    {lon}]"], True),
+        ("split JSON, closes object then array", ["[{", '  "latitude":', f"    {lat},", '  "longitude":', f"    {lon}}}]"], True),
+        ("split JSON, nested closes then a comma", ['{"a": {', '  "latitude":', f"    {lat},", '  "longitude":', f"    {lon}}}}},"], True),
+        ("split JSON, array then object close", ['{"a": [{', '  "latitude":', f"    {lat},", '  "longitude":', f"    {lon}}}]}}"], True),
+        ("split values followed by other text", ["gain:", f"  {lat}}} dB", "trim:", f"  {lon} dB"], False),
+        ("closer with no partner coordinate", ["{", '  "latitude":', f"    {lat}}}", "{", '  "zoom":', "    3}"], False),
     ]
     failed = 0
     for name, lines, want in cases:
