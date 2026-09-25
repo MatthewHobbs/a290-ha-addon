@@ -1,6 +1,8 @@
 name: Alpine A290
-version: "1.27.1"
+version: "1.28.0"
 slug: alpine_a290
+# Oldest Home Assistant this add-on supports and is tested against (UI gate minimum leg).
+homeassistant: "2026.8.1"
 description: Polls your Alpine A290 (Renault/Kamereon API) and publishes its data to Home Assistant via MQTT auto-discovery. Credentials are entered once on the Configuration page.
 url: https://github.com/MatthewHobbs/a290-ha-addon/tree/main/alpine_a290
 # Pre-built multi-arch image published to GHCR by .github/workflows/release.yaml, with a
