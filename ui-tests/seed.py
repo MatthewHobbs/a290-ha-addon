@@ -6,10 +6,17 @@ state via the REST /api/states API (cards read hass.states regardless of the bac
 integration), the custom-card Lovelace resources are registered, and the 'standard' and
 'bubble' dashboards are created from the bundled YAML via the WebSocket API.
 
+With --alarm <manifest.json> it runs the second, alarm pass instead: every problem-class binary
+sensor the dashboards reference is flipped from its seeded state, so the cards and labels those
+sensors switch on are rendered too, and the manifest names the dashboards to re-check and the
+card labels that must now be visible on each.
+
 Usage: seed.py --base http://localhost:8123 --token <access_token> [--dashboards <dir>]
+                [--alarm <manifest.json>]
 """
 import argparse
 import asyncio
+import json
 import os
 import re
 import sys
@@ -100,7 +107,8 @@ KNOWN = {
     "sensor.alpine_a290_last_charge_end": (_ago(hours=13, minutes=12), {"device_class": "timestamp"}),
     # Seeded ON so the render gate exercises the "Car Parked" tile — which is the state a
     # normally-parked car sits in, and the branch carrying the longer text. poll_failing off
-    # alongside it is the pairing that means "working fine, car simply parked".
+    # alongside it is the pairing that means "working fine, car simply parked". The alarm pass
+    # (--alarm) flips both, and every other problem sensor, to render the branches this one hides.
     "binary_sensor.alpine_a290_data_stale": ("on", {"device_class": "problem"}),
     "binary_sensor.alpine_a290_poll_failing": ("off", {"device_class": "problem"}),
     "sensor.alpine_a290_last_updated": (_ago(hours=3, minutes=12), {"device_class": "timestamp"}),
@@ -136,14 +144,58 @@ def _name_from_id(eid):
     return " ".join("A290" if w == "a290" else w.capitalize() for w in obj.split("_"))
 
 
-def state_for(eid):
+def _slug(text):
+    return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
+
+
+def problem_sensors():
+    """entity_id of every problem-class binary sensor the add-on publishes. Derived from the
+    catalog the way HA derives it, slug(device name + entity name), so it follows a rename and
+    the r5 twin's catalog without a list here to fall out of step."""
+    sys.path.insert(0, os.path.abspath(APP_DIR))
+    import catalog
+    dev = _slug(catalog.DEVICE["name"])
+    return frozenset(f"binary_sensor.{dev}_{_slug(name)}"
+                     for name, dclass in catalog.BINARY_SENSORS.values() if dclass == "problem")
+
+
+def state_for(eid, problems=frozenset(), alarm=False):
+    """The seeded state. With `alarm`, a problem sensor gets the OPPOSITE of its normal-pass
+    state, so across the two passes every branch a dashboard keys on it renders once."""
     if eid in KNOWN:
         st, attrs = KNOWN[eid]
     else:
         st, attrs = DEFAULTS.get(eid.split(".")[0], ("42", {}))
     attrs = dict(attrs)
     attrs.setdefault("friendly_name", _name_from_id(eid))
+    if eid in problems:
+        attrs.setdefault("device_class", "problem")  # as published: "Problem"/"OK", not "On"/"Off"
+        if alarm:
+            st = "off" if st == "on" else "on"
     return st, attrs
+
+
+def alarm_labels(views, flipped):
+    """`name` of every conditional card whose conditions are all met by the flipped states:
+    the cards the alarm pass exists to render, so the gate can insist they appeared."""
+    found = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            conds = node.get("conditions") if node.get("type") == "conditional" else None
+            if conds and all(isinstance(c, dict) and c.get("entity") in flipped
+                             and str(c.get("state")) == flipped[c["entity"]] for c in conds):
+                name = (node.get("card") or {}).get("name")
+                if name:
+                    found.append(name)
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(views)
+    return found
 
 
 def extract_entities(texts):
@@ -178,15 +230,38 @@ class WS:
                 return msg.get("result")
 
 
-async def seed_states(session, base, token, entities):
+async def seed_states(session, base, token, entities, problems=frozenset(), alarm=False):
     headers = {"Authorization": f"Bearer {token}"}
     for eid in entities:
-        st, attrs = state_for(eid)
+        st, attrs = state_for(eid, problems, alarm)
         async with session.post(f"{base}/api/states/{eid}", headers=headers,
                                 json={"state": st, "attributes": attrs}) as r:
             if r.status not in (200, 201):
                 print(f"  ! {eid}: HTTP {r.status}", file=sys.stderr)
     print(f"  seeded {len(entities)} entity states")
+
+
+async def seed_alarm(session, args, built, entities, problems):
+    """Flip the referenced problem sensors, read them back, and write the alarm-pass manifest."""
+    flipped = {eid: state_for(eid, problems, alarm=True)[0] for eid in entities if eid in problems}
+    if not flipped:
+        # An empty alarm pass renders nothing and passes: the catalog-to-id derivation or the
+        # dashboards changed, and the gate must say so rather than go quietly blind.
+        raise SystemExit(f"alarm pass: no dashboard references any problem sensor {sorted(problems)}")
+    await seed_states(session, args.base, args.token, sorted(flipped), problems, alarm=True)
+    headers = {"Authorization": f"Bearer {args.token}"}
+    for eid, want in flipped.items():
+        async with session.get(f"{args.base}/api/states/{eid}", headers=headers) as r:
+            got = (await r.json()).get("state") if r.status == 200 else f"HTTP {r.status}"
+        if got != want:
+            raise SystemExit(f"alarm pass: {eid} is {got!r} in HA, seeded {want!r}")
+        print(f"  {eid} -> {want}")
+    manifest = {url_path: alarm_labels(views, flipped)
+                for url_path, views in built.items()
+                if set(extract_entities([yaml.safe_dump(views)])) & flipped.keys()}
+    with open(args.alarm, "w", encoding="utf-8") as fh:
+        json.dump(manifest, fh, indent=1)
+    print(f"  alarm pass re-checks {manifest}")
 
 
 def load_views(dash_dir, fname):
@@ -217,6 +292,8 @@ async def main():
     ap.add_argument("--base", default="http://localhost:8123")
     ap.add_argument("--token", required=True)
     ap.add_argument("--dashboards", default=DASH_DIR_DEFAULT)
+    ap.add_argument("--alarm", metavar="MANIFEST",
+                    help="flip the problem sensors of an already-seeded instance; write the manifest here")
     args = ap.parse_args()
 
     # Build each dashboard's views with the Smart Charging injection applied, then extract the
@@ -227,10 +304,15 @@ async def main():
         inject_smart_charging(url_path, views)
         built[url_path] = views
     entities = extract_entities([yaml.safe_dump(v) for v in built.values()])
+    problems = problem_sensors()
 
     async with aiohttp.ClientSession() as session:
+        if args.alarm:
+            print("Seeding the alarm states…")
+            await seed_alarm(session, args, built, entities, problems)
+            return
         print("Seeding entity states…")
-        await seed_states(session, args.base, args.token, entities)
+        await seed_states(session, args.base, args.token, entities, problems)
 
         ws_url = args.base.replace("http", "ws", 1) + "/api/websocket"
         async with session.ws_connect(ws_url) as ws:

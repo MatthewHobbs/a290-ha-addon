@@ -21,6 +21,13 @@ Mushroom tile labels clipping on a phone.
    any text element that is clipped (`text-overflow:ellipsis` / `nowrap`+`overflow:hidden`
    with `scrollWidth > clientWidth`) or any `hui-error-card`. A screenshot is saved per
    device; the run exits non-zero with a report if anything is clipped.
+4. **Alarm pass.** The seed is a healthy car, so nothing the problem sensors switch on (the
+   Not Polling and Auth Failure cards, the Last Updated branch of the Car Parked tile) renders
+   in step 3. `seed.py --alarm` flips every problem-class binary sensor the dashboards
+   reference (derived from `catalog.py`, not listed here), and `check_overflow.py --pass-name
+   alarm` re-checks only the dashboards that reference one, across the same devices. It also
+   fails if a conditional card gated on those states does not appear. Its screenshots are
+   `<dashboard>__alarm__<device>.png`, so they never overwrite the normal pass's.
 
 ## Device matrix
 
