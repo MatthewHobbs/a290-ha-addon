@@ -17,7 +17,10 @@ Rules, applied to every git-tracked text file:
               stub such as VF1STUBVIN0000000 does not match and needs no exemption.
   coordinates two numbers with 4+ decimals forming a valid latitude/longitude in either order,
               within GAP characters of each other on one line or across two adjacent
-              lines (pretty-printed JSON/YAML puts them on consecutive lines).
+              lines (pretty-printed JSON/YAML puts them on consecutive lines). A key whose
+              number sits alone on a deeper line (`latitude:` then `  51.5...`) is read as
+              if it were on the key's line, so the split form is caught exactly where the
+              one-line form would be; nested mappings and block scalars are not joined.
 
 A deliberate synthetic coordinate fixture opts out with a trailing `# synthetic-coords: <why>`
 (or `//`) comment on the SAME line as either number. JSON cannot carry one: use a pair below
@@ -39,6 +42,11 @@ VIN = re.compile(r"(?<![A-Za-z0-9])[A-HJ-NPR-Z0-9]{17}(?![A-Za-z0-9])")
 NUM = re.compile(r"(?<![\d.])[-+]?\d{1,3}\.\d{4,}(?![\d.])")
 # A trailing comment only: nothing quoted may follow it, or a string value could carry it.
 MARKER = re.compile(r"(#|//)\s*synthetic-coords:[^\"'`]*$")
+# `key:` with nothing after the colon but a comment. A block scalar (`key: |`) has content there.
+KEY_ONLY = re.compile(r"""^(\s*)(?:-\s+)?(?:"[^"]*"|'[^']*'|[^\s#"'-][^#]*?)\s*:\s*(?:#.*)?$""")
+# A lone, optionally quoted number, as a split key's value. A mapping (`x: 1.2345`) is not one.
+BARE_NUM = re.compile(r"""^(\s*)["']?[-+]?\d{1,3}\.\d{4,}["']?\s*,?\s*(?:(?:#|//).*)?$""")
+BLANK_OR_COMMENT = re.compile(r"^\s*(?:#.*)?$")
 
 
 def vin_hits(lines):
@@ -59,16 +67,37 @@ def _pair_in(text):
     return False
 
 
+def _joined(lines):
+    """(index, text) per line, minus each key-only line whose value is a lone number on a deeper
+    line, and the blank or comment lines between them. Dropping the key puts that number where
+    the one-line form had it, next to its partner, and keeps the marker rule "same line as the
+    number"."""
+    out, i = [], 0
+    while i < len(lines):
+        key = KEY_ONLY.match(lines[i])
+        if key:
+            j = i + 1
+            while j < len(lines) and BLANK_OR_COMMENT.match(lines[j]):
+                j += 1
+            val = BARE_NUM.match(lines[j]) if j < len(lines) else None
+            if val and len(val.group(1)) > len(key.group(1)):
+                i = j
+        out.append((i, lines[i]))
+        i += 1
+    return out
+
+
 def coord_hits(lines):
     hits = []
-    for i, line in enumerate(lines):
+    joined = _joined(lines)
+    for k, (i, line) in enumerate(joined):
         if MARKER.search(line):
             continue
         if _pair_in(line):
             hits.append(i)
             continue
         # A pair split across this line and the next; either line may carry the marker.
-        nxt = lines[i + 1] if i + 1 < len(lines) else ""
+        nxt = joined[k + 1][1] if k + 1 < len(joined) else ""
         if NUM.search(line) and NUM.search(nxt) and not MARKER.search(nxt) and _pair_in(line + " " + nxt):
             hits.append(i)
     return hits
@@ -137,6 +166,20 @@ def self_test():
         ("low precision", ["gpsLatitude=51.5, gpsLongitude=-0.1"], False),
         ("longitude first, beyond 90", [f"longitude: 151.{'2093'}, latitude: -33.{'8688'}"], True),
         ("both beyond 90", [f"ratio 123.{'4567'} vs 145.{'6789'}"], False),
+        ("vin, key and value split", ["vin:", f"  {vin}"], True),
+        ("split keys, both", ["latitude:", f"  {lat}", "longitude:", f"  {lon}"], True),
+        ("split key, second only", [f"latitude: {lat}", "longitude:", f"  {lon}"], True),
+        ("split key, comment and blank between", ["latitude:  # home", "", "  # degrees", f"  {lat}", "longitude:", f"  {lon}"], True),
+        ("split keys, JSON", ['"latitude":', f"  {lat},", '"longitude":', f"  {lon}"], True),
+        ("split keys, sequence item", ["- latitude:", f"    {lat}", "  longitude:", f"    {lon}"], True),
+        ("split keys, marker on a value line", ["latitude:", f"  {lat}", "longitude:", f"  {lon}  # synthetic-coords: t"], False),
+        ("split keys, marker on the key line only", ["latitude:  # synthetic-coords: t", f"  {lat}", "longitude:", f"  {lon}"], True),
+        ("split keys, low precision", ["latitude:", "  51.5", "longitude:", "  -0.1"], False),
+        ("numbers in sibling nested mappings", ["zone_a:", f"  radius: {lat}", "zone_b:", f"  radius: {lon}"], False),
+        ("nested mappings under commented keys", ["zone_a:  # home", f"  radius: {lat}", "zone_b:  # work", f"  radius: {lon}"], False),
+        ("block scalars are not split keys", ["a: |", f"  {lat}", "b: >", f"  {lon}"], False),
+        ("value not deeper than its key", ["a:", f"{lat}", "b:", f"{lon}"], False),
+        ("comment ending in a colon is not a key", [f"gain: {lat}", "# offset:", f"  {lon}"], False),
     ]
     failed = 0
     for name, lines, want in cases:
