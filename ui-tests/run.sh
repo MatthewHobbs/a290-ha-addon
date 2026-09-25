@@ -10,7 +10,8 @@ BASE="http://localhost:8123"
 CID="$BASE/"
 PY="${PYTHON:-python3}"
 # Pinned (not :stable) so the render is deterministic — a floating tag made the truncation
-# gate flake as HA/card versions moved under it. Bump deliberately alongside the card pins below.
+# gate flake as HA/card versions moved under it. Renovate proposes this and the card pins below as
+# one grouped PR (.github/renovate.json); keep the image:tag and URL shapes its regexes expect.
 HA_IMAGE="${HA_IMAGE:-ghcr.io/home-assistant/home-assistant:2026.7.1}"
 CONFIG="$(mktemp -d)"
 
@@ -25,7 +26,7 @@ echo "==> Vendor custom cards into the HA www/ (same-origin, no CORS issues)"
 mkdir -p "$CONFIG/www/cards"
 # Pinned to fixed releases (not @latest / @master) so the rendered layout is reproducible; a
 # floating card version shifting the shadow DOM is what tripped the marginal truncation gate.
-# Bump these deliberately (together with HA_IMAGE) when tracking upstream.
+# Renovate bumps these together with HA_IMAGE (one grouped PR).
 curl -fsSL "https://github.com/piitaya/lovelace-mushroom/releases/download/v5.1.1/mushroom.js" -o "$CONFIG/www/cards/mushroom.js"
 curl -fsSL "https://github.com/custom-cards/button-card/releases/download/v7.0.1/button-card.js" -o "$CONFIG/www/cards/button-card.js"
 curl -fsSL "https://cdn.jsdelivr.net/gh/thomasloven/lovelace-card-mod@v4.2.1/card-mod.js" -o "$CONFIG/www/cards/card-mod.js"
