@@ -111,12 +111,44 @@ JS_DIAG = r"""
 """
 
 
-def _card_count(page):
-    """How many cards are currently in the (shadow-pierced) tree. 0 means nothing rendered."""
-    try:
-        return int(page.evaluate(JS_DIAG).get("cards", 0))
-    except Exception:
-        return 0
+# True only while an OPEN Bubble pop-up shows an element whose own text is exactly `label`, both
+# inside the viewport. Each condition closes a way the pop-up capture can pass with it shut:
+#  - a document card count: the main-menu pop-up behind a failed open has ~24 cards;
+#  - `text=Charge Target`: a case-insensitive substring, so it would also match "Charge Target SoC"
+#    (the A290's own number entity) if a card ever rendered that friendly name;
+#  - Playwright "visible": a non-empty box, not "on screen" and not opacity>0. Bubble 3.2.5 detaches
+#    a closed standalone pop-up, but its centered/adaptive-dialog modes keep a closed one in layout
+#    at opacity 0, and a closing one animates out while still in the DOM.
+JS_POPUP_SHOWS = r"""
+(label) => {
+  const inView = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0
+        && r.top < innerHeight && r.left < innerWidth;
+  };
+  const hasLabel = (root) => {
+    let nodes; try { nodes = root.querySelectorAll('*'); } catch (e) { return false; }
+    for (const el of nodes) {
+      let own = '';
+      for (const n of el.childNodes) if (n.nodeType === 3) own += n.textContent;
+      if (own.trim() === label && getComputedStyle(el).visibility === 'visible' && inView(el)) return true;
+      if (el.shadowRoot && hasLabel(el.shadowRoot)) return true;
+    }
+    return false;
+  };
+  const findOpen = (root) => {
+    let nodes; try { nodes = root.querySelectorAll('*'); } catch (e) { return false; }
+    for (const el of nodes) {
+      const c = el.classList;
+      if (c && c.contains('bubble-pop-up') && c.contains('is-popup-opened') && !c.contains('is-closing')
+          && parseFloat(getComputedStyle(el).opacity) > 0 && inView(el) && hasLabel(el)) return true;
+      if (el.shadowRoot && findOpen(el.shadowRoot)) return true;
+    }
+    return false;
+  };
+  return findOpen(document);
+}
+"""
 
 
 def _write_diag(page, shot_path):
@@ -293,24 +325,27 @@ def run():
                         # one run and 0 on the next, at identical page dimensions, differing in
                         # 99.89% of its pixels. A screenshot known to be empty must never be
                         # written; retry the open, and if it still has not rendered, skip the
-                        # capture and keep the previous good file.
+                        # capture and keep the previous good file. Judge completeness by the
+                        # pop-up itself being open and showing its label (JS_POPUP_SHOWS), never
+                        # by a document card count: the main menu behind a failed open has cards.
                         for popup_attempt in range(2):
                             page.evaluate("() => { location.hash = '#alpine-charging'; }")
                             try:  # the pop-up's inner cards lazy-render (Bubble Card)
-                                page.wait_for_selector("text=Charge Target", timeout=8000)
+                                page.wait_for_function(JS_POPUP_SHOWS, arg="Charge Target", timeout=8000)
+                                opened = True
                             except Exception:
-                                pass
+                                opened = False
                             page.wait_for_timeout(800)
-                            if _card_count(page) > 0:
+                            if opened:
                                 break
                             print(f"    [popup empty {popup_attempt + 1}/2] {dash} @ "
-                                  f"{dev['name']}: pop-up rendered no cards — reopening")
+                                  f"{dev['name']}: pop-up never opened on screen — reopening")
                             page.evaluate("() => { location.hash = ''; }")
                             page.wait_for_timeout(400)
                         else:
                             print(f"    [popup skipped] {dash} @ {dev['name']}: pop-up never "
-                                  f"rendered; not overwriting the committed screenshot")
-                            raise RuntimeError("smart-charging pop-up rendered no cards")
+                                  f"opened; not overwriting the committed screenshot")
+                            raise RuntimeError("smart-charging pop-up never opened on screen")
                         page.evaluate(JS_DISMISS_TOASTS)
                         pshot = os.path.join(args.out, f"{dash}__smart_charging__{slug}.png")
                         _write_diag(page, pshot)
