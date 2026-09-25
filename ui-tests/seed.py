@@ -65,11 +65,11 @@ KNOWN = {
     "sensor.alpine_a290_range": ("147.3", {"unit_of_measurement": "mi"}),
     "sensor.alpine_a290_mileage": ("12345", {"unit_of_measurement": "mi"}),
     "sensor.alpine_a290_charging_power": ("7.4", {"unit_of_measurement": "kW"}),
-    "sensor.alpine_a290_charging_remaining": ("215", {"unit_of_measurement": "min"}),
     "sensor.alpine_a290_charging_time_remaining": ("215", {"unit_of_measurement": "min"}),
     "sensor.alpine_a290_available_energy": ("41.6", {"unit_of_measurement": "kWh"}),
     "sensor.alpine_a290_battery_temperature": ("18", {"unit_of_measurement": "°C"}),
-    "sensor.alpine_a290_external_temperature": ("12", {"unit_of_measurement": "°C"}),
+    # Ids are slug(device + entity NAME): object_id a290_external_temperature is "Outside Temperature".
+    "sensor.alpine_a290_outside_temperature": ("12", {"unit_of_measurement": "°C"}),
     "sensor.alpine_a290_plug_status": ("Connected", {"icon": "mdi:power-plug"}),
     "sensor.alpine_a290_charging_status": ("Rapid/Public", {"icon": "mdi:battery-charging"}),
     "sensor.alpine_a290_charging_flap": ("Open: Plugged In", {"icon": "mdi:ev-plug-type2"}),
