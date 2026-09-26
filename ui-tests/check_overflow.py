@@ -265,6 +265,19 @@ async () => {
   const peek = (p) => Promise.race([p, Promise.resolve(PENDING)]);
   const hasTpl = (s) => s.includes('{%') || s.includes('{{');
   const nonEmpty = (v) => (typeof v === 'string' ? v.trim() !== '' : !!v && Object.keys(v).length > 0);
+  // How many elements card-mod's selectTree(parent, key, all) would style now; a synchronous replica
+  // of src/helpers/selecttree.ts (split on '$' and ' ', '$' enters shadow roots, first match onward).
+  const targets = (cm, key) => {
+    let el = [cm.parentElement || cm.parentNode];
+    const path = key.split(/(\$| )/);
+    while (path[path.length - 1] === '') path.pop();
+    for (const p of path) {
+      if (p === '$') { el = [...el].map((e) => e && e.shadowRoot); continue; }
+      if (!el[0]) return 0;
+      if (p.trim()) el = el[0].querySelectorAll(p);
+    }
+    return el.length;
+  };
   const cmReady = async (cm, depth) => {
     if (!cm || !cm.isConnected || cm._processStylesOnConnect) return false;
     const fixed = cm._fixed_styles || {};
@@ -281,7 +294,14 @@ async () => {
       if (!(key in kids)) return false;
       const list = await peek(kids[key]);
       if (list === PENDING) return false;
-      for (const p of (list || [])) {          // undefined: card-mod gave up on the selector
+      // Nullish: card-mod gave up on the selector (or a restyle cancelled it). Ready only while
+      // nothing matches it: then there is nothing to style (mushroom-template-card has no
+      // mushroom-state-info at all). A target that exists but was given up on stays pending.
+      if (list == null) {
+        if (targets(cm, key) > 0) return false;
+        continue;
+      }
+      for (const p of list) {
         const child = await peek(p);
         if (child === PENDING || !(await cmReady(child, depth + 1))) return false;
       }
