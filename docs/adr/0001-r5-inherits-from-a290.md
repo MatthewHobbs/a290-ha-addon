@@ -127,6 +127,12 @@ See the PR that lands row 1 for the commands and output; in summary:
   vs 30 difference fail.
 - Its `--self-test` proves each failure mode fires on synthetic trees, including a verbatim file
   whose difference normalisation would otherwise hide.
+- It fails when a map rule rewrites nothing (stale), so the `legacy` rules cannot outlive r5's
+  rename unnoticed.
+- **Not re-verified here:** the naming research (Topolino65 dashboards use no r5 entity id;
+  visible r5 users run the bundled dashboard) reached this ADR's author through the
+  coordinating session; it was not re-checked for this ADR. The r5 session later confirmed the
+  0-of-58 result independently on its own Topolino65 snapshot.
 - **Not verified:** the CI job itself, which runs only once the PR is open; and that the audit's
   item ids resolve anywhere a future reader can follow (the baseline report was a session
   artefact, summarised in the RFC).
