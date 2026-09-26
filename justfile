@@ -57,7 +57,7 @@ ha-min:
 
 lint:
     yamllint -c .yamllint alpine_a290 repository.yaml
-    shellcheck alpine_a290/run.sh
+    shellcheck alpine_a290/run.sh scripts/supervisor-pilot.sh
     ruff check alpine_a290/app alpine_a290/tests scripts ui-tests
 
 test: venv

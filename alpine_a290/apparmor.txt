@@ -1,3 +1,12 @@
+abi <abi/3.0>,
+
+# Policy ABI pinned to 3.0. Without an abi line, a parser compiles the profile against the
+# running kernel's features. polygonal-zones' Supervisor pilot showed that parser 4.1 on
+# Linux 6.17, which mediates unix sockets, produced a policy under which its profile granted
+# s6 no unix socket, so its add-on never started. Adding `unix,` there changed nothing; this
+# pin fixed it. The pin keeps the encoding this profile was written against on every parser
+# from 3.0 up. Parsers 3.0.8, 3.1.7, 4.0.1, 4.1.0 and 5.0.0~alpha1 compile it. See ADR 0002.
+
 #include <tunables/global>
 
 # Custom AppArmor profile for the Alpine A290 add-on, based on Home Assistant's recommended
@@ -9,7 +18,8 @@
 # paths and granted only `ix` (execute) on those trees — so the very first step,
 # `/bin/sh /init`, was denied ("can't open '/init': Permission denied") and the add-on
 # could not start after updating. AppArmor is only enforced by the Supervisor (not by a
-# local `docker run`, and not in CI), so this could not be caught before release.
+# local `docker run`), so this could not be caught before release. The Supervisor pilot
+# (ADR 0002) now enforces it in CI.
 #
 # This profile therefore follows HA's reference: broad `file`/`capability` access so the
 # boot chain and bashio always start, with the security value concentrated in the explicit

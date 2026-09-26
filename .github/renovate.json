@@ -4,7 +4,8 @@
     "Renovate covers what Dependabot cannot see in this repo: the CORE_REF git-SHA pin in the Dockerfile, which no manifest describes, and the Dockerfile base and build-stage images.",
     "Python is deliberately left to Dependabot. requirements.txt is a hash-locked pip-compile output installed with --require-hashes, and it carries no pip-compile header, so Renovate cannot regenerate the hashes and would leave the lock inconsistent.",
     "renault-api stays manual regardless of tooling: per-model endpoint support is hard-coded in the library, so it is bumped by hand after a container-verified review.",
-    "It also tracks the UI gate's render inputs in ui-tests/run.sh - the Home Assistant image and the four custom cards - which are pinned for a deterministic render, so without a bot they only move when someone remembers, and the gate drifts behind the Home Assistant users actually run."
+    "It also tracks the UI gate's render inputs in ui-tests/run.sh - the Home Assistant image and the four custom cards - which are pinned for a deterministic render, so without a bot they only move when someone remembers, and the gate drifts behind the Home Assistant users actually run.",
+    "And the Supervisor pilot's devcontainer and registry images in scripts/supervisor-pilot.sh, pinned by digest so a run is reproducible; without a bot the pilot would keep booting an old devcontainer."
   ],
   "extends": [
     "config:recommended",
@@ -72,6 +73,14 @@
       "schedule": [
         "at any time"
       ]
+    },
+    {
+      "description": "The Supervisor pilot's images move on their own, apart from the add-on's base image and the UI gate: one PR carrying the devcontainer and the registry, so the pilot on that PR proves the new devcontainer still boots the Supervisor before it is pinned.",
+      "matchFileNames": [
+        "scripts/supervisor-pilot.sh"
+      ],
+      "groupName": "Supervisor pilot images",
+      "commitMessageTopic": "the Supervisor pilot's images"
     }
   ],
   "customManagers": [
@@ -136,6 +145,20 @@
       ],
       "datasourceTemplate": "github-tags",
       "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": [
+        "The devcontainer and registry images the Supervisor pilot runs (ADR 0002), each a quoted name:tag@digest. The tag must be the exact upstream tag (6-apps, 3), or the lookup fails silently and no update is ever offered.",
+        "The same rule as polygonal-zones' pilot, which this one is adapted from."
+      ],
+      "managerFilePatterns": [
+        "/^scripts/supervisor-pilot\\.sh$/"
+      ],
+      "matchStrings": [
+        "\"(?<depName>(?:ghcr\\.io|docker\\.io)/[a-z0-9._/-]+):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})\""
+      ],
+      "datasourceTemplate": "docker"
     }
   ]
 }
