@@ -44,7 +44,7 @@ model	alpine_a290/dashboards/Images/Map Markers/*	r5	only	6	r5's map markers per
 # ---------------------------------------------------------------- one repository only
 local	BACKLOG.md	a290	only	1	a290's own backlog; r5 tracks work in its issues
 local	.orchestrate/*	a290	only	2	a290's review-orchestration helpers; whether r5 wants them is the owner's call (audit H-C7)
-local	docs/adr/*	a290	only	1	a290's architecture decision records
+local	docs/adr/*	a290	only	2	a290's architecture decision records (0001 parity, 0002 Supervisor pilot)
 pending	scripts/parity_check.py	a290	only	1	this check starts in a290. Target: r5 copies it byte-for-byte with its own map and list (ADR 0001 row 2)
 pending	.github/scripts/ha_cadence_watch.py	a290	only	1	a290 watches the HA release cadence (audit H-C7). Target: port to r5 with the workflow below
 pending	.github/workflows/ha-cadence-watch.yaml	a290	only	1	as ha_cadence_watch.py. Target: port to r5
@@ -143,7 +143,6 @@ pending	.github/templates/renault-api-release.md	both	*	36	a290's issue template
 pending	.gitignore	both	*	20	section order differs; a290 ignores .bak* backups of settings.local.json; r5 ignores a local reference/ checkout. Target: port .bak* to r5, one section order
 pending	.trivyignore	r5	*	3	r5 still ignores AVD-DS-0026 (no HEALTHCHECK) although its Dockerfile has one (audit H-D2). Target: delete from r5
 pending	.yamllint	a290	*	4	a290 exempts dashboards/ because it bundles upstream YAML packages there. Target: follows the Packages/Templates decision
-pending	scripts/docs_sync_check.py	both	*	66	a290 #159 reads the base CHANGELOG from the base tree's add-on dir; r5's copy has #155 (as r5 #101) but not #159. Target: r5 copies the script verbatim
 pending	scripts/docs_cite_ignore.txt	both	*	3	the comment follows the bundled-template difference. Target: follows the Templates decision
 
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
@@ -163,3 +162,10 @@ pending	README.md	both	*	*	repository README; 44% shared. Target: same as DOCS.m
 pending	CLAUDE.md	both	*	*	each repo's session instructions; 65% shared. Target: same as DOCS.md
 pending	alpine_a290/README.md	both	*	39	the add-on's store README. Target: same as DOCS.md
 pending	docs/dashboards-on-mobile.md	both	*	15	r5 claims the screenshots auto-refresh, which is false there (audit H-D3), plus rewrapping. Target: fix r5's claim, then rewrap
+# ---------------------------------------------------------------- Supervisor pilot + AppArmor pin (a290 #160, ADR 0002)
+pending	.github/workflows/supervisor.yml	a290	only	1	the Supervisor pilot workflow (ADR 0002). Target: r5 mirrors it (ADR 0002 row 10)
+pending	scripts/supervisor-pilot.sh	a290	only	1	the Supervisor pilot script (ADR 0002). Target: r5 mirrors it (ADR 0002 row 10)
+pending	alpine_a290/apparmor.txt	both	*	10	a290 pins `abi <abi/3.0>,` (runner-proven: denied without it on parser 4.1.0, #160) and its comments cite the pilot. Target: r5 pins the ABI with its pilot (ADR 0002 row 10)
+pending	.github/workflows/ci.yaml	a290	hunk:ShellCheck \(Supervisor pilot\)	2	ShellCheck step for the pilot script. Target: r5 adds it with the pilot
+pending	justfile	both	re:^\s+shellcheck alpine_a290/run\.sh	2	`just lint` also shellchecks the pilot script. Target: r5 adds it with the pilot
+pending	.github/renovate.json	both	hunk:Supervisor pilot	25	Renovate rule and manager for the pilot's digest-pinned images. Target: r5 adds them with the pilot
