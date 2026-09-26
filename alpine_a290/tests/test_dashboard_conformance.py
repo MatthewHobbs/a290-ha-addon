@@ -55,8 +55,9 @@ _PREFIXES = sorted({_DEVICE_SLUG + "_", catalog.OBJ_PREFIX, _DEVICE_SLUG.split("
 # ANY domain, not a listed few: a fixed domain list made ``switch.alpine_a290_battery_level`` (or
 # ``climate.``, ``select.`` ...) invisible to every check below, while the >= 20 guard stayed
 # satisfied. Which domains are legitimate is derived (from discovery and the helper packages)
-# and checked in test_dashboard_references_use_a_domain_this_build_publishes.
-_REF = re.compile(r"\b([a-z_]+)\.((?:" + "|".join(_PREFIXES) + r")[a-z0-9_]+)")
+# and checked in test_dashboard_references_use_a_domain_this_build_publishes. Core's
+# valid_entity_id admits digits in the domain, so ``sensor2.`` must be caught too.
+_REF = re.compile(r"\b([a-z0-9_]+)\.((?:" + "|".join(_PREFIXES) + r")[a-z0-9_]+)")
 # Domains a dashboard may reference although neither discovery nor a helper package defines
 # them, each with the reason. Empty today: the core's device_tracker comes out of discovery and
 # the input_* helpers out of the packages, so nothing needs listing by hand.
