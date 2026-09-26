@@ -271,14 +271,18 @@ class WS:
 
 
 async def seed_states(session, base, token, entities, problems=frozenset(), alarm=False):
+    """POST each state; returns {entity_id: the state sent}, for callers that read it back."""
     headers = {"Authorization": f"Bearer {token}"}
+    posted = {}
     for eid in entities:
         st, attrs = state_for(eid, problems, alarm)
+        posted[eid] = st
         async with session.post(f"{base}/api/states/{eid}", headers=headers,
                                 json={"state": st, "attributes": attrs}) as r:
             if r.status not in (200, 201):
                 print(f"  ! {eid}: HTTP {r.status}", file=sys.stderr)
     print(f"  seeded {len(entities)} entity states")
+    return posted
 
 
 async def seed_alarm(session, args, built, entities, problems):
@@ -289,14 +293,17 @@ async def seed_alarm(session, args, built, entities, problems):
         # dashboards changed, and the gate must say so rather than go quietly blind.
         raise SystemExit(f"alarm pass: no dashboard references any problem sensor {sorted(problems)}")
     derived = sorted(eid for eid, (src, _) in DERIVED_AGE.items() if src in flipped and eid in entities)
-    await seed_states(session, args.base, args.token, sorted(flipped) + derived, problems, alarm=True)
+    # Every re-seeded state is read back, the derived timestamps included: a failed POST only
+    # logs, and would leave the normal pass's stale age beside data_stale off with the gate green.
+    posted = await seed_states(session, args.base, args.token, sorted(flipped) + derived, problems,
+                               alarm=True)
     headers = {"Authorization": f"Bearer {args.token}"}
-    for eid in sorted(flipped) + derived:
+    for eid, want in posted.items():
         async with session.get(f"{args.base}/api/states/{eid}", headers=headers) as r:
             got = (await r.json()).get("state") if r.status == 200 else f"HTTP {r.status}"
-        if eid in flipped and got != flipped[eid]:
-            raise SystemExit(f"alarm pass: {eid} is {got!r} in HA, seeded {flipped[eid]!r}")
-        print(f"  {eid} -> {got}")
+        if got != want:
+            raise SystemExit(f"alarm pass: {eid} is {got!r} in HA, seeded {want!r}")
+        print(f"  {eid} -> {want}")
     manifest = {}
     for url_path, views in built.items():
         refs = set(extract_entities([yaml.safe_dump(views)])) & flipped.keys()
