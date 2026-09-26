@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.28.4
+
+- **The add-on's AppArmor profile now names the policy version it was written for.** Without that,
+  a newer AppArmor compiles the profile using the running kernel's newest rules. A sibling add-on's
+  profile, run that way on Linux 6.17, stopped granting the internal sockets the add-on's process
+  supervisor needs, so it never started. Home Assistant OS ships an older AppArmor, and no install
+  of this add-on is known to have been affected. The pin keeps the profile meaning what it was
+  written to mean when that changes. Nothing else changes: no options, entities or dashboards
+  move.
+
 ## 1.28.1
 
 - **The standard dashboard says "Last Seen" instead of "Car Parked".** When the car has not
