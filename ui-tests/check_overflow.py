@@ -483,11 +483,14 @@ def _capture_popup(page, popup, where, dev_name, shot):
     a skip that passed was a false green for that viewport (Codex on #171).
     The one miss that recurs is HA's own reload: once, ~5 s after a context's first load, as its
     service worker takes control (measured on Bubble 3.2.5, 3.4.0 and 3.4.1; the r5 twin saw it
-    land inside the pop-up scan on 4 of 8 legs). It tears down the JS context ("Execution
-    context was destroyed") in whatever call is in flight: the open (caught in _open_popup) or
-    the scan after it, which used to be reported as a skip although the shot was fine, so that
-    device's pop-up was never truncation-checked. It does not recur, so reopen and rescan once,
-    and only then give up."""
+    land inside the pop-up scan on 4 of 8 legs). It usually tears down the JS context ("Execution
+    context was destroyed") in whatever call is in flight, which the retry below already catches
+    -- but landing BETWEEN two polls of _stable_issues raises nothing: the reload completes, and
+    the scan quietly finishes against whatever the reload left on screen (the main menu, or the
+    popup Bubble reopened from the still-set hash), never the popup mid-scan (Codex on #171 round
+    2). So the popup's open/label state is checked again after the scan, not just before it; a
+    close during the scan is then indistinguishable from one during the open and gets the same
+    reopen-and-rescan retry. It does not recur, so reopen and rescan once, and only then give up."""
     for attempt in range(2):
         try:
             if not _open_popup(page, popup, where, dev_name):
@@ -500,6 +503,11 @@ def _capture_popup(page, popup, where, dev_name, shot):
                       "not overwriting its screenshot")
                 return None
             issues = _stable_issues(page)
+            # Re-confirm open+labelled, the same check _open_popup already passed: a reload
+            # landing between two polls above leaves this scan silently measuring the wrong page.
+            still_open = {"hash": popup["hash"], "label": popup["name"]}
+            if not page.evaluate(JS_POPUP_SHOWS, still_open):
+                raise RuntimeError(f"{popup['hash']} was no longer open after its scan")
             issues += _missing_labels(page, popup.get("labels", []), popup["hash"])
             page.evaluate(JS_DISMISS_TOASTS)
             _write_diag(page, shot)
