@@ -22,6 +22,7 @@ on:
       - '!alpine_a290/dashboards/*.md'
       - '!alpine_a290/dashboards/**/*.md'
       - 'alpine_a290/app/deploy.py'
+      - 'alpine_a290/app/catalog.py'   # the alarm pass derives its sensors from it
       - 'alpine_a290/config.yaml'
       - 'ui-tests/**'
       - '.github/workflows/ui-tests.yaml'
@@ -41,6 +42,7 @@ on:
       - '!alpine_a290/dashboards/*.md'
       - '!alpine_a290/dashboards/**/*.md'
       - 'alpine_a290/app/deploy.py'
+      - 'alpine_a290/app/catalog.py'   # the alarm pass derives its sensors from it
       - 'alpine_a290/config.yaml'
       - 'ui-tests/**'
       - '.github/workflows/ui-tests.yaml'
