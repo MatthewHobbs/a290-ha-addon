@@ -1,14 +1,25 @@
 # Changelog
 
-## 1.28.4
+## 1.28.3
 
 - **The add-on's AppArmor profile now names the policy version it was written for.** Without that,
-  a newer AppArmor compiles the profile using the running kernel's newest rules. A sibling add-on's
-  profile, run that way on Linux 6.17, stopped granting the internal sockets the add-on's process
-  supervisor needs, so it never started. Home Assistant OS ships an older AppArmor, and no install
-  of this add-on is known to have been affected. The pin keeps the profile meaning what it was
-  written to mean when that changes. Nothing else changes: no options, entities or dashboards
-  move.
+  a newer AppArmor compiles the profile using the running kernel's newest rules. Under enforcing
+  AppArmor on Linux 6.17 with AppArmor 4.1, the add-on was denied the internal socket its process
+  supervisor needs and never started. Home Assistant OS currently ships an older AppArmor, so no
+  install is known to be affected today; the pin keeps the profile meaning what it was written to
+  mean when that changes. Nothing else changes: no options, entities or dashboards move.
+
+## 1.28.2
+
+- **Pressing the same button again while it is still being sent, or within 5 seconds, sends it
+  to the car once.** A double-tap, or the same button pressed by a dashboard and an automation at
+  the same moment, used to log in to Renault twice and send the car the action twice (two horn
+  blasts, two climate starts). The repeat is now ignored and logged. That holds for as long as the
+  first press is still logging in or being sent, which can take up to a minute, and for 5 seconds
+  from the first press. Each button is separate, so Start Climate followed straight away by Stop
+  Climate still sends both. If a press fails before anything is sent to the car, for example
+  because the login to Renault fails, pressing again straight away is not ignored. The
+  charge-limit sliders are not affected: every value you set is applied.
 
 ## 1.28.1
 

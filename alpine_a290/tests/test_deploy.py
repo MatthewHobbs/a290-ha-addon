@@ -4,6 +4,9 @@ Covers the pure CDN URL rewrite and the create-once-vs-redeploy decision — two
 failure modes (no dashboard on first install / silently clobbering edits) from one branch.
 """
 import asyncio
+import subprocess
+import sys
+from pathlib import Path
 
 import deploy
 import pytest
@@ -520,3 +523,12 @@ def test_run_deploy_swallows_connection_errors(monkeypatch):
     monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "standard")
     monkeypatch.setenv("SUPERVISOR_TOKEN", "tok")
     asyncio.run(deploy.run_deploy())   # exception caught + logged, never raised
+
+
+def test_deploy_imports_without_the_core():
+    """ui-tests/seed.py imports deploy for its injection helpers in the UI gate's environment,
+    which has no renault-mqtt. deploy must not depend on the core: main hands it what it needs."""
+    app = str(Path(deploy.__file__).parent)
+    code = f"import sys; sys.modules['renault_mqtt'] = None; sys.path.insert(0, {app!r}); import deploy"
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
