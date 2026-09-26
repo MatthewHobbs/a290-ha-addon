@@ -112,6 +112,7 @@ pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUT
 pending	alpine_a290/app/deploy.py	both	py:_WS	2	one comment. Target: converge, either way
 
 # ---------------------------------------------------------------- dashboards
+pending	alpine_a290/dashboards/front-end-bubble.txt	both	re:^\s+styles: \.bubble-line\{background:#FFFF00 !important;\}\.bubble-name\{	26	a290 1.28.6 lets the 13 Bubble separator headings wrap (white-space:normal) so they stop clipping inside pop-ups; r5's still nowrap. Target: r5 ports 1.28.6
 pending	alpine_a290/dashboards/front-end*.txt	r5	hunk:name: Refresh Location	31	the Refresh Location tile, on both r5 dashboards (see deploy.py). Target: owner decision on the tile; the keys go with the #164 port
 pending	alpine_a290/dashboards/front-end.txt	both	re:sensor\.(a290_)?test_	32	a290's test-mode package is namespaced a290_test_*; r5's is bare test_* (audit H-C4). Target: port to r5 with Packages/a290_test.yaml
 pending	alpine_a290/dashboards/front-end.txt	r5	hunk:name: Cabin Temp	14	r5's Cabin Temp card; the A290 never returns cabin temperature. Target: follows the cabin-temperature decision
