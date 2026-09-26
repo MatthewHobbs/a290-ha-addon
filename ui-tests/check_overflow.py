@@ -641,10 +641,15 @@ def run():
                     else:
                         issues += found
                 # De-dupe: the pop-up scan re-walks the whole document, so a main-dashboard finding
-                # can otherwise appear twice when both the main view and the pop-up are flagged.
+                # can otherwise appear twice when both the main view and the pop-up are flagged. The
+                # popup hash is part of the key too (Codex on #171 round 3): two DIFFERENT pop-ups
+                # sharing an identical card-mod failure or truncated label are two findings, not one,
+                # and collapsing them hid which pop-ups still needed the fix. A main-view item's
+                # `popup` is always None, so main-view duplicates still merge exactly as before;
+                # only two items that are both from a pop-up now need the SAME hash to merge.
                 _seen, _uniq = set(), []
                 for _it in issues:
-                    _k = (_it["type"], _it.get("tag"), _it.get("text"))
+                    _k = (_it["type"], _it.get("tag"), _it.get("text"), _it.get("popup"))
                     if _k not in _seen:
                         _seen.add(_k)
                         _uniq.append(_it)
