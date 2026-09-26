@@ -67,6 +67,7 @@ pending	alpine_a290/run.sh	a290	re:PRECONDITION_TEMPERATURE	1	as config.yaml pre
 model	alpine_a290/run.sh	r5	re:CAR_RENDER	1	r5's render picker
 pending	alpine_a290/Dockerfile	both	hunk:BUILD_VERSION|A290_VERSION	4	comment wording on the version ARG. Target: converge the wording, either way
 pending	alpine_a290/Dockerfile	both	hunk:COPY dashboards|Bundle	4	comment wording on the dashboard COPY. Target: converge the wording, either way
+pending	alpine_a290/Dockerfile	both	hunk:^ARG CORE_REF=	4	a290 runs renault-mqtt v0.18.0 (default_entity_id pins, core ADR 0001 row 4); r5 is still on v0.17.0. Target: r5's CORE_REF bump to v0.18.0 (core ADR 0001 row 5)
 legacy	alpine_a290/app/panel.html	both	re:num\(d\.	12	the panel reads poll_once's data keys, which r5 keeps under legacy names. Goes with ADR 0001 stage B2 (catalog-driven poll_once)
 
 # ---------------------------------------------------------------- catalog.py
