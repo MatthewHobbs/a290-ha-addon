@@ -7,7 +7,28 @@
 # the Tier-0 container boot - see CLAUDE.md.
 
 # Local CI gate - the same commands remote CI runs, for the checks it covers.
-ci: lint pii ha-min test
+# `parity` itself is not in here: it needs the r5 twin (a sibling checkout or a clone), so
+# only its self-test is. The Parity job in ci.yaml runs the full comparison.
+ci: lint pii ha-min parity-self-test test
+
+# Proves the parity check can fail on each kind of drift; needs nothing outside this repo.
+parity-self-test:
+    python3 scripts/parity_check.py --self-test
+
+# Same command as the Parity job: diff this add-on against r5-ha-addon through the committed
+# map and expected list (ADR 0001). PARITY_TWIN=<path> compares against that checkout's
+# tracked files as they stand in its working tree; unset, it clones r5's main (network).
+parity: parity-self-test
+    #!/usr/bin/env bash
+    set -euo pipefail
+    twin="${PARITY_TWIN:-}"
+    if [ -z "$twin" ]; then
+      tmp="$(mktemp -d)"
+      trap 'rm -rf "$tmp"' EXIT
+      twin="$tmp/r5-ha-addon"
+      git clone --quiet --depth 1 https://github.com/MatthewHobbs/r5-ha-addon "$twin"
+    fi
+    python3 scripts/parity_check.py --twin "$twin"
 
 # Test env built exactly as CI builds it. requirements.txt is hash-pinned, so it installs
 # alone; the core is then added --no-deps at the SHA the Dockerfile pins, so local tests
