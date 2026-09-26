@@ -502,13 +502,21 @@ def _capture_popup(page, popup, where, dev_name, shot):
                 print(f"    [popup skipped] {where} @ {dev_name}: {popup['hash']} never stayed open twice; "
                       "not overwriting its screenshot")
                 return None
+            # Labels first, THEN scan (Codex on #171 round 4): Bubble's inner cards lazy-render,
+            # and _stable_issues can exit on its fast path (two clean scans, as little as ~1s)
+            # before a slower card finishes painting. Waiting on the expected labels first (up to
+            # 5s each) gives that content its chance to appear before the truncation scan looks at
+            # it. A pop-up with no expected labels (most of the normal pass) gets no such wait
+            # either way -- there is no general "fully rendered" signal beyond the labels a pass
+            # declares -- so this narrows the gap rather than closing it outright.
+            label_issues = _missing_labels(page, popup.get("labels", []), popup["hash"])
             issues = _stable_issues(page)
+            issues += label_issues
             # Re-confirm open+labelled, the same check _open_popup already passed: a reload
-            # landing between two polls above leaves this scan silently measuring the wrong page.
+            # landing during either wait above leaves this scan silently measuring the wrong page.
             still_open = {"hash": popup["hash"], "label": popup["name"]}
             if not page.evaluate(JS_POPUP_SHOWS, still_open):
                 raise RuntimeError(f"{popup['hash']} was no longer open after its scan")
-            issues += _missing_labels(page, popup.get("labels", []), popup["hash"])
             page.evaluate(JS_DISMISS_TOASTS)
             _write_diag(page, shot)
             page.screenshot(path=shot, full_page=True, animations="disabled")
