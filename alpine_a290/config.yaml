@@ -1,5 +1,5 @@
 name: Alpine A290
-version: "1.28.5"
+version: "1.28.6"
 slug: alpine_a290
 # Oldest Home Assistant this add-on supports and is tested against (UI gate minimum leg).
 homeassistant: "2026.8.1"

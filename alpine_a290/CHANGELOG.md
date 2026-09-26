@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.28.6
+
+- **Bubble dashboard: section headings inside pop-ups no longer get cut off.** On phone widths
+  the "Batt / Range / Mileage", "Update / Test / Errors" and "Charging Schedule" headings ran
+  out of room inside their pop-up and were clipped mid-word. All thirteen headings, and the Smart
+  Charging one the add-on adds when a charger is configured, can now wrap onto a second line
+  instead. Re-copy or redeploy the Bubble dashboard to pick it up
+  (`redeploy_dashboard: true`, or paste `front-end-bubble.txt` again).
 ## 1.28.5
 
 - **Entity ids are now pinned by the add-on to the names Home Assistant already assigns.** Every
