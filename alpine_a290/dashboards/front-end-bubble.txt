@@ -682,7 +682,7 @@
         name: Charge Control
         icon: mdi:ev-station
         styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;}.bubble-icon-container{color:#FFFF00 !important;}
-      # Ghost tile: the A290's API forbids charge start/stop, so this is shown disabled to
+      # Ghost tile: the A290's API forbids charge-stop (only charge-start), so this is shown disabled to
       # signal the limitation (parity with the standard dashboard) rather than hidden.
       - type: custom:bubble-card
         card_type: button

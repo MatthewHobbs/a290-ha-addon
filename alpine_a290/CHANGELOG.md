@@ -21,6 +21,18 @@
   small wrapping text and yellow address line it was designed with. Re-copy or redeploy the Bubble
   dashboard to pick it up (`redeploy_dashboard: true`, or paste `front-end-bubble.txt` again).
 
+## 1.28.2
+
+- **Pressing the same button again while it is still being sent, or within 5 seconds, sends it
+  to the car once.** A double-tap, or the same button pressed by a dashboard and an automation at
+  the same moment, used to log in to Renault twice and send the car the action twice (two horn
+  blasts, two climate starts). The repeat is now ignored and logged. That holds for as long as the
+  first press is still logging in or being sent, which can take up to a minute, and for 5 seconds
+  from the first press. Each button is separate, so Start Climate followed straight away by Stop
+  Climate still sends both. If a press fails before anything is sent to the car, for example
+  because the login to Renault fails, pressing again straight away is not ignored. The
+  charge-limit sliders are not affected: every value you set is applied.
+
 ## 1.28.1
 
 - **The standard dashboard says "Last Seen" instead of "Car Parked".** When the car has not

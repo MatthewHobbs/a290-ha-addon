@@ -23,25 +23,44 @@ Mushroom tile labels clipping on a phone.
    any text element that is clipped (`text-overflow:ellipsis` / `nowrap`+`overflow:hidden`
    with `scrollWidth > clientWidth`) or any `hui-error-card`. A screenshot is saved per
    device; the run exits non-zero with a report if anything is clipped.
-4. **Alarm pass.** The seed is a healthy car, so nothing the problem sensors switch on (the
-   Not Polling and Auth Failure cards, the Last Updated branch of the Car Parked tile) renders
-   in step 3. `seed.py --alarm` flips every problem-class binary sensor the dashboards
-   reference (derived from `catalog.py`, not listed here), and `check_overflow.py --pass-name
-   alarm` re-checks only the dashboards that reference one, across the same devices. It also
-   fails unless the text those states select is visible: the `name` of each conditional card
-   gated on them, and the chosen branch of each text field (`primary`, `secondary`, `name`,
-   `label`, `title`, `heading`, `content`) of the form
-   `{% if is_state('<sensor>','<state>') %}A{% else %}B{% endif %}`, read from the dashboard
-   file. The seed stops with an error if a text field is templated on a flipped sensor in any
-   other form, or if a dashboard references a flipped sensor but no text on it switches with
-   that sensor. The second check is what catches a tile hard-coded to one branch: the expected
-   text is read from the same file, so it disappears along with the switch, but the sensor is
-   still referenced by the tile's icon and colour templates. It cannot catch a change that
-   removes every reference to the sensor, and it names the sensor, not the lost text. Not
-   asserted: icons, colours and `card_mod` styles keyed on those sensors (they are rendered and
-   truncation-checked, but carry no text), and pop-up content opened by a tap.
-   Its screenshots are `<dashboard>__alarm__<device>.png`, so they never overwrite the normal
-   pass's.
+4. **Problem-sensor passes.** The seed is a parked car on a working add-on (Data Stale on,
+   Poll Failing and API Auth Failure off), so the rest of what the problem sensors switch (the
+   Not Polling and Auth Failure cards, the Last Updated branch of the Car Parked tile) never
+   renders in step 3. `seed.py` derives further passes over every problem-class binary sensor
+   the dashboards reference (from `catalog.py`, not listed here), and every pass must be a
+   state production can publish:
+   - `IMPLIES` declares the states production cannot publish apart. Poll Failing is on only
+     when the last successful poll is older than `stale_hours`, and the car timestamp Data
+     Stale ages came from a poll, so Poll Failing on forces Data Stale on. `DERIVED_AGE` gives
+     Last Updated the age its Data Stale state needs (older than the `stale_hours` default when
+     on, newer when off).
+   - **alarm** inverts every problem sensor, then applies `IMPLIES`: Auth Failure and Not
+     Polling on, Data Stale left on with its old timestamp.
+   - A branch that closure kept off the page gets a pass of its own, named `<sensor>_<state>`:
+     today **data_stale_off**, a healthy car with a fresh Last Updated.
+
+   `seed.py --list-passes` prints them; `run.sh` reseeds each with `seed.py --pass <name>` and
+   re-checks, with `check_overflow.py --pass-name <name>`, only the dashboards that reference a
+   state the pass changed, across the same devices. Each pass reseeds every problem sensor and
+   derived timestamp, not only the ones it changes, and reads them back: it stops unless HA
+   holds what was seeded and `IMPLIES` and the ages hold, so a state left over from the
+   previous pass cannot render.
+
+   Every pass, the normal one included, also fails unless the text its states select is
+   visible: the `name` of each conditional card whose conditions they meet, and the chosen
+   branch of each text field (`primary`, `secondary`, `name`, `label`, `title`, `heading`,
+   `content`) of the form `{% if is_state('<sensor>','<state>') %}A{% else %}B{% endif %}`,
+   read from the dashboard file. The seed stops with an error if a text field is templated on
+   a problem sensor in any other form, or if a dashboard references a sensor a pass changes but
+   no text on it switches with that sensor. The second check is what catches a tile hard-coded
+   to one branch: the expected text is read from the same file, so it disappears along with the
+   switch, but the sensor is still referenced by the tile's icon and colour templates. It
+   cannot catch a change that removes every reference to the sensor, and it names the sensor,
+   not the lost text. Not asserted: icons, colours and `card_mod` styles keyed on those sensors
+   (they are rendered and truncation-checked, but carry no text), and pop-up content opened by
+   a tap. `IMPLIES` holds only the relations declared in it; one production gains is not
+   checked until it is added there. A named pass's screenshots are
+   `<dashboard>__<pass>__<device>.png`, so they never overwrite the normal pass's.
 
 ## Device matrix
 
