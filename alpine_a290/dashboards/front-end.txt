@@ -782,11 +782,13 @@
         fill_container: true
         tap_action:
           action: more-info
+        # Mushroom v5 builds the template card from HA's tile parts (ha-tile-icon/ha-tile-info),
+        # not mushroom-shape-icon/mushroom-state-info, so it takes different selectors from the
+        # entity cards to reach the same 55px disc and small wrapping labels.
         card_mod:
           style:
-            mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-            mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
-            .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+            ha-tile-icon$: .container{background-color:color-mix(in srgb,var(--tile-icon-color) 20%,transparent);}
+            .: ha-tile-icon{--tile-icon-size:55px;--mdc-icon-size:28px;}ha-tile-info{--ha-tile-info-primary-font-size:12px;--ha-tile-info-primary-font-weight:400;--ha-tile-info-primary-letter-spacing:0.3px;--ha-tile-info-primary-line-height:1.15;--ha-tile-info-secondary-font-size:11px;--ha-tile-info-secondary-color:#FFFF00;}ha-tile-info span{font-family:system-ui,sans-serif !important;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}ha-tile-info span[slot=secondary]{opacity:0.75;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
       - type: map
         entities:
           - device_tracker.alpine_a290_location
@@ -950,11 +952,11 @@
             action: none
           hold_action:
             action: none
+          # Template card: tile selectors, as on LOCATION above.
           card_mod:
             style:
-              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
-              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
-              .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+              ha-tile-icon$: .container{background-color:color-mix(in srgb,var(--tile-icon-color) 20%,transparent);}
+              .: ha-tile-icon{--tile-icon-size:55px;--mdc-icon-size:28px;}ha-tile-info{--ha-tile-info-primary-font-size:12px;--ha-tile-info-primary-font-weight:400;--ha-tile-info-primary-letter-spacing:0.3px;--ha-tile-info-primary-line-height:1.15;--ha-tile-info-secondary-font-size:11px;--ha-tile-info-secondary-color:#FFFF00;}ha-tile-info span{font-family:system-ui,sans-serif !important;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}ha-tile-info span[slot=secondary]{opacity:0.75;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
           entity: input_button.a290_test_charge_run
           name: Run Test Charge

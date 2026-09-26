@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.28.4
+
+- **Standard dashboard: the Location and Last Updated tiles match the tiles around them again.**
+  Mushroom 5 rebuilt its template card from different parts, so the styling these two tiles
+  carried no longer found anything to apply to. They showed a small icon with no coloured circle,
+  larger text in a different font that did not wrap, and a dark sub-line instead of the yellow
+  one. They now get the same 55px icon circle, small wrapping text and yellow sub-line as the
+  cards beside them. Re-copy or redeploy the standard dashboard to pick it up
+  (`redeploy_dashboard: true`, or paste `front-end.txt` again).
+- **Smart Charging: the off-peak tile gets the same fix, and its rate shows in colour again.**
+  With `charger_dispatching` set, the tile now matches the Smart Charging cards beside it on the
+  standard dashboard, and on both dashboards its label is green for **Off-peak** and red for
+  **Peak rate** as intended; it had been showing in the plain text colour. On narrow phones the
+  Bubble pop-up cut "Now: Peak rate" short to "Now: Peak ra…"; it now wraps onto a second line.
+  The add-on adds this tile itself when it deploys a dashboard, so redeploy
+  (`redeploy_dashboard: true`) to pick it up.
+- **Bubble dashboard: the Location tile in the Status and Location pop-ups gets the same fix.**
+  It had the same small icon and unstyled, non-wrapping text, and now shows the 55px icon circle,
+  small wrapping text and yellow address line it was designed with. Re-copy or redeploy the Bubble
+  dashboard to pick it up (`redeploy_dashboard: true`, or paste `front-end-bubble.txt` again).
+
 ## 1.28.3
 
 - **The add-on's AppArmor profile now names the policy version it was written for.** Without that,

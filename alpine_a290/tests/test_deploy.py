@@ -4,12 +4,15 @@ Covers the pure CDN URL rewrite and the create-once-vs-redeploy decision — two
 failure modes (no dashboard on first install / silently clobbering edits) from one branch.
 """
 import asyncio
+import glob
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import deploy
 import pytest
+import yaml
 
 
 # --------------------------------------------------------------------------- #
@@ -100,6 +103,63 @@ def test_charger_cards_include_offpeak_badge(monkeypatch):
     assert "Off-peak" in badge["primary"] and "Peak rate" in badge["primary"]
     # the window sub-line has a non-empty fallback so it never renders blank
     assert "{% else %}Schedule unavailable{% endif %}" in badge["secondary"]
+
+
+def test_offpeak_badge_styles_the_tile_parts_mushroom_v5_renders():
+    # Mushroom v5's template card is built from ha-tile-icon/ha-tile-info; a key naming
+    # mushroom-shape-icon/mushroom-state-info matches nothing there and card-mod gives up.
+    style = deploy._offpeak_badge("binary_sensor.disp", preset_style=True)["card_mod"]["style"]
+    assert "ha-tile-icon$" in style
+    assert not {"mushroom-shape-icon$", "mushroom-state-info$"} & set(style)
+    assert "--tile-icon-size:55px" in style["."]
+    assert "--ha-tile-info-primary-color:{% if is_state('binary_sensor.disp','on') %}" in style["."]
+    assert "--card-primary-color" not in style["."]
+    # the bubble pop-up variant is a plain string: the rate colour must use the tile property too
+    popup_style = deploy._offpeak_badge("binary_sensor.disp")["card_mod"]["style"]
+    assert "--ha-tile-info-primary-color:" in popup_style
+    assert "--card-primary-color" not in popup_style
+    # both variants wrap rather than ellipsise ("Now: Peak rate" did not fit the pop-up at 360px)
+    for css in (style["."], popup_style):
+        assert "ha-tile-info span{white-space:normal !important;" in css
+
+
+def _template_cards(node):
+    if isinstance(node, dict):
+        if node.get("type") == "custom:mushroom-template-card":
+            yield node
+        for v in node.values():
+            yield from _template_cards(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _template_cards(v)
+
+
+def test_no_generated_template_card_targets_mushroom_v4_parts(monkeypatch):
+    for env, _ in deploy._CHARGER_ENTITIES:
+        monkeypatch.setenv(env, "binary_sensor.disp" if env == "A290_CHARGER_DISPATCHING" else "switch.x")
+    cards = list(_template_cards([deploy._charger_cards(), deploy._charger_popup()]))
+    assert len(cards) == 2                      # standard badge + bubble pop-up badge
+    for card in cards:
+        assert _v4_targets(card) == []
+
+
+def _v4_targets(card):
+    style = card.get("card_mod", {}).get("style", "")
+    text = " ".join(style) if isinstance(style, dict) else str(style)
+    return [t for t in ("mushroom-shape-icon", "mushroom-state-info") if t in text]
+
+
+def test_no_bundled_template_card_targets_mushroom_v4_parts():
+    dash_dir = os.path.join(os.path.dirname(__file__), "..", "dashboards")
+    found, dead = 0, []
+    for path in sorted(glob.glob(os.path.join(dash_dir, "*.txt"))):
+        with open(path, encoding="utf-8") as fh:
+            for card in _template_cards(yaml.safe_load(fh)):
+                found += 1
+                if _v4_targets(card):
+                    dead.append((os.path.basename(path), card.get("primary"), _v4_targets(card)))
+    assert found >= 4, f"only {found} template cards found: is the dashboard glob still right?"
+    assert dead == []
 
 
 def test_fetch_dashboard_adds_charger_block_when_configured(tmp_path, monkeypatch):
