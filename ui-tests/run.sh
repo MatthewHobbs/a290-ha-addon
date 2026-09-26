@@ -68,4 +68,14 @@ echo "==> Seed entity states + dashboards"
 "$PY" "$HERE/seed.py" --base "$BASE" --token "$ACCESS"
 
 echo "==> Render + truncation check across the device matrix"
-"$PY" "$HERE/check_overflow.py" --base "$BASE" --tokens "$CONFIG/tokens.json"
+rc=0
+"$PY" "$HERE/check_overflow.py" --base "$BASE" --tokens "$CONFIG/tokens.json" || rc=1
+
+# The seed is a healthy car, so the cards and labels the problem sensors switch on (Not Polling,
+# Auth Failure, ...) never render above. Flip every problem sensor and re-check the dashboards
+# that reference one; runs even after a failure above, so one run reports both passes.
+echo "==> Alarm pass: flip every problem sensor, re-check the dashboards that show them"
+"$PY" "$HERE/seed.py" --base "$BASE" --token "$ACCESS" --alarm "$CONFIG/alarm.json"
+"$PY" "$HERE/check_overflow.py" --base "$BASE" --tokens "$CONFIG/tokens.json" \
+  --pass-name alarm --expect "$CONFIG/alarm.json" || rc=1
+[ "$rc" -eq 0 ] || exit 1
