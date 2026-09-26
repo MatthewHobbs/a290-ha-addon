@@ -14,6 +14,18 @@ A sibling repo, **`MatthewHobbs/r5-ha-addon`**, is the Renault 5 port of the sam
 **Keep the two in lockstep** — most feature/fix work here should be mirrored there
 (adjusting for per-model API differences), and vice-versa.
 
+**The parity check enforces that** ([ADR 0001](docs/adr/0001-r5-inherits-from-a290.md), stage A;
+decisions live in `docs/adr/`). `scripts/parity_check.py` rewrites r5's names onto a290's
+(`scripts/parity/map.tsv`), diffs the trees, and fails on any difference that
+`scripts/parity/expected.tsv` does not list with a category, an exact count and a reason, and on
+any entry whose difference is gone. Run `just parity` (clones r5's main, or
+`PARITY_TWIN=../r5-ha-addon just parity` to use a git checkout; tracked files and modes are
+compared, and a non-git tree is refused unless the script gets `--walk`); CI runs it as
+`Parity with r5`. When
+your change creates a difference, port it or add a `pending` entry naming its Target; when you
+fix one, delete its entry. Never raise a count without reading the lines it printed. The script
+is shared verbatim with r5; the map and list are each repo's own copy.
+
 ## Layout
 
 ```
