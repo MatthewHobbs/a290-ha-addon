@@ -17,9 +17,11 @@ Deliberately narrow. Three triggers, each chosen because it has (near) zero fals
   3. config.yaml `version` changed              -> CHANGELOG.md must carry that exact version
 
 Plus one invariant checked on every PR, bump or not: CHANGELOG history is append-above only.
-Every `## <version>` heading at the merge base must still be there, once, in the same order.
-Check 3 alone passed an edit that REWROTE the previous heading into the new version instead of
-adding above it (r5 #92, #93): the new heading exists, the old release is gone.
+Every `## <version>` heading at the merge base must still be there, once, in the same order, and
+a version heading the PR adds must sit above all of them. Check 3 alone passed an edit that
+REWROTE the previous heading into the new version instead of adding above it (r5 #92, #93): the
+new heading exists, the old release is gone. Non-version `##` sections (`## Unreleased`) are not
+entries, so they may go anywhere.
 Changed TEXT under a released heading only warns: 8 of the 112 CHANGELOG commits on the two
 mains did that, mostly to correct a wrong claim, a name or a dead link.
 
@@ -28,6 +30,8 @@ changing code that publishes nothing new. That is the point — a required check
 needs waiving trains people to wave it through.
 
 Escape hatch: the exact lowercase `docs-sync-ok` PR label, for a genuinely doc-neutral change.
+It waives checks 1-3 only. It never waives CHANGELOG history: no doc-neutral change needs to
+delete, rename, reorder or bury a release.
 
 Usage: docs_sync_check.py [base-ref]        (default: origin/main)
        docs_sync_check.py --self-test
@@ -126,8 +130,8 @@ def changelog_entries(text):
 
 
 def changelog_history_problems(base_text, head_text, path):
-    """(problems, warnings): released headings dropped, reordered or duplicated fail; released
-    text that changed only warns."""
+    """(problems, warnings): released headings dropped, reordered or duplicated fail, as does a
+    new version heading below one of them; released text that changed only warns."""
     before, after = changelog_entries(base_text), changelog_entries(head_text)
     after_versions = [v for v, _ in after]
     problems, warnings = [], []
@@ -142,6 +146,13 @@ def changelog_history_problems(base_text, head_text, path):
     if [v for v in dict.fromkeys(after_versions) if v in kept] != kept:
         problems.append(f"{path} reordered its released entries (was {', '.join(kept)}) — "
                         f"history is append-above only.")
+
+    released = set(v for v, _ in before)
+    top = next((i for i, v in enumerate(after_versions) if v in released), len(after_versions))
+    buried = [v for v in after_versions[top:] if v not in released]
+    if buried:
+        problems.append(f"{path} adds {', '.join('## ' + v for v in buried)} below the released "
+                        f"## {after_versions[top]} — a new version goes above every released one.")
 
     dupes = sorted({v for v in after_versions if after_versions.count(v) > 1})
     if dupes:
@@ -175,6 +186,14 @@ def self_test():
         ("demoted to ###", "## 1.2.0\n\n- two\n\n### 1.1.0\n\n- one\n", 1, 1, ["## 1.1.0", "## 1.2.0"]),
         ("unreleased section renamed to a release", "## 1.3.0\n\n- wip\n\n## 1.2.0\n\n- two\n\n## 1.1.0\n\n- one\n",
          0, 0, [], wip),
+        ("new version at the bottom", "## 1.2.0\n\n- two\n\n## 1.1.0\n\n- one\n\n## 1.3.0\n\n- three\n", 1, 0,
+         ["adds ## 1.3.0 below the released ## 1.2.0"]),
+        ("new version in the middle", "## 1.2.0\n\n- two\n\n## 1.3.0\n\n- three\n\n## 1.1.0\n\n- one\n", 1, 0,
+         ["adds ## 1.3.0 below"]),
+        ("two new, one above and one buried", "## 1.4.0\n\n- f\n\n## 1.2.0\n\n- two\n\n## 1.1.0\n\n- one\n\n"
+         "## 1.3.0\n\n- three\n", 1, 0, ["adds ## 1.3.0 below"]),
+        ("unreleased section at the bottom", "## 1.2.0\n\n- two\n\n## 1.1.0\n\n- one\n\n## Unreleased\n\n- wip\n",
+         0, 0, []),
     ]
     for name, head, n, w, needles, *was in cases:
         got, warned = changelog_history_problems(was[0] if was else base, head, "CHANGELOG.md")
@@ -195,9 +214,7 @@ def main():
     base = sys.argv[1] if len(sys.argv) > 1 else "origin/main"
 
     labels = [x.strip() for x in os.environ.get("LABELS", "").split(",")]
-    if "docs-sync-ok" in labels:
-        print("docs-sync: skipped — 'docs-sync-ok' label present.")
-        return 0
+    waived = "docs-sync-ok" in labels
 
     if _run(["git", "rev-parse", "--verify", f"{base}^{{commit}}"]).returncode != 0:
         fail_infra(f"base ref '{base}' is not available — is the checkout fetch-depth: 0?")
@@ -265,6 +282,11 @@ def main():
         fail_infra(f"no merge base between {base} and HEAD: {fork.stderr.strip()}")
     history, warnings = changelog_history_problems(git_show(fork.stdout.strip(), changelog),
                                                    git_show("HEAD", changelog), changelog)
+    if waived:
+        print("docs-sync: checks 1-3 waived — 'docs-sync-ok' label present; CHANGELOG history "
+              "is still checked.")
+        problems, satisfied = [], []
+    surface = bool(problems)
     problems += history
 
     for line in satisfied:
@@ -273,14 +295,18 @@ def main():
         print(f"::warning::docs-sync: {line}")
 
     if not problems:
-        if not satisfied:
+        if not satisfied and not waived:
             print("docs-sync: no documented surface changed (options, entities, version).")
         return 0
 
     for p in problems:
         print(f"::error::docs-sync: {p}")
-    print("\nUpdate the documentation named above, or add the 'docs-sync-ok' label if this "
-          "change genuinely has no documentation impact.")
+    if surface:
+        print("\nUpdate the documentation named above, or add the 'docs-sync-ok' label if this "
+              "change genuinely has no documentation impact.")
+    if history:
+        print("\nRestore the CHANGELOG history named above; the 'docs-sync-ok' label does not "
+              "waive it.")
     return 1
 
 
