@@ -42,7 +42,6 @@ model	alpine_a290/dashboards/Images/Models/*	r5	only	22	r5's car_render option p
 model	alpine_a290/dashboards/Images/Map Markers/*	r5	only	6	r5's map markers per paint colour; a290's dashboards use the default marker
 
 # ---------------------------------------------------------------- one repository only
-pending	.data-class	r5	only	1	a290 stopped tracking its machine-local data-class marker (#167, at claude-config's request); r5 still tracks its copy. Target: r5 untracks it on the same request
 local	BACKLOG.md	a290	only	1	a290's own backlog; r5 tracks work in its issues
 local	.orchestrate/*	a290	only	2	a290's review-orchestration helpers; whether r5 wants them is the owner's call (audit H-C7)
 local	docs/adr/*	a290	only	2	a290's architecture decision records (0001 parity, 0002 Supervisor pilot)
@@ -112,6 +111,7 @@ pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUT
 pending	alpine_a290/app/deploy.py	both	py:_WS	2	one comment. Target: converge, either way
 
 # ---------------------------------------------------------------- dashboards
+pending	alpine_a290/app/deploy.py	both	py:_BUBBLE_SEP_STYLE	3	a290 1.28.6 lets the deploy-time Smart Charging separator wrap like the bundled ones; r5's constant is still nowrap. Target: r5 ports 1.28.6
 pending	alpine_a290/dashboards/front-end-bubble.txt	both	re:^\s+styles: \.bubble-line\{background:#FFFF00 !important;\}\.bubble-name\{	26	a290 1.28.6 lets the 13 Bubble separator headings wrap (white-space:normal) so they stop clipping inside pop-ups; r5's still nowrap. Target: r5 ports 1.28.6
 pending	alpine_a290/dashboards/front-end*.txt	r5	hunk:name: Refresh Location	31	the Refresh Location tile, on both r5 dashboards (see deploy.py). Target: owner decision on the tile; the keys go with the #164 port
 pending	alpine_a290/dashboards/front-end.txt	both	re:sensor\.(a290_)?test_	32	a290's test-mode package is namespaced a290_test_*; r5's is bare test_* (audit H-C4). Target: port to r5 with Packages/a290_test.yaml
