@@ -12,9 +12,13 @@
 #   identity      content rewrite: names that differ only because the car differs
 #   verbatim      files that must be byte-identical: compared raw, never normalised
 #   skip          files never compared (each repo's own copy of this map and its list)
-#   collapse-ws   runs of spaces inside a line are collapsed before comparing
+#   collapse-ws   Python only: runs of whitespace BETWEEN tokens collapse to one space before
+#                 comparing; string literals and comments are kept exact (tokenized, so
+#                 "Charging  Power" never equals "Charging Power"); indentation is kept
 #   ignore-blank  whitespace-only lines are not differences
 # Scopes are globs on the CANONICAL path: `*` all, `a,b` only these, `!a,b` all but these.
+# Two files in one tree that land on the same canonical path (after the path rules) stop the
+# run with an error naming both, since one of them would otherwise never be compared.
 # Content rows apply in file order to the derived text only; a replacement never spans a
 # line, so a reported line number is the derived file's own. Order matters: legacy before
 # identity, because the identity rule for the r5_ prefix would otherwise consume them.

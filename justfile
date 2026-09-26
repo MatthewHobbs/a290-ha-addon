@@ -16,8 +16,9 @@ parity-self-test:
     python3 scripts/parity_check.py --self-test
 
 # Same command as the Parity job: diff this add-on against r5-ha-addon through the committed
-# map and expected list (ADR 0001). PARITY_TWIN=<path> compares against that checkout's
-# tracked files as they stand in its working tree; unset, it clones r5's main (network).
+# map and expected list (ADR 0001). PARITY_TWIN=<path> must be a git checkout of r5: its
+# tracked files (content as in its working tree) and tracked modes are compared; anything else
+# is refused rather than silently walked. Unset, it clones r5's main (network).
 parity: parity-self-test
     #!/usr/bin/env bash
     set -euo pipefail

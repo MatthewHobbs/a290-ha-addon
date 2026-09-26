@@ -13,8 +13,13 @@ holds the canonical marker file is canonical. So both repos run the same command
 
   python3 scripts/parity_check.py --twin <path to the other repo>
 
+Each tree must be a git checkout: its tracked files and tracked modes are compared, so local
+junk never counts. A tree that is not one is refused unless --walk is given, and the output
+always says which listing each tree used.
+
 What it fails on, each of which is a separate check:
-  - a differing line, binary or one-sided file that no expected entry covers;
+  - a differing line, file mode, binary or one-sided file that no expected entry covers;
+  - two files in one tree that map to the same canonical path (an error naming both);
   - an expected entry that covers nothing: the difference it excused is gone (stale);
   - an entry whose count is not exactly the number of items it covered, so a new line
     cannot hide under an old excuse and a partly-fixed one is noticed;
@@ -33,11 +38,13 @@ import argparse
 import ast
 import difflib
 import fnmatch
+import io
 import os
 import re
 import subprocess
 import sys
 import tempfile
+import tokenize
 from dataclasses import dataclass, field
 
 CATEGORIES = {
@@ -196,8 +203,8 @@ def load_expected(path, pm):
                 entry.regex = re.compile(match.split(":", 1)[1])
             except re.error as err:
                 raise ConfigError(f"{where}: bad regex: {err}") from err
-        elif not (match in ("*", "only") or match.startswith("py:")):
-            raise ConfigError(f"{where}: match must be *, only, re:<regex>, hunk:<regex> or py:<symbols>")
+        elif not (match in ("*", "only", "mode") or match.startswith("py:")):
+            raise ConfigError(f"{where}: match must be *, only, mode, re:<regex>, hunk:<regex> or py:<symbols>")
         entries.append(entry)
     return entries
 
@@ -205,18 +212,47 @@ def load_expected(path, pm):
 # ---------------------------------------------------------------- trees
 
 
-def list_files(root):
-    """Tracked files when `root` is a git checkout (so local junk never counts), else a walk."""
+def _git(root, *args):
+    try:
+        return subprocess.run(["git", "-C", root, *args], capture_output=True, check=False)
+    except OSError as err:
+        raise ConfigError(f"{root}: cannot run git: {err}") from err
+
+
+def list_files(root, walk=False):
+    """(path -> mode, how). A git checkout contributes its tracked files and their tracked modes,
+    so local junk never counts. Any other tree is refused unless `walk` is set, because a twin
+    that silently lost its .git would otherwise be compared file-by-file, junk included."""
     if os.path.exists(os.path.join(root, ".git")):
-        out = subprocess.run(["git", "-C", root, "ls-files", "-z"],
-                             check=True, capture_output=True).stdout.decode("utf-8")
-        return sorted(p for p in out.split("\0") if p and os.path.isfile(os.path.join(root, p)))
-    files = []
+        inside = _git(root, "rev-parse", "--is-inside-work-tree")
+        top = _git(root, "rev-parse", "--show-toplevel")
+        if (inside.returncode or inside.stdout.strip() != b"true" or top.returncode
+                or os.path.realpath(top.stdout.decode("utf-8").strip()) != os.path.realpath(root)):
+            raise ConfigError(f"{root} has a .git but is not the root of a valid git work tree: "
+                              f"{(inside.stderr or top.stderr).decode('utf-8', 'replace').strip()}")
+        out = _git(root, "ls-files", "-s", "-z")
+        if out.returncode:
+            raise ConfigError(f"{root}: git ls-files failed: {out.stderr.decode('utf-8', 'replace').strip()}")
+        files = {}
+        for rec in out.stdout.decode("utf-8").split("\0"):
+            if not rec:
+                continue
+            meta, path = rec.split("\t", 1)
+            if os.path.isfile(os.path.join(root, path)):  # a tracked file deleted locally is not compared
+                files[path] = meta.split()[0]
+        return files, "git: tracked files and modes"
+    if not walk:
+        raise ConfigError(f"{root} is not a git checkout. Point at one, or pass --walk to compare every "
+                          f"file under it (junk included)")
+    files = {}
     for dirpath, dirs, names in os.walk(root):
         dirs[:] = [d for d in dirs if d not in DEFAULT_EXCLUDED_DIRS]
         for name in names:
-            files.append(os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, "/"))
-    return sorted(files)
+            full = os.path.join(dirpath, name)
+            st = os.lstat(full)
+            mode = "120000" if os.path.islink(full) else ("100755" if st.st_mode & 0o111 else "100644")
+            files[os.path.relpath(full, root).replace(os.sep, "/")] = mode
+    return files, "walk (--walk): every file, modes from the file system"
 
 
 def read_bytes(root, rel):
@@ -292,7 +328,7 @@ def py_symbols(text):
 class Item:
     path: str          # canonical-named path
     side: str          # a side label, or "both" for a binary difference
-    kind: str          # line | only | binary
+    kind: str          # line | only | binary | mode
     lineno: int = 0
     text: str = ""
     symbol: str | None = None
@@ -304,30 +340,115 @@ class Item:
         return f"{loc} ({self.side})"
 
 
-def _collapse(line):
-    indent = len(line) - len(line.lstrip())
-    return line[:indent] + re.sub(r"\s+", " ", line[indent:]).rstrip()
+_ODD_LINE_BREAKS = "\x0b\x0c\x1c\x1d\x1e\x85  "  # splitlines() splits on these, tokenize does not
 
 
-def compare(canonical, derived, pm):
+def _protected(text):
+    """{line number: [(start, end or None)]} covering every string literal and comment, which
+    collapse-ws must leave byte-exact. None if the text does not tokenize."""
+    starts = {getattr(tokenize, n) for n in ("FSTRING_START", "TSTRING_START") if hasattr(tokenize, n)}
+    ends = {getattr(tokenize, n) for n in ("FSTRING_END", "TSTRING_END") if hasattr(tokenize, n)}
+    spans, nesting = {}, []
+
+    def mark(start, end):
+        (sl, sc), (el, ec) = start, end
+        for ln in range(sl, el + 1):
+            spans.setdefault(ln, []).append((sc if ln == sl else 0, ec if ln == el else None))
+
+    try:
+        for tok in tokenize.generate_tokens(io.StringIO(text).readline):
+            if tok.type in starts:
+                nesting.append(tok.start)
+            elif tok.type in ends:
+                opened = nesting.pop()
+                if not nesting:
+                    mark(opened, tok.end)
+            elif not nesting and tok.type in (tokenize.STRING, tokenize.COMMENT):
+                mark(tok.start, tok.end)
+    except (tokenize.TokenError, SyntaxError, IndexError):
+        return None
+    return spans
+
+
+def _collapse(line, spans):
+    """Collapse runs of whitespace between tokens to one space and drop trailing whitespace,
+    keeping indentation and every protected (string or comment) character exactly."""
+    n = len(line)
+    kept = [False] * n
+    for start, end in spans:
+        for k in range(start, n if end is None else min(end, n)):
+            kept[k] = True
+    k = 0
+    while k < n and not kept[k] and line[k] in " \t":
+        k += 1
+    out = [line[:k]]
+    while k < n:
+        if not kept[k] and line[k].isspace():
+            m = k
+            while m < n and not kept[m] and line[m].isspace():
+                m += 1
+            out.append("" if m == n else " ")
+            k = m
+        else:
+            out.append(line[k])
+            k += 1
+    return "".join(out)
+
+
+def collapse_python(text_c, text_d, rel):
+    """Both sides collapsed, or neither: collapsing one side alone would invent differences."""
+    if not rel.endswith(".py"):
+        raise ConfigError(f"collapse-ws matched {rel}, but it only understands Python source")
+    if any(ch in text_c + text_d for ch in _ODD_LINE_BREAKS):
+        return None
+    spans_c, spans_d = _protected(text_c), _protected(text_d)
+    if spans_c is None or spans_d is None:
+        return None
+    return ([_collapse(x, spans_c.get(i, [])) for i, x in enumerate(text_c.splitlines(), 1)],
+            [_collapse(x, spans_d.get(i, [])) for i, x in enumerate(text_d.splitlines(), 1)])
+
+
+def _by_canonical_path(files, rename, label):
+    """{canonical path: (own path, mode)}. Two files landing on one canonical path would leave
+    only one of them compared, silently, so that is an error naming both."""
+    out = {}
+    for own, mode in sorted(files.items()):
+        key = rename(own)
+        if key in out:
+            raise ConfigError(f"{label} tree: {out[key][0]} and {own} both map to {key}; one of them would "
+                              f"never be compared. Rename one, or fix the path rules in map.tsv")
+        out[key] = (own, mode)
+    return out
+
+
+def compare(canonical, derived, pm, walk=False):
     items = []
-    can_files = {rel: rel for rel in list_files(canonical)}
-    der_files = {}
-    for rel in list_files(derived):
-        der_files[normalise_path(rel, pm)] = rel
+    listed_c, how_c = list_files(canonical, walk)
+    listed_d, how_d = list_files(derived, walk)
+    print(f"parity: {pm.canonical_label} files: {how_c}")
+    print(f"parity: {pm.derived_label} files: {how_d}")
+    # Canonical paths are not renamed, but they are checked the same way, so the rule holds both
+    # ways round whichever tree a future path rule applies to.
+    can = _by_canonical_path(listed_c, lambda p: p, pm.canonical_label)
+    der = _by_canonical_path(listed_d, lambda p: normalise_path(p, pm), pm.derived_label)
+    der_files = {rel: own for rel, (own, _mode) in der.items()}
 
     def skipped(rel):
         return any(_scope_matches(r.scope, rel) for r in pm.skip)
 
-    for rel in sorted(set(can_files) | set(der_files)):
+    for rel in sorted(set(can) | set(der)):
         if skipped(rel):
             continue
-        in_c, in_d = rel in can_files, rel in der_files
+        in_c, in_d = rel in can, rel in der
         if in_c != in_d:
             label = pm.canonical_label if in_c else pm.derived_label
             src = rel if in_c else der_files[rel]
             items.append(Item(rel, label, "only", text=f"<only in {label}>", source=src))
             continue
+        mode_c, mode_d = can[rel][1], der[rel][1]
+        if mode_c != mode_d:
+            items.append(Item(rel, "both", "mode", source=rel,
+                              text=f"<mode {mode_c} in {pm.canonical_label}, {mode_d} in {pm.derived_label}>"))
         raw_c, raw_d = read_bytes(canonical, rel), read_bytes(derived, der_files[rel])
         if raw_c == raw_d:
             continue
@@ -341,7 +462,9 @@ def compare(canonical, derived, pm):
         lines_c, lines_d = text_c.splitlines(), text_d.splitlines()
         cmp_c, cmp_d = lines_c, lines_d
         if any(_scope_matches(r.scope, rel) for r in pm.collapse_ws):
-            cmp_c, cmp_d = [_collapse(x) for x in lines_c], [_collapse(x) for x in lines_d]
+            collapsed = collapse_python(text_c, text_d, rel)
+            if collapsed:
+                cmp_c, cmp_d = collapsed
         ignore_blank = any(_scope_matches(r.scope, rel) for r in pm.ignore_blank)
         sym_c = py_symbols(text_c) if rel.endswith(".py") else {}
         sym_d = py_symbols(text_d) if rel.endswith(".py") else {}
@@ -366,6 +489,9 @@ def _entry_takes(entry, item):
         return False
     if item.kind == "binary":
         return entry.side == "both" and entry.match == "*"
+    if item.kind == "mode" or entry.match == "mode":
+        # Only an entry that names the mode explicitly excuses it; `*` covers content, not modes.
+        return item.kind == "mode" and entry.match == "mode" and entry.side == "both"
     if entry.side != "both" and entry.side != item.side:
         return False
     if entry.match == "only":
@@ -454,6 +580,8 @@ def suggest(unlisted, pm):
             key = (item.path, item.side, "only")
         elif item.kind == "binary":
             key = (item.path, "both", "*")
+        elif item.kind == "mode":
+            key = (item.path, "both", "mode")
         elif item.symbol:
             key = (item.path, "both", f"py:{item.symbol}")
         else:
@@ -478,13 +606,13 @@ def detect_roles(self_root, twin_root, pm):
                       f"{pm.canonical_marker} and the other {pm.derived_marker}")
 
 
-def run(self_root, twin_root, config_dir, show_all=False, draft=False):
+def run(self_root, twin_root, config_dir, show_all=False, draft=False, walk=False):
     pm = load_map(os.path.join(config_dir, "map.tsv"))
     entries = load_expected(os.path.join(config_dir, "expected.tsv"), pm)
     canonical, derived = detect_roles(self_root, twin_root, pm)
     print(f"parity: canonical {pm.canonical_label} = {canonical}")
     print(f"parity: derived   {pm.derived_label} = {derived} (normalised onto {pm.canonical_label} names)")
-    items = compare(canonical, derived, pm)
+    items = compare(canonical, derived, pm, walk)
     unlisted = assign(items, entries)
     ok = report(items, entries, unlisted, show_all, pm)
     if draft and unlisted:
@@ -502,7 +630,6 @@ def _write(root, rel, text):
 def self_test():
     """Prove each failure mode can fire. A check that cannot fail is not a check."""
     import contextlib
-    import io
 
     cmap = "\n".join([
         "side\tcanonical\tcar_a/config.yaml\taa\tcanonical tree marker",
@@ -519,7 +646,7 @@ def self_test():
     }
     listed = ("model\tcar_a/config.yaml\tboth\tre:^version\t2\tversion strings differ per add-on release\n")
 
-    def build(tmp, mutate=None, expected=listed, extra_only=False, extra_map=""):
+    def build(tmp, mutate=None, expected=listed, extra_only=False, extra_map="", git=False):
         a, b, cfg = (os.path.join(tmp, d) for d in ("a", "b", "cfg"))
         for root, car, prefix in ((a, "car_a", "A_"), (b, "car_b", "B_")):
             for rel, text in base.items():
@@ -530,15 +657,37 @@ def self_test():
             mutate(a, b)
         if extra_only:
             _write(b, "car_b/only.txt", "x\n")
+        if git:  # a real index, so the git path (tracked files and tracked modes) is what runs
+            for root in (a, b):
+                for args in (["init", "-q"], ["add", "-A"]):
+                    if _git(root, *args).returncode:
+                        raise ConfigError(f"self-test could not run git {' '.join(args)} in {root}")
         _write(cfg, "map.tsv", cmap + extra_map)
         _write(cfg, "expected.tsv", expected)
         return a, b, cfg
 
-    def outcome(a, b, cfg, swap=False):
+    def outcome(a, b, cfg, swap=False, walk=True):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            ok = run(b, a, cfg) if swap else run(a, b, cfg)
+            ok = run(b, a, cfg, walk=walk) if swap else run(a, b, cfg, walk=walk)
         return ok, buf.getvalue()
+
+    def run_sh(mode_a):
+        def mutate(a, b):
+            for root, car in ((a, "car_a"), (b, "car_b")):
+                _write(root, f"{car}/run.sh", "#!/bin/sh\nexec python3 app.py\n")
+                os.chmod(os.path.join(root, car, "run.sh"), 0o644)
+            os.chmod(os.path.join(a, "car_a", "run.sh"), mode_a)
+        return mutate
+
+    def catalog(a_line, b_line):
+        def mutate(a, b):
+            _write(a, "car_a/cat.py", f"T = {{\n{a_line}\n}}\n")
+            _write(b, "car_b/cat.py", f"T = {{\n{b_line}\n}}\n")
+        return mutate
+
+    collapse_map = "collapse-ws\tcar_a/cat.py\t-\t-\talignment only\n"
+    mode_entry = "model\tcar_a/run.sh\tboth\tmode\t1\tthe entrypoint is executable on one side on purpose\n"
 
     cases = [
         ("identical trees apart from a listed difference pass", {}, True, None),
@@ -558,14 +707,35 @@ def self_test():
          {"extra_map": "identity\t*\t\\bC_\tA_\ta prefix the derived tree no longer uses\n"}, False, "map.tsv:7"),
         ("a pending entry without a Target: is refused", {"expected": listed.replace(
             "model", "pending")}, None, "Target:"),
+        ("two derived files that normalise to one path are refused, naming both",
+         {"mutate": lambda a, b: _write(b, "car_a/app.py", "different\n")}, None,
+         "car_a/app.py and car_b/app.py both map to car_a/app.py"),
+        ("an entrypoint executable on one side only fails (walk)",
+         {"mutate": run_sh(0o755)}, False, "<mode 100755 in aa, 100644 in bb>"),
+        ("an entrypoint executable on one side only fails (git, tracked modes)",
+         {"mutate": run_sh(0o755), "git": True, "walk": False}, False, "<mode 100755 in aa, 100644 in bb>"),
+        ("a mode difference passes once an entry names it",
+         {"mutate": run_sh(0o755), "expected": listed + mode_entry}, True, None),
+        ("collapse-ws ignores alignment between tokens",
+         {"mutate": catalog('    "k":  ("Charging Power", 1),', '    "k": ("Charging Power", 1),'),
+          "extra_map": collapse_map}, True, None),
+        ("collapse-ws keeps spacing inside a string literal exact",
+         {"mutate": catalog('    "k": ("Charging  Power", 1),', '    "k": ("Charging Power", 1),'),
+          "extra_map": collapse_map}, False, "car_a/cat.py:2"),
+        ("a tree that is not a git checkout is refused without --walk",
+         {"walk": False}, None, "--walk"),
+        ("a tree whose .git is not a valid work tree is refused",
+         {"mutate": lambda a, b: os.makedirs(os.path.join(a, ".git")), "walk": False}, None,
+         "not the root of a valid git work tree"),
     ]
     failures = 0
     for name, kw, want, needle in cases:
         swap = kw.pop("swap", False)
+        walk = kw.pop("walk", True)
         with tempfile.TemporaryDirectory() as tmp:
-            a, b, cfg = build(tmp, **kw)
             try:
-                ok, out = outcome(a, b, cfg, swap)
+                a, b, cfg = build(tmp, **kw)
+                ok, out = outcome(a, b, cfg, swap, walk)
             except ConfigError as err:
                 ok, out = None, str(err)
         good = ok is want and (needle is None or needle in out)
@@ -588,6 +758,9 @@ def main(argv=None):
     ap.add_argument("--show-all", action="store_true", help="also print every entry and what it covers")
     ap.add_argument("--draft", action="store_true", help="print draft rows for unlisted differences")
     ap.add_argument("--self-test", action="store_true", help="prove the check can fail, then exit")
+    ap.add_argument("--walk", action="store_true",
+                    help="allow a tree that is not a git checkout; every file under it is compared, junk "
+                         "included, with modes read from the file system. Without it such a tree is refused")
     args = ap.parse_args(argv)
     if args.self_test:
         return 0 if self_test() else 1
@@ -596,9 +769,9 @@ def main(argv=None):
     self_root, twin_root = os.path.abspath(args.self_root), os.path.abspath(args.twin)
     config = args.config or os.path.join(self_root, "scripts", "parity")
     try:
-        return 0 if run(self_root, twin_root, config, args.show_all, args.draft) else 1
+        return 0 if run(self_root, twin_root, config, args.show_all, args.draft, args.walk) else 1
     except ConfigError as err:
-        print(f"parity: configuration error: {err}", file=sys.stderr)
+        print(f"parity: error: {err}", file=sys.stderr)
         return 2
 
 

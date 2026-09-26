@@ -17,6 +17,8 @@
 #             re:<regex>   differing lines matching the regex
 #             hunk:<regex> every line of each changed block that has a line matching it
 #             py:<a,b>     differing lines owned by these top-level Python symbols
+#             mode         the file's mode differs (e.g. 100755 vs 100644), side both. Only this
+#                          excuses a mode difference; `*` covers content, never modes
 #   count     exactly how many differing items the entry covers. `*` = any number, allowed
 #             only with match `*`, and printed as unguarded on every run.
 #
@@ -119,9 +121,7 @@ pending	alpine_a290/dashboards/front-end-bubble.txt	both	re:# Ghost tile:	2	comm
 
 # ---------------------------------------------------------------- repo config and CI
 pending	.github/workflows/ci.yaml	a290	hunk:name: Parity with r5	22	this check's CI job. Target: r5 adds its own, checking out a290's main (ADR 0001 row 2)
-pending	scripts/docs_sync_check.py	both	*	133	a290 #155 added the CHANGELOG-history check (append-above only) to this shared script; r5's copy predates it. Target: r5 copies the script byte-for-byte
-pending	.github/workflows/ci.yaml	both	hunk:docs_sync_check\.py	4	a290 runs the docs-sync self-test before the check (#155). Target: r5 ports it with the script
-pending	justfile	both	hunk:parity	21	this check's recipes, and parity-self-test in `ci`. Target: r5 adds them (ADR 0001 row 2)
+pending	justfile	both	hunk:parity	22	this check's recipes, and parity-self-test in `ci`. Target: r5 adds them (ADR 0001 row 2)
 pending	.github/workflows/ci.yaml	both	re:uses: \S+@[0-9a-f]{40} +#	24	pinned-action comments: two spaces on a290, one on r5, and r5 names exact tags (v3.1.1, v2.21.1) where a290 says v3, v2. The house rule wants an exact upstream tag. Target: r5's exact tags into a290, one spacing in both
 pending	.github/workflows/ci.yaml	both	re:--cov-fail-under=	2	coverage floor 95 on a290, 90 on r5; r5 measures 98 (RFC open difference). Target: 95 in r5
 pending	justfile	both	re:--cov-fail-under=	2	as ci.yaml. Target: 95 in r5
