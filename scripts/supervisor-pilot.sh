@@ -24,11 +24,15 @@
 #                  "start"    installs with an empty username, so the add-on
 #                             exits at start ("Missing required setting");
 #                  "apparmor" drops apparmor.txt from the add-on copy, so the
-#                             Supervisor confines it with its default profile.
+#                             Supervisor confines it with its default profile;
+#                  "dashboard" points dashboard_url_path at a reserved Core
+#                             path, which deploy.py refuses, so no dashboard
+#                             is deployed and the add-on logs the skip.
 #   PILOT_APPARMOR_CHECK=skip  local runs only (Docker Desktop's kernel has no
 #                  AppArmor); refused under GitHub Actions.
-#   PILOT_EXPECT_SUPERVISOR / PILOT_EXPECT_CORE / PILOT_EXPECT_NODE  override
-#                  what is expected; only for showing a check can fail.
+#   PILOT_EXPECT_SUPERVISOR / PILOT_EXPECT_CORE / PILOT_EXPECT_NODE /
+#   PILOT_EXPECT_DASHBOARD  override what is expected; only for showing a
+#                  check can fail.
 
 set -euo pipefail
 
@@ -483,11 +487,18 @@ cmd_broker() {
 
 # --- install: discover, install, configure, start ----------------------------
 cmd_install() {
-  local options username="$STUB_USERNAME"
+  local options username="$STUB_USERNAME" extra='{}'
   egress_rules_present || fail "refusing to start the add-on without the egress rules (run 'egress')"
   if [[ "$BREAK" == start ]]; then
     username=""
     log "PILOT_BREAK=start: installing with an empty username"
+  fi
+  if [[ "$BREAK" == dashboard ]]; then
+    # In deploy.py's RESERVED_URL_PATHS: the Supervisor's schema accepts it
+    # (str), the add-on refuses to deploy over a built-in panel and logs the
+    # skip, and Core never gets a dashboard at that path.
+    extra='{"dashboard_url_path": "developer-tools"}'
+    log "PILOT_BREAK=dashboard: installing with dashboard_url_path=developer-tools"
   fi
   # Local add-on discovery is known to be fragile (supervisor#3976).
   poll "$SLUG discovered in the local store" 180 5 discover "$SLUG"
@@ -495,9 +506,12 @@ cmd_install() {
   ha_ok store apps install "$SLUG" || fail "install of $SLUG failed"
   log "Setting stub options through the Supervisor API"
   # The Supervisor validates the whole set, so change keys of the current one.
+  # deploy_dashboard and dashboard_url_path stay at config.yaml's defaults:
+  # the dashboard probe reads them back and requires that deploy to have
+  # happened, so a user's first start is what the pilot tests.
   options="$(ha_cli apps info "$SLUG" --raw-json |
-    jq -ce --arg u "$username" --arg p "$STUB_PASSWORD" --arg a "$STUB_ACCOUNT_ID" --arg v "$STUB_VIN" \
-      '{options: (.data.options + {username: $u, password: $p, account_id: $a, vin: $v, log_level: "debug"})}')" ||
+    jq -ce --arg u "$username" --arg p "$STUB_PASSWORD" --arg a "$STUB_ACCOUNT_ID" --arg v "$STUB_VIN" --argjson x "$extra" \
+      '{options: (.data.options + {username: $u, password: $p, account_id: $a, vin: $v, log_level: "debug"} + $x)}')" ||
     fail "could not read the add-on's current options"
   supervisor_post "/addons/$SLUG/options" "$options" >/dev/null || fail "Supervisor rejected the options"
   # The baseline the egress check diffs against: taken immediately before the
@@ -608,6 +622,125 @@ check_egress() {
   log "OK the add-on tried Renault and was refused before any connection opened"
 }
 
+# --- dashboard: Core holds the dashboard the options deploy -------------------
+# The add-on deploys its dashboard through Core's WebSocket API at start, and
+# deploy.py catches every error there and only logs "Dashboard auto-deploy
+# skipped", so without this check a broken deploy leaves the pilot green.
+# Core's Lovelace API is WebSocket-only, and the Supervisor's Core proxy admits
+# only an add-on token with homeassistant_api (supervisor/api/proxy.py; the
+# CLI's token gets 401), so the query runs inside the add-on container with
+# its token and the aiohttp it ships. It asks Core, not the add-on's log, what
+# dashboards exist and what each holds.
+DASHBOARD_QUERY='
+import asyncio, json, os, sys
+import aiohttp
+
+async def cmd(ws, n, **payload):
+    payload["id"] = n
+    await ws.send_json(payload)
+    while True:
+        msg = await asyncio.wait_for(ws.receive_json(), timeout=15)
+        if msg.get("id") == n and msg.get("type") == "result":
+            return msg
+
+async def main():
+    out = {"dashboards": None, "configs": {}}
+    async with aiohttp.ClientSession() as s:
+        async with s.ws_connect("ws://supervisor/core/websocket",
+                                timeout=aiohttp.ClientTimeout(total=30)) as ws:
+            await ws.receive_json()
+            await ws.send_json({"type": "auth", "access_token": os.environ["SUPERVISOR_TOKEN"]})
+            if (await ws.receive_json()).get("type") != "auth_ok":
+                raise SystemExit("Core WebSocket auth failed")
+            res = await cmd(ws, 1, type="lovelace/dashboards/list")
+            if not res.get("success"):
+                raise SystemExit("lovelace/dashboards/list failed: %s" % res.get("error"))
+            out["dashboards"] = [d.get("url_path") for d in res.get("result") or []]
+            for i, url_path in enumerate(sys.argv[1:], start=2):
+                res = await cmd(ws, i, type="lovelace/config", url_path=url_path, force=False)
+                if res.get("success"):
+                    cfg = res.get("result") or {}
+                    out["configs"][url_path] = {"title": cfg.get("title"),
+                                                "views": len(cfg.get("views") or [])}
+                else:
+                    out["configs"][url_path] = {"error": (res.get("error") or {}).get("code")}
+    print(json.dumps(out))
+
+asyncio.run(main())
+'
+
+# lovelace_query URL_PATH...: {"dashboards": [url_path...], "configs": {url_path: {...}}}
+lovelace_query() {
+  printf '%s' "$DASHBOARD_QUERY" |
+    docker exec -i "$NAME" docker exec -i "$ADDON_CONTAINER" python3 - "$@"
+}
+
+# The url_paths the add-on's options, as the Supervisor holds them, deploy to
+# (deploy.py's _deploy_targets). The pilot leaves both options at config.yaml's
+# defaults, so this is what a user's first start deploys.
+dashboard_targets() {
+  local options style url_path
+  options="$(ha_cli apps info "$SLUG" --raw-json | jq -ce '.data.options')" ||
+    fail "could not read the add-on's options"
+  style="$(jq -r '.deploy_dashboard // "none"' <<<"$options")"
+  url_path="$(jq -r '.dashboard_url_path // ""' <<<"$options")"
+  # stderr: stdout is the list the caller captures.
+  log "options: deploy_dashboard=$style dashboard_url_path=${url_path:-<none>}" >&2
+  [[ -n "$url_path" ]] || fail "the add-on's options name no dashboard_url_path"
+  case "$style" in
+    standard | bubble) echo "$url_path" ;;
+    both) printf '%s\n' "$url_path" "${url_path}-bubble" ;;
+    *) fail "the add-on's options deploy no dashboard (deploy_dashboard=$style), so the deploy would go untested" ;;
+  esac
+}
+
+# Matched with -E, else as addon_log_has.
+addon_log_matches() {
+  local out
+  out="$(addon_log)" || return 1
+  grep -qE -- "$1" <<<"$out"
+}
+
+check_dashboard() {
+  local targets target result dashboards views rc=0 log_text
+  targets="$(dashboard_targets)" || exit 1
+  if [[ -n "${PILOT_EXPECT_DASHBOARD:-}" ]]; then
+    targets="$PILOT_EXPECT_DASHBOARD"
+    log "PILOT_EXPECT_DASHBOARD overrides the expected dashboard: $targets"
+  fi
+  # The deploy runs once at start, before the poll loop; whichever way it
+  # went, the add-on logs it. Not just the skip: a deploy that hangs would
+  # never log at all, and the timeout is what catches that.
+  poll "the add-on has logged its dashboard deploy outcome" 120 3 addon_log_matches \
+    "Dashboard auto-deploy skipped|skipping dashboard deploy|Deployed '[a-z]+' dashboard to|Dashboard '.*' already exists|deploy_dashboard=.*not recognised" ||
+    fail "the add-on never logged a dashboard deploy outcome"
+  log_text="$(addon_log)" || fail "could not read the add-on's log"
+  grep -E "Dashboard|dashboard" <<<"$log_text" | grep -vE "^.* DEBUG " | head -5 | sed 's/^/    /' || true
+  if grep -q "Dashboard auto-deploy skipped" <<<"$log_text"; then
+    log "FAIL the add-on logged 'Dashboard auto-deploy skipped'"
+    rc=1
+  fi
+  # shellcheck disable=SC2086  # one url_path per word, by construction
+  result="$(lovelace_query $targets)" || fail "could not query Core's Lovelace API from the add-on container"
+  dashboards="$(jq -r '.dashboards | join(" ")' <<<"$result")" || fail "unparseable Lovelace query result: $result"
+  log "Core's dashboards: ${dashboards:-<none>}"
+  while read -r target; do
+    if ! jq -e --arg t "$target" '.dashboards | index($t)' <<<"$result" >/dev/null; then
+      log "FAIL dashboard '$target' is not in Core's dashboard list"
+      rc=1
+      continue
+    fi
+    views="$(jq -r --arg t "$target" '.configs[$t].views // "none (" + (.configs[$t].error // "no config") + ")"' <<<"$result")"
+    log "dashboard '$target': views=$views title=$(jq -r --arg t "$target" '.configs[$t].title // "<none>"' <<<"$result")"
+    if ! jq -e --arg t "$target" '.configs[$t].views > 0' <<<"$result" >/dev/null; then
+      log "FAIL dashboard '$target' has no views in Core"
+      rc=1
+    fi
+  done <<<"$targets"
+  ((rc == 0)) || fail "dashboard check"
+  log "OK the add-on deployed its dashboard through Core: ${targets//$'\n'/ }"
+}
+
 proc_label() {
   dc cat "/proc/$1/attr/apparmor/current" 2>/dev/null || dc cat "/proc/$1/attr/current"
 }
@@ -661,6 +794,7 @@ cmd_probe() {
   check_discovery
   check_availability
   check_egress
+  check_dashboard
   check_apparmor
   log "OK $SLUG runs under the stable Supervisor"
 }
@@ -713,7 +847,8 @@ cmd_all() {
   local t0=$SECONDS t phase timings=""
   export PILOT_WORKDIR="$WORKDIR"
   [[ "${PILOT_KEEP:-0}" == 1 ]] || trap 'cleanup_all' EXIT
-  [[ -z "$BREAK" || "$BREAK" == start || "$BREAK" == apparmor ]] || fail "unknown PILOT_BREAK '$BREAK'"
+  [[ -z "$BREAK" || "$BREAK" == start || "$BREAK" == apparmor || "$BREAK" == dashboard ]] ||
+    fail "unknown PILOT_BREAK '$BREAK'"
   # Each phase in its own process: a function called on the left of || runs
   # with set -e disabled, which would let a failed step pass silently.
   for phase in build up versions sideload egress broker install provenance probe; do

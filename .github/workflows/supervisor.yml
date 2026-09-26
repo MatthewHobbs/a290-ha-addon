@@ -15,11 +15,11 @@ on:
       - scripts/supervisor-pilot.sh
       # Everything the Supervisor installs, runs or deploys: the image ships
       # app/, run.sh and the dashboards, which the pilot's default options
-      # deploy through Core. The probe does not yet check that deploy (a
-      # dashboard probe is the follow-up). An allow-list missed dashboards/ once, so it is
-      # the whole add-on minus what cannot change a run: prose and the
-      # unit tests, which the image does not contain. Both .md patterns, as in
-      # ui-tests.yaml: whether `**/` matches zero directories is not assumed.
+      # deploy through Core and the probe reads back from Core's Lovelace
+      # API. An allow-list missed dashboards/ once, so it is the whole add-on
+      # minus what cannot change a run: prose and the unit tests, which the
+      # image does not contain. Both .md patterns, as in ui-tests.yaml:
+      # whether `**/` matches zero directories is not assumed.
       - alpine_a290/**
       - "!alpine_a290/*.md"
       - "!alpine_a290/**/*.md"
@@ -29,7 +29,7 @@ on:
       break:
         description: Break the run on purpose, to show the probes can fail
         type: choice
-        options: [none, start, apparmor]
+        options: [none, start, apparmor, dashboard]
         default: none
   schedule:
     - cron: "17 4 * * *"
