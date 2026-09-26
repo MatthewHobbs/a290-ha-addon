@@ -41,7 +41,12 @@ echo "==> Vendor dashboard background images into the HA www/"
 mkdir -p "$CONFIG/www/backgrounds"
 find "$HERE/../alpine_a290/dashboards/Images" -type f \( -name '*.webp' -o -name '*.png' \) \
   -exec cp {} "$CONFIG/www/backgrounds/" \;
-printf 'default_config:\n' > "$CONFIG/configuration.yaml"
+# card-mod loads as a frontend module, not a Lovelace resource. It styles a card only via prototype
+# patches, so a card built before card-mod.js runs stays unstyled for that load; as a resource it
+# lost that race on CI (mass false truncation). A module starts with the page instead of after the
+# dashboard config: a head start, not a guarantee, so check_overflow.py still fails by name if
+# card-mod never applies. (card-mod README: "Performance improvements".)
+printf 'default_config:\nfrontend:\n  extra_module_url:\n    - /local/cards/card-mod.js\n' > "$CONFIG/configuration.yaml"
 
 echo "==> Start Home Assistant ($HA_IMAGE)"
 docker run -d --name ha-ui -p 8123:8123 -v "$CONFIG":/config "$HA_IMAGE" >/dev/null
