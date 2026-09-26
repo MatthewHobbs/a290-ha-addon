@@ -55,7 +55,8 @@ jobs:
     env:
       CORE_VERSION: ${{ matrix.core }}
       PILOT_KEEP: "1"
-      PILOT_BREAK: ${{ inputs.break != 'none' && inputs.break || '' }}
+      # THROWAWAY: never merge. Shows the pilot fails without the add-on's own profile.
+      PILOT_BREAK: apparmor
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
