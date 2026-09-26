@@ -83,7 +83,7 @@ pending	alpine_a290/app/catalog.py	both	py:DATA_GATED_SENSORS	10	comment wording
 
 # ---------------------------------------------------------------- main.py
 model	alpine_a290/app/main.py	both	py:<docstring>	27	each docstring states its own car's platform caveats, and r5's describes itself as Topolino65's data layer. B2 shrinks main.py to configuration
-pending	alpine_a290/app/main.py	both	py:<imports>	3	`import time` feeds r5's poll-duration log; NUMBER_ROLES is r5's legacy role table; PESSIMISTIC_ENDPOINTS is a290's hvac-settings guard. Target: follows those three entries
+pending	alpine_a290/app/main.py	both	py:<imports>	2	NUMBER_ROLES is r5's legacy role table; PESSIMISTIC_ENDPOINTS is a290's hvac-settings guard (both now import time: a290 for #157's monotonic clock). Target: follows those two entries
 pending	alpine_a290/app/main.py	both	py:_P,LOCATION_CMDS,NUMBER_CMDS	16	a290 strips the object-id prefix with obj[_P:]; r5 uses str.removeprefix(OBJ_PREFIX), the better form (audit P-D5). Target: port removeprefix to a290
 pending	alpine_a290/app/main.py	both	py:VERSION,CHARGE_STATUS_LABELS,RHD_LOCALES,MILES_LOCALES,PLUG_KM_DELTA,PLUG_SOC_DROP,PLUG_MIN_AGE,PLUG_MAX_AGE,setup_logging,API_TIMEOUT,start_health_server,save_state	26	comment and docstring wording only, plus an f-string vs concatenation in save_state; no behaviour differs. Target: converge when B1 moves this code into the core, or either way when touched
 pending	alpine_a290/app/main.py	both	py:freshness_fields	12	docstring wording (a290 cites its v1.24.0 history, r5 adds the parked-car note). Target: B1 moves freshness_fields into the core
@@ -92,7 +92,8 @@ pending	alpine_a290/app/main.py	both	py:resolve_account	10	comment wording on wh
 pending	alpine_a290/app/main.py	both	py:detect_supported	26	a290's PESSIMISTIC_ENDPOINTS machinery: hvac-settings defaults to unsupported when detection fails and a successful probe adds it back (audit P-C3). Target: owner decision on hvac-settings, then one implementation
 pending	alpine_a290/app/main.py	both	py:_hvac_due	19	a290 skips hvac-settings when the car does not list it; r5 deliberately does not gate on that (its docstring says why). Target: owner decision on hvac-settings, then B1 (the breaker moves into the core)
 pending	alpine_a290/app/main.py	both	py:_precondition_temp,_hvac_start_action,COMMAND_ACTIONS	24	Start Climate: a290 sends the precondition_temperature option, r5 the car's own setting (fallback 21 C); r5 also keeps legacy command keys. Decided 2026-09-26 (RFC): keep the option, default to the car's setting. Target: implement that in both; command keys go with B2
-pending	alpine_a290/app/main.py	both	py:COMMAND_DEBOUNCE_S,_last_command,run_command	8	r5's 5 s command debounce (r5 91946fa, audit P-B1) is missing from a290, plus one log wording. Decided to land in a290 first (RFC, in progress). Target: port the debounce to a290
+pending	alpine_a290/app/main.py	both	py:COMMAND_DEBOUNCE_S,_last_command,_in_flight,_debounce_now,run_command	33	a290 #157 (four commits) rebuilt r5's first debounce (r5 91946fa): a monotonic clock, an in-flight guard, buttons only, and the stamp dropped when nothing reached the car; plus one log wording. Target: r5 ports all four #157 commits with the conftest reset
+pending	alpine_a290/tests/conftest.py	both	py:_isolate_module_globals	8	shared fixtures, byte-identical until #157 made them reset the debounce globals (_last_command, _in_flight) between tests. Target: r5 copies conftest.py verbatim with its #157 port
 legacy	alpine_a290/app/main.py	both	py:_NUMBER_ROLE,set_soc_level	4	r5 resolves its legacy number names to roles through NUMBER_ROLES; a290 compares the name. Goes with stage B2
 pending	alpine_a290/app/main.py	both	py:detect_plug_suspect	11	plug-suspect input: a290 passes the raw integer, r5 the decoded PlugState; r5's is better and adopting it resets the stored baseline once (RFC open difference). Target: owner decision, then port to a290
 pending	alpine_a290/app/main.py	both	py:poll_once	69	r5 publishes legacy data keys (battery_autonomy, charger_status, ...), cabin temperature and an ungated hvac-settings call; a290 passes the raw plug code; comment wording. Target: B2 makes the keys data; cabin temperature and hvac-settings follow their RFC decisions
@@ -142,14 +143,16 @@ pending	.github/templates/renault-api-release.md	both	*	36	a290's issue template
 pending	.gitignore	both	*	20	section order differs; a290 ignores .bak* backups of settings.local.json; r5 ignores a local reference/ checkout. Target: port .bak* to r5, one section order
 pending	.trivyignore	r5	*	3	r5 still ignores AVD-DS-0026 (no HEALTHCHECK) although its Dockerfile has one (audit H-D2). Target: delete from r5
 pending	.yamllint	a290	*	4	a290 exempts dashboards/ because it bundles upstream YAML packages there. Target: follows the Packages/Templates decision
+pending	scripts/docs_sync_check.py	both	*	66	a290 #159 reads the base CHANGELOG from the base tree's add-on dir; r5's copy has #155 (as r5 #101) but not #159. Target: r5 copies the script verbatim
 pending	scripts/docs_cite_ignore.txt	both	*	3	the comment follows the bundled-template difference. Target: follows the Templates decision
 
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
 pending	ui-tests/run.sh	both	hunk:extra_module_url|default_config	7	a290 loads card-mod as a frontend module to win the styling race. Target: r5's harness PR
-pending	ui-tests/run.sh	both	hunk:Alarm pass|check_overflow\.py" --base	11	a290's second render pass with every problem sensor flipped (#152). Target: r5's harness PR porting #152
+pending	ui-tests/run.sh	both	hunk:Alarm pass|check_overflow\.py" --base	15	a290 re-renders once per pass seed.py derives, each a state production can publish (#152, reworked by #161). Target: r5's single harness PR (porting #152 and #161)
+pending	ui-tests/run.sh	both	re:HERE/seed\.py" --base	2	a290's seed writes the manifest the main pass is checked against (#161); r5's seeds without one. Target: r5's single harness PR
 pending	ui-tests/check_overflow.py	both	*	378	a290 has the pop-up hardening (#144), the alarm pass (#152) and the card-mod wait; r5 does not yet. Target: r5's harness PR, then per-symbol entries for what legitimately differs
-pending	ui-tests/seed.py	both	*	191	as check_overflow.py, plus card-mod loaded as a module on a290 (#154) but a resource on r5, and about 40 legitimate model tokens. Target: r5's harness PR, then per-symbol entries
-pending	ui-tests/README.md	both	*	43	harness documentation follows the harness. Target: r5's harness PR
+pending	ui-tests/seed.py	both	*	295	as check_overflow.py, plus card-mod loaded as a module on a290 (#154) but a resource on r5, the production-reachable passes (#161), and about 40 legitimate model tokens. Target: r5's single harness PR, then per-symbol entries
+pending	ui-tests/README.md	both	*	60	harness documentation follows the harness (#161 rewrote the passes section). Target: r5's single harness PR
 
 # ---------------------------------------------------------------- prose and tests, excused wholesale
 # These are the only unguarded entries (count *): drift inside them is not caught. They are

@@ -350,6 +350,11 @@ class Item:
     symbol: str | None = None
     source: str = ""   # the file this item came from, as that repo names it
     hunk: tuple = ()   # every line of the contiguous run this line differs in, on its side
+    ending: str = "\n"  # the line's terminator; anything else is shown, since it is invisible
+
+    def shown(self, width=150):
+        marker = "" if self.ending == "\n" else f"  [line ends {self.ending!r}]"
+        return _clip(self.text, width) + marker
 
     def where(self):
         loc = f"{self.source}:{self.lineno}" if self.lineno else self.source
@@ -475,12 +480,16 @@ def compare(canonical, derived, pm, walk=False):
         verbatim = any(_scope_matches(r.scope, rel) for r in pm.verbatim)
         if not verbatim:
             text_d = normalise_text(text_d, rel, pm)
-        lines_c, lines_d = text_c.splitlines(), text_d.splitlines()
-        cmp_c, cmp_d = lines_c, lines_d
+        (lines_c, ends_c), (lines_d, ends_d) = _split_lines(text_c), _split_lines(text_d)
+        bodies_c, bodies_d = lines_c, lines_d
         if any(_scope_matches(r.scope, rel) for r in pm.collapse_ws):
             collapsed = collapse_python(text_c, text_d, rel)
             if collapsed:
-                cmp_c, cmp_d = collapsed
+                bodies_c, bodies_d = collapsed
+        # Each line is compared WITH its terminator, so CRLF against LF, a missing final newline or
+        # a Unicode line separator is a difference rather than invisible.
+        cmp_c = [b + e for b, e in zip(bodies_c, ends_c, strict=True)]
+        cmp_d = [b + e for b, e in zip(bodies_d, ends_d, strict=True)]
         ignore_blank = any(_scope_matches(r.scope, rel) for r in pm.ignore_blank)
         sym_c = py_symbols(text_c) if rel.endswith(".py") else {}
         sym_d = py_symbols(text_d) if rel.endswith(".py") else {}
@@ -490,14 +499,26 @@ def compare(canonical, derived, pm, walk=False):
                 continue
             hunk = tuple(lines_c[i1:i2]) + tuple(lines_d[j1:j2])
             for i in range(i1, i2):
-                if not (ignore_blank and not lines_c[i].strip()):
+                # A blank line is only ignorable when its terminator is the plain one.
+                if not (ignore_blank and not lines_c[i].strip() and ends_c[i] == "\n"):
                     items.append(Item(rel, pm.canonical_label, "line", i + 1, lines_c[i], sym_c.get(i + 1), rel,
-                                      hunk))
+                                      hunk, ends_c[i]))
             for j in range(j1, j2):
-                if not (ignore_blank and not lines_d[j].strip()):
+                if not (ignore_blank and not lines_d[j].strip() and ends_d[j] == "\n"):
                     items.append(Item(rel, pm.derived_label, "line", j + 1, lines_d[j], sym_d.get(j + 1),
-                                      der_files[rel], hunk))
+                                      der_files[rel], hunk, ends_d[j]))
     return items
+
+
+def _split_lines(text):
+    """(bodies, terminators): splitlines() with each line's terminator kept apart, "" for a final
+    line with none. Bodies keep the line numbers every other part of the check uses."""
+    bodies, ends = [], []
+    for raw in text.splitlines(keepends=True):
+        body = raw.splitlines()[0]
+        bodies.append(body)
+        ends.append(raw[len(body):])
+    return bodies, ends
 
 
 def _entry_takes(entry, item):
@@ -555,14 +576,14 @@ def report(items, entries, unlisted, show_all, pm):
         print(f"STALE     map.tsv:{rule.lineno} [{rule.kind}] {rule.pattern} rewrote nothing; the derived tree "
               f"no longer uses that name, so delete the rule. Why was: {rule.why}")
     for item in unlisted:
-        print(f"UNLISTED  {item.where()} [{item.symbol or '-'}]: {_clip(item.text)}")
+        print(f"UNLISTED  {item.where()} [{item.symbol or '-'}]: {item.shown()}")
     for e in stale:
         print(f"STALE     {e.label()} covers nothing now; the difference it excused is gone, so delete "
               f"the entry. Reason was: {e.reason}")
     for e in miscounted:
         print(f"COUNT     {e.label()} lists {e.count}, covers {len(e.hits)}:")
         for item in e.hits[:40]:
-            print(f"            {item.where()}: {_clip(item.text, 120)}")
+            print(f"            {item.where()}: {item.shown(120)}")
         if len(e.hits) > 40:
             print(f"            ... {len(e.hits) - 40} more")
     if show_all:
@@ -761,6 +782,15 @@ def self_test():
          {"mutate": links("target.txt", "target.txt")}, True, None),
         ("a dangling symlink is kept and compared by its link text",
          {"mutate": links("gone-a", "gone-b", target=False)}, False, "car_a/link:1"),
+        ("a missing final newline fails",
+         {"mutate": lambda a, b: (_write(a, "car_a/nl.txt", "x\n"), _write(b, "car_b/nl.txt", "x"))},
+         False, "line ends ''"),
+        ("LF against CRLF fails",
+         {"mutate": lambda a, b: (_write(a, "car_a/nl.txt", "x\ny\n"), _write(b, "car_b/nl.txt", "x\r\ny\r\n"))},
+         False, r"line ends '\r\n'"),
+        ("a blank line that differs only by its terminator is not ignored",
+         {"mutate": lambda a, b: (_write(a, "car_a/nl.txt", "x\n\ny\n"), _write(b, "car_b/nl.txt", "x\n\r\ny\n"))},
+         False, "car_b/nl.txt:2"),
         ("a tree whose .git is not a valid work tree is refused",
          {"mutate": lambda a, b: os.makedirs(os.path.join(a, ".git")), "walk": False}, None,
          "not the root of a valid git work tree"),
