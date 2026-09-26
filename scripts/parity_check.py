@@ -238,16 +238,27 @@ def list_files(root, walk=False):
             if not rec:
                 continue
             meta, path = rec.split("\t", 1)
-            if os.path.isfile(os.path.join(root, path)):  # a tracked file deleted locally is not compared
-                files[path] = meta.split()[0]
+            files[path] = meta.split()[0]
+        # Every tracked path is kept. One missing from the working tree is an unstaged deletion,
+        # which dropping would let pass; lexists, so a tracked but dangling symlink still counts.
+        missing = sorted(p for p in files if not os.path.lexists(os.path.join(root, p)))
+        if missing:
+            raise ConfigError(f"{root}: tracked but missing from the working tree (an unstaged deletion?): "
+                              f"{', '.join(missing)}. Restore it, or stage the deletion so it is compared as one")
+        gitlinks = sorted(p for p, mode in files.items() if mode == "160000")
+        if gitlinks:
+            raise ConfigError(f"{root}: submodules are not compared: {', '.join(gitlinks)}")
         return files, "git: tracked files and modes"
     if not walk:
         raise ConfigError(f"{root} is not a git checkout. Point at one, or pass --walk to compare every "
                           f"file under it (junk included)")
     files = {}
     for dirpath, dirs, names in os.walk(root):
-        dirs[:] = [d for d in dirs if d not in DEFAULT_EXCLUDED_DIRS]
-        for name in names:
+        # A symlink to a directory is listed under dirs and never descended: it is an entry itself,
+        # as git records it. Broken symlinks arrive in names and are kept.
+        linked_dirs = [d for d in dirs if os.path.islink(os.path.join(dirpath, d))]
+        dirs[:] = [d for d in dirs if d not in DEFAULT_EXCLUDED_DIRS and d not in linked_dirs]
+        for name in names + linked_dirs:
             full = os.path.join(dirpath, name)
             st = os.lstat(full)
             mode = "120000" if os.path.islink(full) else ("100755" if st.st_mode & 0o111 else "100644")
@@ -256,7 +267,12 @@ def list_files(root, walk=False):
 
 
 def read_bytes(root, rel):
-    with open(os.path.join(root, rel), "rb") as fh:
+    """A symlink's content is its link text, as git stores it; following it would make two links
+    that differ in text but resolve alike compare equal, and a dangling one unreadable."""
+    path = os.path.join(root, rel)
+    if os.path.islink(path):
+        return os.readlink(path).encode("utf-8", "surrogateescape")
+    with open(path, "rb") as fh:
         return fh.read()
 
 
@@ -646,7 +662,7 @@ def self_test():
     }
     listed = ("model\tcar_a/config.yaml\tboth\tre:^version\t2\tversion strings differ per add-on release\n")
 
-    def build(tmp, mutate=None, expected=listed, extra_only=False, extra_map="", git=False):
+    def build(tmp, mutate=None, expected=listed, extra_only=False, extra_map="", git=False, after_add=None):
         a, b, cfg = (os.path.join(tmp, d) for d in ("a", "b", "cfg"))
         for root, car, prefix in ((a, "car_a", "A_"), (b, "car_b", "B_")):
             for rel, text in base.items():
@@ -662,6 +678,8 @@ def self_test():
                 for args in (["init", "-q"], ["add", "-A"]):
                     if _git(root, *args).returncode:
                         raise ConfigError(f"self-test could not run git {' '.join(args)} in {root}")
+        if after_add:  # a working-tree change the index has not seen
+            after_add(a, b)
         _write(cfg, "map.tsv", cmap + extra_map)
         _write(cfg, "expected.tsv", expected)
         return a, b, cfg
@@ -684,6 +702,14 @@ def self_test():
         def mutate(a, b):
             _write(a, "car_a/cat.py", f"T = {{\n{a_line}\n}}\n")
             _write(b, "car_b/cat.py", f"T = {{\n{b_line}\n}}\n")
+        return mutate
+
+    def links(text_a, text_b, target=True):
+        def mutate(a, b):
+            for root, car, text in ((a, "car_a", text_a), (b, "car_b", text_b)):
+                if target:
+                    _write(root, f"{car}/target.txt", "same\n")
+                os.symlink(text, os.path.join(root, car, "link"))
         return mutate
 
     collapse_map = "collapse-ws\tcar_a/cat.py\t-\t-\talignment only\n"
@@ -724,6 +750,17 @@ def self_test():
           "extra_map": collapse_map}, False, "car_a/cat.py:2"),
         ("a tree that is not a git checkout is refused without --walk",
          {"walk": False}, None, "--walk"),
+        ("a tracked file deleted but not staged is refused, naming it (git)",
+         {"git": True, "walk": False, "after_add": lambda a, b: os.remove(os.path.join(b, "car_b/app.py"))},
+         None, "car_b/app.py"),
+        ("symlinks with the same target but different link text differ (walk)",
+         {"mutate": links("target.txt", "./target.txt")}, False, "car_a/link:1"),
+        ("symlinks with the same target but different link text differ (git)",
+         {"mutate": links("target.txt", "./target.txt"), "git": True, "walk": False}, False, "car_a/link:1"),
+        ("identical symlinks pass",
+         {"mutate": links("target.txt", "target.txt")}, True, None),
+        ("a dangling symlink is kept and compared by its link text",
+         {"mutate": links("gone-a", "gone-b", target=False)}, False, "car_a/link:1"),
         ("a tree whose .git is not a valid work tree is refused",
          {"mutate": lambda a, b: os.makedirs(os.path.join(a, ".git")), "walk": False}, None,
          "not the root of a valid git work tree"),

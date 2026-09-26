@@ -155,8 +155,8 @@ pending	ui-tests/README.md	both	*	43	harness documentation follows the harness. 
 # These are the only unguarded entries (count *): drift inside them is not caught. They are
 # hand-maintained per repo today, and pinning a count would make every edit bump it blindly.
 pending	alpine_a290/tests/test_*.py	both	*	*	tests are largely rewritten per repo (test_runtime.py is 14% line-identical). Target: B1/B2 move the shared tests into the core; before that, r5's stronger tests (P-B3 to P-B7) port to a290 and a290's (P-C4, P-C5, P-C7) to r5
-pending	alpine_a290/DOCS.md	both	*	*	each add-on's options page; 38% shared. r5's claim that its entities bind straight to Topolino65 is to be corrected now (ADR 0001). Target: that correction, then reconcile with r5's naming migration release
+pending	alpine_a290/DOCS.md	both	*	*	each add-on's options page; 38% shared. r5's claim that its entities bind straight to Topolino65 was corrected in r5 #102 (ADR 0001). Target: reconcile with r5's naming migration release
 pending	README.md	both	*	*	repository README; 44% shared. Target: same as DOCS.md
 pending	CLAUDE.md	both	*	*	each repo's session instructions; 65% shared. Target: same as DOCS.md
-pending	alpine_a290/README.md	both	*	38	the add-on's store README. Target: same as DOCS.md
+pending	alpine_a290/README.md	both	*	39	the add-on's store README. Target: same as DOCS.md
 pending	docs/dashboards-on-mobile.md	both	*	15	r5 claims the screenshots auto-refresh, which is false there (audit H-D3), plus rewrapping. Target: fix r5's claim, then rewrap
