@@ -139,6 +139,10 @@ def load_map(path):
             else:
                 raise ConfigError(f"{path}:{n}: side scope must be canonical or derived")
         elif kind in ("path", "legacy", "identity"):
+            if kind == "path" and scope != "*":
+                raise ConfigError(f"{path}:{n}: a path rule's scope must be `*`, got {scope!r}. Path rules are "
+                                  f"global: a scope names canonical paths, but a path rule rewrites derived "
+                                  f"names before any canonical path exists, so it could not be honoured")
             try:
                 rule.regex = re.compile(pattern)
             except re.error as err:
@@ -750,6 +754,9 @@ def self_test():
         ("a verbatim file differing only by a normalised token still fails",
          {"mutate": lambda a, b: _write(a, "shared.py", "# mentions A_ and A_ alike\n")}, False, "shared.py:1"),
         ("a file present on one side only fails until listed", {"extra_only": True}, False, "<only in bb>"),
+        ("a path rule with a scope other than * is refused",
+         {"extra_map": "path\tcar_a/app.py\t^car_b/x$\tcar_a/x\ta scope a path rule cannot honour\n"},
+         None, "a path rule's scope must be `*`"),
         ("a map rule that rewrites nothing fails as stale",
          {"extra_map": "identity\t*\t\\bC_\tA_\ta prefix the derived tree no longer uses\n"}, False, "map.tsv:7"),
         ("a pending entry without a Target: is refused", {"expected": listed.replace(

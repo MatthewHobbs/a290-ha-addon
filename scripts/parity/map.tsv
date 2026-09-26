@@ -5,7 +5,9 @@
 #   side          scope canonical|derived; pattern = marker file that identifies that tree;
 #                 replacement = the label used in expected.tsv's side column
 #   define        pattern = NAME; replacement = regex text substituted for <NAME> in later rows
-#   path          regex on the derived file's path -> canonical path
+#   path          regex on the derived file's path -> canonical path. Always scope `*`: a
+#                 scope names canonical paths, but a path rule rewrites derived names before
+#                 any canonical path exists, so a scoped path rule is refused (exit 2)
 #   legacy        content rewrite: r5's Topolino65-compatible names -> a290's. Expected to go:
 #                 r5 moves to a290's names in one migration release (ADR 0001), and each
 #                 rule is deleted once r5 no longer uses that name
