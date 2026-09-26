@@ -338,7 +338,7 @@ def test_run_command_error_is_swallowed(monkeypatch):
 
 
 def test_run_command_debounces_repeat(monkeypatch):
-    monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
+    monkeypatch.setattr(main, "_debounce_now", lambda: 1000.0)
     main._last_command["horn"] = 998.0               # 2s ago, inside the 5s window
     called = {"login": 0}
 
@@ -363,11 +363,39 @@ def test_debounce_is_per_command_and_ends_after_the_window(monkeypatch):
 
     _login_as(monkeypatch, V())
     clock = {"t": 1000.0}
-    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
     for t, cmd in ((1000.0, "horn"), (1004.9, "horn"), (1004.9, "lights"), (1005.0, "horn")):
         clock["t"] = t
         asyncio.run(main.run_command(cmd))
     assert sent == ["horn", "lights", "horn"]         # only the repeat inside 5s was dropped
+
+
+def test_a_wall_clock_step_back_does_not_hold_the_button(monkeypatch):
+    """An NTP or manual correction moved the wall clock back 100s between two presses, 10s apart
+    in real time. The debounce must measure the real gap, not the wall-clock difference."""
+    v = _Horn()
+    _login_as(monkeypatch, v)
+    wall, mono = {"t": 1000.0}, {"t": 5000.0}
+    monkeypatch.setattr(main, "now_ts", lambda: wall["t"])
+    monkeypatch.setattr(main, "_debounce_now", lambda: mono["t"], raising=False)
+    asyncio.run(main.run_command("horn"))              # completed; no longer in flight
+    wall["t"], mono["t"] = 900.0, 5010.0
+    asyncio.run(main.run_command("horn"))
+    assert v.honks == 2
+
+
+def test_the_debounce_clock_is_monotonic(monkeypatch):
+    monkeypatch.setattr(main.time, "monotonic", lambda: 42.0)
+    assert main._debounce_now() == 42.0
+
+
+def test_a_first_press_soon_after_boot_is_sent(monkeypatch):
+    """Monotonic time starts near zero at boot; a button never pressed must not read as pressed at 0."""
+    v = _Horn()
+    _login_as(monkeypatch, v)
+    monkeypatch.setattr(main, "_debounce_now", lambda: 1.0, raising=False)
+    asyncio.run(main.run_command("horn"))
+    assert v.honks == 1
 
 
 class _Horn:
@@ -393,7 +421,7 @@ def test_a_press_that_never_reached_the_car_does_not_block_the_retry(monkeypatch
     _fake_client_session(monkeypatch)
     monkeypatch.setattr(main, "_login_vehicle", login)
     clock = {"t": 1000.0}
-    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
     asyncio.run(main.run_command("horn"))
     clock["t"] = 1001.0                                # well inside the 5s window
     asyncio.run(main.run_command("horn"))
@@ -405,7 +433,7 @@ def test_a_press_that_failed_during_the_action_still_debounces(monkeypatch):
     v = _Horn(fail=True)
     _login_as(monkeypatch, v)
     clock = {"t": 1000.0}
-    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
     asyncio.run(main.run_command("horn"))
     clock["t"] = 1001.0
     asyncio.run(main.run_command("horn"))
@@ -428,7 +456,7 @@ def test_simultaneous_presses_pass_the_debounce_once(monkeypatch, login_fails):
 
     _fake_client_session(monkeypatch)
     monkeypatch.setattr(main, "_login_vehicle", login)
-    monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
+    monkeypatch.setattr(main, "_debounce_now", lambda: 1000.0)
 
     async def both():
         await asyncio.gather(main.run_command("horn"), main.run_command("horn"))
@@ -465,7 +493,7 @@ def test_a_repeat_after_the_window_is_ignored_while_the_first_is_still_being_sen
     """A login can take up to the 60s API timeout, so the 5s window alone let a second identical
     press through while the first was still logging in, and both reached the car."""
     v, clock = _Horn(), {"t": 1000.0}
-    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
 
     async def scenario():
         gate, logins = _blocking_login(monkeypatch, v)
@@ -486,7 +514,7 @@ def test_a_failed_slow_login_frees_the_button_for_the_next_press(monkeypatch):
     """The repeat that arrived mid-login was dropped; once the login fails and nothing was sent,
     the next press goes through."""
     v, clock = _Horn(), {"t": 1000.0}
-    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
 
     async def scenario():
         gate, logins = _blocking_login(monkeypatch, v, fail=True)
@@ -516,7 +544,7 @@ def test_a_cancelled_command_does_not_wedge_the_button(monkeypatch, stage):
     stamp goes too and the next press is sent at once; once the action has started the outcome is
     unknown, so the stamp stays and the 5s window applies."""
     clock = {"t": 1000.0}
-    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
 
     class Hangs(_Horn):
         async def start_horn(self):
@@ -640,7 +668,7 @@ def test_set_soc_error_is_swallowed(monkeypatch):
 
 def test_numbers_not_debounced(monkeypatch):
     # A number set must not be dropped by the button debounce window.
-    monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
+    monkeypatch.setattr(main, "_debounce_now", lambda: 1000.0)
     v = SocVehicle()
     _login_as(monkeypatch, v)
     asyncio.run(main.run_command("soc_target", "70"))

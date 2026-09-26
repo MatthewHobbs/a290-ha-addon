@@ -16,6 +16,7 @@ import logging
 import os
 import signal
 import sys
+import time
 
 import aiohttp
 import catalog
@@ -300,6 +301,12 @@ _last_command = {}
 # window alone would let a repeat through while the first press's outcome is still unknown.
 _in_flight = set()
 
+
+def _debounce_now():
+    """The debounce's clock. Monotonic, not wall time: an NTP or manual correction that moves the
+    wall clock back would otherwise hold a button suppressed for the size of the jump."""
+    return time.monotonic()
+
 # Command suffixes that trigger a location refresh — rejected unless the user has opted in AND
 # location publishing is on (publish_discovery clears the button in the same cases). Gating the
 # command as well as the button is the point: the entity is pressable from voice, automations and
@@ -375,10 +382,11 @@ async def run_command(cmd, payload=""):
     if cmd in _in_flight:
         LOG.info("Ignoring '%s': the previous one is still being sent", cmd)
         return
-    if now_ts() - _last_command.get(cmd, 0) < COMMAND_DEBOUNCE_S:
+    # No 0 default: monotonic time starts near zero at boot, so "never pressed" must not read as t=0.
+    if cmd in _last_command and _debounce_now() - _last_command[cmd] < COMMAND_DEBOUNCE_S:
         LOG.info("Ignoring repeated '%s' within %ds (debounce)", cmd, COMMAND_DEBOUNCE_S)
         return
-    _last_command[cmd] = now_ts()
+    _last_command[cmd] = _debounce_now()
     _in_flight.add(cmd)
     locale = cfg("A290_LOCALE", "en_GB")
     dispatched = False
