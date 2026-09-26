@@ -20,7 +20,8 @@ Plus one invariant checked on every PR, bump or not: CHANGELOG history is append
 Every `## <version>` heading at the merge base must still be there, once, in the same order, and
 a version heading the PR adds must sit above all of them. Check 3 alone passed an edit that
 REWROTE the previous heading into the new version instead of adding above it (r5 #92, #93): the
-new heading exists, the old release is gone. Non-version `##` sections (`## Unreleased`) are not
+new heading exists, the old release is gone. The base CHANGELOG is read from the base tree's own
+add-on directory, so renaming that directory cannot hide a lost release. Non-version `##` sections (`## Unreleased`) are not
 entries, so they may go anywhere.
 Changed TEXT under a released heading only warns: 8 of the 112 CHANGELOG commits on the two
 mains did that, mostly to correct a wrong claim, a name or a dead link.
@@ -60,6 +61,30 @@ def git_show(ref, path):
 def fail_infra(msg):
     print(f"::error::docs-sync: {msg}")
     sys.exit(2)
+
+
+def ls_tree(ref):
+    r = _run(["git", "ls-tree", "-r", "-z", "--name-only", ref])
+    if r.returncode != 0:
+        fail_infra(f"cannot read the tree at {ref}: {r.stderr.strip()}")
+    return [p for p in r.stdout.split("\0") if p]
+
+
+def addon_dirs(paths):
+    """Top-level directories holding a config.yaml. Discovered, not hard-coded, so this file is
+    byte-identical in the a290 and r5 repos (they differ only in that directory's name)."""
+    return sorted({p.split("/")[0] for p in paths if re.fullmatch(r"[^/]+/config\.yaml", p)})
+
+
+def base_changelog(base_paths):
+    """The base tree's CHANGELOG path, found in the BASE tree's own add-on directory, or None if
+    it has none. Reading the head's path at the base found nothing when a PR renamed the
+    directory, and "no CHANGELOG at the base" passed every deleted release."""
+    addons = addon_dirs(base_paths)
+    if len(addons) > 1:
+        raise ValueError(f"expected at most one add-on directory at the merge base, found {addons}.")
+    path = f"{addons[0]}/CHANGELOG.md" if addons else None
+    return path if path in base_paths else None
 
 
 def option_keys(config_text):
@@ -204,7 +229,24 @@ def self_test():
     if changelog_history_problems(None, base, "CHANGELOG.md") != ([], []):
         print("docs-sync self-test FAILED: a newly added CHANGELOG was treated as lost history", file=sys.stderr)
         return 1
-    print(f"docs-sync self-test: {len(cases) + 1} cases ok")
+    # (name, merge-base tree, expected base CHANGELOG path or ValueError). The head of the
+    # "renamed" case lives in new/, so reading the head's path at the base would find nothing.
+    trees = [
+        ("same directory", ["a/config.yaml", "a/CHANGELOG.md"], "a/CHANGELOG.md"),
+        ("add-on directory renamed", ["old/config.yaml", "old/CHANGELOG.md", "README.md"], "old/CHANGELOG.md"),
+        ("base has no CHANGELOG", ["a/config.yaml"], None),
+        ("base has no add-on", ["README.md"], None),
+        ("base has two add-ons", ["a/config.yaml", "b/config.yaml"], ValueError),
+    ]
+    for name, paths, want in trees:
+        try:
+            got = base_changelog(paths)
+        except ValueError as e:
+            got = type(e)
+        if got != want:
+            print(f"docs-sync self-test FAILED: {name}: want {want}, got {got}", file=sys.stderr)
+            return 1
+    print(f"docs-sync self-test: {len(cases) + 1 + len(trees)} cases ok")
     return 0
 
 
@@ -224,20 +266,15 @@ def main():
         fail_infra(f"cannot diff {base}...HEAD: {diff.stderr.strip()}")
     changed = set(diff.stdout.split())
 
-    # Locate the add-on directory rather than hard-coding it, so this file is byte-identical
-    # in the a290 and r5 repos (they differ only in that directory's name).
-    tree = _run(["git", "ls-tree", "-r", "--name-only", "HEAD"])
-    if tree.returncode != 0:
-        fail_infra("cannot read the HEAD tree.")
-    addons = sorted({p.split("/")[0] for p in tree.stdout.split()
-                     if re.fullmatch(r"[^/]+/config\.yaml", p)})
+    tree = ls_tree("HEAD")
+    addons = addon_dirs(tree)
     if len(addons) != 1:
         fail_infra(f"expected exactly one add-on directory, found {addons or 'none'}.")
     addon = addons[0]
 
     config, catalog = f"{addon}/config.yaml", f"{addon}/app/catalog.py"
     docs, changelog = f"{addon}/DOCS.md", f"{addon}/CHANGELOG.md"
-    guides = {p for p in tree.stdout.split()
+    guides = {p for p in tree
               if p.startswith(f"{addon}/dashboards/") and p.endswith(".md")}
 
     problems = []
@@ -280,8 +317,19 @@ def main():
     fork = _run(["git", "merge-base", base, "HEAD"])
     if fork.returncode != 0:
         fail_infra(f"no merge base between {base} and HEAD: {fork.stderr.strip()}")
-    history, warnings = changelog_history_problems(git_show(fork.stdout.strip(), changelog),
-                                                   git_show("HEAD", changelog), changelog)
+    fork = fork.stdout.strip()
+    try:
+        base_log = base_changelog(ls_tree(fork))
+    except ValueError as e:
+        fail_infra(str(e))
+    # None must mean "the tree has no CHANGELOG", never "git could not read one": the first
+    # passes every deletion, so a read failure on a listed file is loud instead.
+    base_text = git_show(fork, base_log) if base_log else None
+    head_text = git_show("HEAD", changelog) if changelog in tree else None
+    if (base_log and base_text is None) or (changelog in tree and head_text is None):
+        fail_infra(f"cannot read {base_log} at {fork} or {changelog} at HEAD although the tree lists it.")
+    label = changelog if base_log in (None, changelog) else f"{changelog} (was {base_log})"
+    history, warnings = changelog_history_problems(base_text, head_text, label)
     if waived:
         print("docs-sync: checks 1-3 waived — 'docs-sync-ok' label present; CHANGELOG history "
               "is still checked.")
