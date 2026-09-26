@@ -252,7 +252,10 @@ def test_charger_popup_separator_matches_the_bundled_separators(monkeypatch):
     sep = deploy._charger_popup()["cards"][0]
     assert sep["card_type"] == "separator"
     bundled = (Path(deploy.__file__).resolve().parents[1] / "dashboards" / "front-end-bubble.txt").read_text()
-    assert f"styles: {sep['styles']}\n" in bundled
+    # Every bundled separator, not just one: a fix that reached some of them would still match.
+    separators = bundled.count("card_type: separator\n")
+    assert separators == 13
+    assert bundled.count(f"styles: {sep['styles']}\n") == separators
     assert "white-space:normal !important" in sep["styles"]
 
 
