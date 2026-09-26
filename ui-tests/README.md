@@ -15,7 +15,9 @@ Mushroom tile labels clipping on a phone.
 2. `seed.py` gives every entity the dashboards reference a representative state via the REST
    `/api/states` API — no MQTT or add-on needed, since the cards read `hass.states`
    directly — then registers the card resources and creates the two dashboards from the
-   bundled YAML.
+   bundled YAML. card-mod is the exception: `run.sh` loads it as a frontend module
+   (`extra_module_url`) so it is defined before any card renders; as a resource it can lose
+   that race and leave cards unstyled.
 3. `check_overflow.py` (Playwright) loads each dashboard at every viewport in `devices.json`,
    waits for the cards and the Zen Dots font, then walks the **shadow-DOM-pierced** tree for
    any text element that is clipped (`text-overflow:ellipsis` / `nowrap`+`overflow:hidden`
