@@ -6,11 +6,12 @@ state via the REST /api/states API (cards read hass.states regardless of the bac
 integration), the custom-card Lovelace resources are registered, and the 'standard' and
 'bubble' dashboards are created from the bundled YAML via the WebSocket API.
 
-The problem-class binary sensors the dashboards reference are rendered in several passes, each a
-combination production can publish (derive_passes): the normal pass above, then every named pass
-listed by --list-passes. --pass <name> reseeds an already-seeded instance for one of them. With
---manifest, either writes the dashboards to check in that pass and the card labels that must be
-visible on each.
+The problem-class binary sensors the dashboards reference, and the demo entities in TOGGLES, are
+rendered in several passes, each a combination production can publish (derive_passes): the normal
+pass above, then every named pass listed by --list-passes. --pass <name> reseeds an already-seeded
+instance for one of them. With --manifest, either writes the dashboards to check in that pass, the
+card labels that must be visible on each, and the Bubble pop-ups to open on each with the labels
+that must be visible inside them.
 
 Usage: seed.py --base http://localhost:8123 --token <access_token> [--dashboards <dir>]
                 [--pass <name>] [--manifest <manifest.json>]
@@ -18,6 +19,7 @@ Usage: seed.py --base http://localhost:8123 --token <access_token> [--dashboards
 """
 import argparse
 import asyncio
+import functools
 import json
 import os
 import re
@@ -148,6 +150,28 @@ DERIVED_AGE = {
 IMPLIES = {
     ("binary_sensor.alpine_a290_poll_failing", "on"): {"binary_sensor.alpine_a290_data_stale": "on"},
 }
+# Demo entities with a second state production publishes that the KNOWN seed keeps off the page:
+# {entity: that state}. Each gets a "<entity>_<state>" pass of its own (derive_passes), checked
+# against the text its templates select for that state, and every other pass reseeds it as KNOWN.
+# Octopus Intelligent's dispatching sensor is off outside a dispatch window, when the off-peak badge
+# reads "Peak rate" on both dashboards; seeded on, that branch went unrendered for months.
+TOGGLES = {
+    "binary_sensor.demo_intelligent_dispatching": "off",
+}
+# A Bubble dashboard is nothing but pop-ups, and Bubble renders one only while it is open, so the
+# gate opens each by hash (check_overflow.py). Fewer than this many found is a harness fault (the
+# card_type/hash keys moved), not a dashboard with fewer pop-ups: lower it deliberately with one.
+MIN_POPUPS = 8
+# States for the template sensors the bundled helper packages define (dashboards/Templates), keyed
+# by the template's `name`; its entity id is derived from that name below, as HA derives it, so a
+# renamed template cannot leave a stale id here. The pretty location is the LOCATION tiles'
+# sub-line: a zone name, a town, or the `places` sensor's formatted address. Seeded at that longest
+# form, for the landmark the device_tracker default sits on, so the tiles' wrap is exercised; the
+# per-domain "42" never could be clipped by any style.
+TEMPLATE_DIR = os.path.join(HERE, "..", "alpine_a290", "dashboards", "Templates")
+HELPER_STATES = {
+    "Alpine Pretty Location": ("Trafalgar Square, Westminster, London", {"icon": "mdi:map-marker"}),
+}
 DEFAULTS = {
     "binary_sensor": ("off", {}),
     "number": ("50", {"min": 15, "max": 100, "step": 5, "mode": "slider", "unit_of_measurement": "%"}),
@@ -194,11 +218,35 @@ def option_default(option):
         return yaml.safe_load(fh)["options"][option]
 
 
+@functools.cache
+def helper_states():
+    """{entity_id: (state, attrs)} for HELPER_STATES, each id slug(name) of a template sensor found
+    in dashboards/Templates; a name no template defines is an error, not a silent "42"."""
+    found = {}
+    for fname in sorted(os.listdir(TEMPLATE_DIR)):
+        if not fname.endswith(".yaml"):
+            continue
+        with open(os.path.join(TEMPLATE_DIR, fname), encoding="utf-8") as fh:
+            doc = yaml.safe_load(fh)
+        blocks = doc if isinstance(doc, list) else (doc or {}).get("template", [])
+        for block in blocks:
+            for dom in ("sensor", "binary_sensor"):
+                for ent in block.get(dom, []):
+                    if ent.get("name") in HELPER_STATES:
+                        found[f"{dom}.{_slug(ent['name'])}"] = HELPER_STATES[ent["name"]]
+    if len(found) != len(HELPER_STATES):
+        raise SystemExit(f"HELPER_STATES names a template sensor no file in {TEMPLATE_DIR} defines: "
+                         f"{sorted(HELPER_STATES)} vs {sorted(found)}")
+    return found
+
+
 def state_for(eid, problems=frozenset(), states=None):
     """The seeded state. A pass's `states` {problem sensor: state} win over KNOWN/DEFAULTS, and a
     DERIVED_AGE timestamp takes the age its sensor's state in that pass needs."""
     if eid in KNOWN:
         st, attrs = KNOWN[eid]
+    elif eid in (helpers := helper_states()):
+        st, attrs = helpers[eid]
     else:
         st, attrs = DEFAULTS.get(eid.split(".")[0], ("42", {}))
     attrs = dict(attrs)
@@ -245,15 +293,23 @@ def _invert(eid, state):
     return "off" if state == "on" else "on"
 
 
-def derive_passes(referenced):
-    """[(name, {problem sensor: state})] over the problem sensors the dashboards reference: the
-    normal pass (name "", the KNOWN/DEFAULTS states), "alarm" (every one inverted, then closed over
-    IMPLIES), and a "<sensor>_<state>" pass for each branch that closure kept off the page. So every
-    branch of every referenced sensor renders in some pass, and every pass is a state production
-    can publish; a KNOWN seed or a branch that cannot be is an error, not a skipped render."""
+def derive_passes(referenced, toggles=TOGGLES):
+    """[(name, {sensor: state})] over the problem sensors the dashboards reference and `toggles`:
+    the normal pass (name "", the KNOWN/DEFAULTS states), "alarm" (every problem sensor inverted,
+    then closed over IMPLIES), a "<sensor>_<state>" pass for each problem branch that closure kept
+    off the page, and one for each toggle's other state. So every branch of every referenced sensor
+    renders in some pass, and every pass is a state production can publish; a KNOWN seed or a
+    branch that cannot be is an error, not a skipped render. Every pass carries every toggle, at
+    KNOWN unless it is the toggle's own, so each reseed puts the previous pass's state back."""
     normal = {eid: state_for(eid)[0] for eid in sorted(referenced)}
-    passes = [("", normal), ("alarm", close({eid: _invert(eid, st) for eid, st in normal.items()}))]
+    fixed = {eid: state_for(eid)[0] for eid in sorted(toggles)}
+    passes = [("", {**fixed, **normal}),
+              ("alarm", {**fixed, **close({eid: _invert(eid, st) for eid, st in normal.items()})})]
     prefix = device_slug() + "_"
+
+    def pass_name(eid, state):
+        return f"{eid.split('.', 1)[1].removeprefix(prefix)}_{state}"
+
     for eid, st in normal.items():
         want = _invert(eid, st)
         if any(p[eid] == want for _, p in passes):
@@ -261,7 +317,11 @@ def derive_passes(referenced):
         p = close({**normal, eid: want})
         if p[eid] != want:
             raise SystemExit(f"no pass production can publish renders {eid} {want}: IMPLIES forces it back")
-        passes.append((f"{eid.split('.', 1)[1].removeprefix(prefix)}_{want}", p))
+        passes.append((pass_name(eid, want), {**fixed, **p}))
+    for eid, want in sorted(toggles.items()):
+        if fixed[eid] == want:
+            raise SystemExit(f"TOGGLES gives {eid} its KNOWN state {want!r}; it must name the other one")
+        passes.append((pass_name(eid, want), {**fixed, **normal, eid: want}))
     for name, p in passes:
         if why := unreachable(p):
             raise SystemExit(f"{name or 'normal'} pass seeds what production cannot publish: {why}")
@@ -269,50 +329,100 @@ def derive_passes(referenced):
 
 
 # Card fields rendered as visible text, and the one template form whose branch text can be read
-# statically: {% if is_state('<id>','<state>') %}A{% else %}B{% endif %}. icon/icon_color/card_mod
-# templates key on the same sensors but render no text, so they are not labels.
+# statically: literal text around {% if is_state('<id>','<state>') %}A{% else %}B{% endif %}.
+# icon/icon_color/card_mod templates key on the same sensors but render no text, so they are not
+# labels.
 TEXT_KEYS = {"primary", "secondary", "name", "label", "title", "heading", "content"}
 IF_IS_STATE = re.compile(
-    r"^\s*\{%-?\s*if\s+is_state\(\s*'([^']+)'\s*,\s*'([^']+)'\s*\)\s*-?%\}([^{}]*)"
-    r"\{%-?\s*else\s*-?%\}([^{}]*)\{%-?\s*endif\s*-?%\}\s*$")
-# Pop-up content opened by a tap: not on the page, so never an expected label.
+    r"^([^{}]*)\{%-?\s*if\s+is_state\(\s*'([^']+)'\s*,\s*'([^']+)'\s*\)\s*-?%\}([^{}]*)"
+    r"\{%-?\s*else\s*-?%\}([^{}]*)\{%-?\s*endif\s*-?%\}([^{}]*)$")
+# Actions run on a tap: whatever they name is not on the page, so never an expected label.
 ACTION_KEYS = {"tap_action", "hold_action", "double_tap_action"}
 
 
+def _reads_state(template, eid):
+    """Whether a Jinja template's text can follow `eid`'s STATE. One that only reads its
+    attributes (state_attr) renders the same in every pass, so no pass can assert it."""
+    quoted = re.escape(eid)
+    return re.search(rf"is_state\(\s*'{quoted}'|states\(\s*'{quoted}'|states\.{quoted}\b", template)
+
+
 def expected_labels(views, states):
-    """(label, sensors) for the text a pass's `states` must put on the page: the `name` of every
-    conditional card whose conditions they all meet, and the selected branch of every
-    IF_IS_STATE text template keyed on one. A text template on one of these sensors in any other
-    form cannot be asserted, so it is an error rather than a silent gap."""
+    """(label, sensors, pop-up) for the text a pass's `states` must put on the page: the `name`
+    of every conditional card whose conditions they all meet, and the selected branch of every
+    IF_IS_STATE text template that reads one. `pop-up` is the hash of the Bubble pop-up the card
+    sits in, or None on the page itself. A text template that reads one of these sensors' state
+    in any other form cannot be asserted, so it is an error rather than a silent gap."""
     found = []
 
-    def walk(node, key=None):
+    def walk(node, key=None, popup=None):
         if isinstance(node, dict):
+            if node.get("card_type") == "pop-up" and node.get("hash"):
+                popup = node["hash"]
             conds = node.get("conditions") if node.get("type") == "conditional" else None
             if conds and all(isinstance(c, dict) and c.get("entity") in states
                              and str(c.get("state")) == states[c["entity"]] for c in conds):
                 name = (node.get("card") or {}).get("name")
                 if name:
-                    found.append((name, {c["entity"] for c in conds}))
+                    found.append((name, {c["entity"] for c in conds}, popup))
             for k, v in node.items():
                 if k not in ACTION_KEYS:
-                    walk(v, k)
+                    walk(v, k, popup)
         elif isinstance(node, list):
             for v in node:
-                walk(v, key)
+                walk(v, key, popup)
         elif isinstance(node, str) and key in TEXT_KEYS and "{%" in node:
-            keyed = [eid for eid in states if eid in node]
+            keyed = [eid for eid in states if _reads_state(node, eid)]
             if not keyed:
                 return
             m = IF_IS_STATE.match(node)
-            if not m or m.group(1) not in states:
+            if not m or m.group(2) not in states:
                 raise SystemExit(f"cannot assert the {key!r} template on {keyed}; "
                                  f"extend seed.expected_labels for it: {node[:160]!r}")
-            eid, st, if_text, else_text = m.groups()
-            found.append(((if_text if states[eid] == st else else_text).strip(), {eid}))
+            before, eid, st, if_text, else_text, after = m.groups()
+            text = before + (if_text if states[eid] == st else else_text) + after
+            found.append((text.strip(), {eid}, popup))
 
     walk(views)
-    return [(label, eids) for label, eids in found if label]
+    return [(label, eids, popup) for label, eids, popup in found if label]
+
+
+def popups_in(views):
+    """[(hash, name, node)] of every Bubble pop-up a dashboard defines, in file order. Stops on a
+    pop-up without a hash or a name (the gate opens it by the one and proves it open by the
+    other), on two sharing either, on a navigate action that targets no pop-up, and on a Bubble
+    dashboard defining fewer than MIN_POPUPS: each is a way the pop-up loop could go quiet."""
+    popups, targets, bubble = [], [], False
+
+    def walk(node):
+        nonlocal bubble
+        if isinstance(node, dict):
+            if node.get("type") == "custom:bubble-card":
+                bubble = True
+            if node.get("card_type") == "pop-up":
+                if not node.get("hash") or not node.get("name"):
+                    raise SystemExit("a pop-up without a hash or a name cannot be opened and proved open: "
+                                     f"{ {k: node.get(k) for k in ('hash', 'name')} }")
+                popups.append((node["hash"], node["name"], node))
+            if node.get("action") == "navigate" and str(node.get("navigation_path", "")).startswith("#"):
+                targets.append(node["navigation_path"])
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+
+    walk(views)
+    hashes = [h for h, _, _ in popups]
+    names = [n for _, n, _ in popups]
+    if len(set(hashes)) != len(hashes) or len(set(names)) != len(names):
+        raise SystemExit(f"pop-ups share a hash or a name: {sorted((h, n) for h, n, _ in popups)}")
+    if dead := sorted(set(targets) - set(hashes)):
+        raise SystemExit(f"navigate actions target pop-ups the dashboard does not define: {dead}")
+    if bubble and len(popups) < MIN_POPUPS:
+        raise SystemExit(f"a Bubble dashboard defines {len(popups)} pop-ups, fewer than MIN_POPUPS "
+                         f"{MIN_POPUPS}: the harness is not finding them")
+    return popups
 
 
 def extract_entities(texts):
@@ -385,8 +495,11 @@ async def verify_pass(session, args, where, posted, states):
 
 
 def write_manifest(path, built, name, states, normal):
-    """{dashboard: [labels]} for one pass. A named pass re-checks only the dashboards that
-    reference a state it changed from the normal pass; the normal pass checks every dashboard."""
+    """{dashboard: {"labels": [...], "popups": [{"hash", "name", "labels"}]}} for one pass: the
+    labels that must be visible on the page, and the Bubble pop-ups to open with the labels that
+    must be visible inside each. A named pass re-checks only the dashboards, and opens only the
+    pop-ups, that reference a state it changed from the normal pass; the normal pass checks every
+    dashboard and opens every pop-up."""
     changed = {eid for eid, st in states.items() if st != normal[eid]}
     changed |= {ts for ts, (src, _, _) in DERIVED_AGE.items() if src in changed}
     where = name or "normal"
@@ -395,18 +508,30 @@ def write_manifest(path, built, name, states, normal):
         refs = set(extract_entities([yaml.safe_dump(views)]))
         if name and not refs & changed:
             continue
-        pairs = expected_labels(views, states)
+        popups = [(h, n, node) for h, n, node in popups_in(views)
+                  if not name or set(extract_entities([yaml.safe_dump(node)])) & changed]
+        opened = {h for h, _, _ in popups}
+        # A label inside a pop-up this pass does not open is not on the page; the pass that opens
+        # it (the pop-up references a changed state, so some pass does) asserts it.
+        pairs = [(label, eids, popup) for label, eids, popup in expected_labels(views, states)
+                 if popup is None or popup in opened]
         # The labels are read from the same file a regression would edit: hard-code a switching
         # tile and its expected branch vanishes with it. What survives is the sensor still being
         # referenced (its icon/colour templates) with no text left switching on it; fail on that.
         # Every referenced sensor changes in some pass (derive_passes), so each is checked once.
-        silent = (refs & changed & states.keys()) - {eid for _, eids in pairs for eid in eids}
+        silent = (refs & changed & states.keys()) - {eid for _, eids, _ in pairs for eid in eids}
         if silent:
             raise SystemExit(f"{where} pass: {url_path} references {sorted(silent)} but no text on it "
                              "switches on them in a form the gate can assert (a conditional card's "
                              "name, or an IF_IS_STATE text template), so this pass cannot fail "
                              "for them")
-        manifest[url_path] = list(dict.fromkeys(label for label, _ in pairs))
+
+        labels_in = {}
+        for label, _, popup in pairs:
+            labels_in.setdefault(popup, {})[label] = None   # a dict: unique, in order
+        manifest[url_path] = {"labels": list(labels_in.get(None, {})),
+                              "popups": [{"hash": h, "name": n, "labels": list(labels_in.get(h, {}))}
+                                         for h, n, _ in popups]}
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=1)
     print(f"  {where} pass checks {manifest}")
@@ -466,6 +591,10 @@ async def main():
         # No named pass would render anything and each would pass: the catalog-to-id derivation or
         # the dashboards changed, and the gate must say so rather than go quietly blind.
         raise SystemExit(f"no dashboard references any problem sensor {sorted(problems)}")
+    # A toggle's pass renders its other branch; one nothing references, or that is a problem
+    # sensor (whose passes derive_passes already makes), would pass having shown nothing new.
+    if bad := sorted(eid for eid in TOGGLES if eid not in entities or eid in problems):
+        raise SystemExit(f"TOGGLES name {bad}: not referenced by any dashboard, or a problem sensor")
     passes = derive_passes(referenced)
     if args.list_passes:
         print("\n".join(name for name, _ in passes if name))
