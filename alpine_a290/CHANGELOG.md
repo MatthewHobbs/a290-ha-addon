@@ -6,8 +6,11 @@
   entity's discovery config now carries `default_entity_id`, set to the id Home Assistant derives
   from the device and entity names (`sensor.alpine_a290_battery_level` and so on), so a future
   rename of the car's device, or an area assigned to it, cannot put a prefix on the ids the
-  bundled dashboards use. Nothing changes for existing installs: entities already registered keep
-  the ids they have, which are the same ones. Shared core `renault-mqtt` v0.18.0.
+  bundled dashboards use. Entities already registered keep the ids they have: on a plain install
+  those are the same ids, so nothing changes. If yours already carry a prefix (for example
+  `sensor.garage_alpine_a290_battery_level`, from a device put in an area before its entities
+  were first registered), the pin does not rename them; see *Entity ids with an area prefix*
+  under Entities in the docs. Shared core `renault-mqtt` v0.18.0.
 
 ## 1.28.4
 
