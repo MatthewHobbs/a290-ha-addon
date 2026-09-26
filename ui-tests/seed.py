@@ -6,13 +6,15 @@ state via the REST /api/states API (cards read hass.states regardless of the bac
 integration), the custom-card Lovelace resources are registered, and the 'standard' and
 'bubble' dashboards are created from the bundled YAML via the WebSocket API.
 
-With --alarm <manifest.json> it runs the second, alarm pass instead: every problem-class binary
-sensor the dashboards reference is flipped from its seeded state, so the cards and labels those
-sensors switch on are rendered too, and the manifest names the dashboards to re-check and the
-card labels that must now be visible on each.
+The problem-class binary sensors the dashboards reference are rendered in several passes, each a
+combination production can publish (derive_passes): the normal pass above, then every named pass
+listed by --list-passes. --pass <name> reseeds an already-seeded instance for one of them. With
+--manifest, either writes the dashboards to check in that pass and the card labels that must be
+visible on each.
 
 Usage: seed.py --base http://localhost:8123 --token <access_token> [--dashboards <dir>]
-                [--alarm <manifest.json>]
+                [--pass <name>] [--manifest <manifest.json>]
+       seed.py --list-passes
 """
 import argparse
 import asyncio
@@ -111,8 +113,8 @@ KNOWN = {
     "sensor.alpine_a290_last_charge_end": (_ago(hours=13, minutes=12), {"device_class": "timestamp"}),
     # Seeded ON so the render gate exercises the "Car Parked" tile — which is the state a
     # normally-parked car sits in, and the branch carrying the longer text. poll_failing off
-    # alongside it is the pairing that means "working fine, car simply parked". The alarm pass
-    # (--alarm) flips both, and every other problem sensor, to render the branches this one hides.
+    # alongside it is the pairing that means "working fine, car simply parked". The named passes
+    # (derive_passes) render the branches this one hides.
     # last_updated's state is set per pass by DERIVED_AGE below, to match data_stale.
     "binary_sensor.alpine_a290_data_stale": ("on", {"device_class": "problem"}),
     "binary_sensor.alpine_a290_poll_failing": ("off", {"device_class": "problem"}),
@@ -130,14 +132,21 @@ KNOWN = {
     "binary_sensor.demo_intelligent_dispatching": ("on", {"friendly_name": "Dispatching",
         "next_start": "2026-06-27T23:30:00+00:00", "next_end": "2026-06-28T05:30:00+00:00"}),
 }
-# Timestamps a problem sensor is computed from, so neither pass seeds a pair production cannot
-# publish: data_stale is on exactly when last_updated is older than stale_hours (36h default,
-# 48h maximum). {timestamp: (problem sensor, {its state: age})}; the alarm pass reseeds these too.
+# Timestamps a problem sensor is computed from, so no pass seeds a pair production cannot publish:
+# data_stale is on exactly when last_updated is older than the stale_hours option (36h default, 48h
+# maximum). {timestamp: (problem sensor, option, {its state: age})}; every pass reseeds these.
 DERIVED_AGE = {
-    "sensor.alpine_a290_last_updated": ("binary_sensor.alpine_a290_data_stale", {
+    "sensor.alpine_a290_last_updated": ("binary_sensor.alpine_a290_data_stale", "stale_hours", {
         "on": {"days": 2, "hours": 3, "minutes": 12},  # 51h12m: stale under any stale_hours
         "off": {"hours": 3, "minutes": 12},
     }),
+}
+# States production cannot publish apart: {(sensor, state): {sensor: the state it forces}}.
+# poll_failing is on only when the last successful poll is older than stale_hours, and the car
+# timestamp data_stale ages was read by a poll, so it is at least as old (main.freshness_fields).
+# Every pass is closed over these; a branch that closure keeps off the page gets a pass of its own.
+IMPLIES = {
+    ("binary_sensor.alpine_a290_poll_failing", "on"): {"binary_sensor.alpine_a290_data_stale": "on"},
 }
 DEFAULTS = {
     "binary_sensor": ("off", {}),
@@ -162,34 +171,101 @@ def _slug(text):
     return re.sub(r"[^a-z0-9]+", "_", text.lower()).strip("_")
 
 
+def _catalog():
+    sys.path.insert(0, os.path.abspath(APP_DIR))
+    import catalog
+    return catalog
+
+
+def device_slug():
+    return _slug(_catalog().DEVICE["name"])
+
+
 def problem_sensors():
     """entity_id of every problem-class binary sensor the add-on publishes. Derived from the
     catalog the way HA derives it, slug(device name + entity name), so it follows a rename and
     the r5 twin's catalog without a list here to fall out of step."""
-    sys.path.insert(0, os.path.abspath(APP_DIR))
-    import catalog
-    dev = _slug(catalog.DEVICE["name"])
-    return frozenset(f"binary_sensor.{dev}_{_slug(name)}"
-                     for name, dclass in catalog.BINARY_SENSORS.values() if dclass == "problem")
+    return frozenset(f"binary_sensor.{device_slug()}_{_slug(name)}"
+                     for name, dclass in _catalog().BINARY_SENSORS.values() if dclass == "problem")
 
 
-def state_for(eid, problems=frozenset(), alarm=False):
-    """The seeded state. With `alarm`, a problem sensor gets the OPPOSITE of its normal-pass
-    state, so across the two passes every branch a dashboard keys on it renders once."""
+def option_default(option):
+    with open(os.path.join(APP_DIR, "..", "config.yaml"), encoding="utf-8") as fh:
+        return yaml.safe_load(fh)["options"][option]
+
+
+def state_for(eid, problems=frozenset(), states=None):
+    """The seeded state. A pass's `states` {problem sensor: state} win over KNOWN/DEFAULTS, and a
+    DERIVED_AGE timestamp takes the age its sensor's state in that pass needs."""
     if eid in KNOWN:
         st, attrs = KNOWN[eid]
     else:
         st, attrs = DEFAULTS.get(eid.split(".")[0], ("42", {}))
     attrs = dict(attrs)
     attrs.setdefault("friendly_name", _name_from_id(eid))
+    if states and eid in states:
+        st = states[eid]
     if eid in DERIVED_AGE:
-        src, ages = DERIVED_AGE[eid]
-        st = _ago(**ages[state_for(src, problems, alarm)[0]])
+        src, _, ages = DERIVED_AGE[eid]
+        st = _ago(**ages[state_for(src, problems, states)[0]])
     if eid in problems:
         attrs.setdefault("device_class", "problem")  # as published: "Problem"/"OK", not "On"/"Off"
-        if alarm:
-            st = "off" if st == "on" else "on"
     return st, attrs
+
+
+def unreachable(states, ages=None):
+    """Why production could not publish these together: `states` {problem sensor: state}, `ages`
+    {DERIVED_AGE timestamp: hours old}. Empty when it could."""
+    why = [f"{a} {sa} forces {b} {sb}, seeded {states[b]}"
+           for (a, sa), then in IMPLIES.items() if states.get(a) == sa
+           for b, sb in then.items() if states.get(b, sb) != sb]
+    for ts, hours in (ages or {}).items():
+        src, option, _ = DERIVED_AGE[ts]
+        limit = option_default(option)
+        if src in states and (hours > limit) != (states[src] == "on"):
+            why.append(f"{ts} {hours:.1f}h old with {src} {states[src]} ({option} default {limit})")
+    return why
+
+
+def close(states):
+    """`states` with every IMPLIES consequence applied, until none changes anything."""
+    out = dict(states)
+    for _ in range(len(out) + 1):
+        forced = {b: sb for (a, sa), then in IMPLIES.items() if out.get(a) == sa
+                  for b, sb in then.items() if b in out and out[b] != sb}
+        if not forced:
+            return out
+        out.update(forced)
+    raise SystemExit(f"IMPLIES never settles from {states}: two relations force opposite states")
+
+
+def _invert(eid, state):
+    if state not in ("on", "off"):
+        raise SystemExit(f"{eid} is seeded {state!r}; a problem sensor's passes need 'on' or 'off'")
+    return "off" if state == "on" else "on"
+
+
+def derive_passes(referenced):
+    """[(name, {problem sensor: state})] over the problem sensors the dashboards reference: the
+    normal pass (name "", the KNOWN/DEFAULTS states), "alarm" (every one inverted, then closed over
+    IMPLIES), and a "<sensor>_<state>" pass for each branch that closure kept off the page. So every
+    branch of every referenced sensor renders in some pass, and every pass is a state production
+    can publish; a KNOWN seed or a branch that cannot be is an error, not a skipped render."""
+    normal = {eid: state_for(eid)[0] for eid in sorted(referenced)}
+    passes = [("", normal), ("alarm", close({eid: _invert(eid, st) for eid, st in normal.items()}))]
+    prefix = device_slug() + "_"
+    for eid, st in normal.items():
+        want = _invert(eid, st)
+        if any(p[eid] == want for _, p in passes):
+            continue
+        p = close({**normal, eid: want})
+        if p[eid] != want:
+            raise SystemExit(f"no pass production can publish renders {eid} {want}: IMPLIES forces it back")
+        passes.append((f"{eid.split('.', 1)[1].removeprefix(prefix)}_{want}", p))
+    for name, p in passes:
+        if why := unreachable(p):
+            raise SystemExit(f"{name or 'normal'} pass seeds what production cannot publish: {why}")
+    return passes
 
 
 # Card fields rendered as visible text, and the one template form whose branch text can be read
@@ -203,18 +279,18 @@ IF_IS_STATE = re.compile(
 ACTION_KEYS = {"tap_action", "hold_action", "double_tap_action"}
 
 
-def alarm_labels(views, flipped):
-    """(label, sensors) for the text the flipped states must put on the page: the `name` of every
+def expected_labels(views, states):
+    """(label, sensors) for the text a pass's `states` must put on the page: the `name` of every
     conditional card whose conditions they all meet, and the selected branch of every
-    IF_IS_STATE text template keyed on one. A text template on a flipped sensor in any other
+    IF_IS_STATE text template keyed on one. A text template on one of these sensors in any other
     form cannot be asserted, so it is an error rather than a silent gap."""
     found = []
 
     def walk(node, key=None):
         if isinstance(node, dict):
             conds = node.get("conditions") if node.get("type") == "conditional" else None
-            if conds and all(isinstance(c, dict) and c.get("entity") in flipped
-                             and str(c.get("state")) == flipped[c["entity"]] for c in conds):
+            if conds and all(isinstance(c, dict) and c.get("entity") in states
+                             and str(c.get("state")) == states[c["entity"]] for c in conds):
                 name = (node.get("card") or {}).get("name")
                 if name:
                     found.append((name, {c["entity"] for c in conds}))
@@ -225,15 +301,15 @@ def alarm_labels(views, flipped):
             for v in node:
                 walk(v, key)
         elif isinstance(node, str) and key in TEXT_KEYS and "{%" in node:
-            keyed = [eid for eid in flipped if eid in node]
+            keyed = [eid for eid in states if eid in node]
             if not keyed:
                 return
             m = IF_IS_STATE.match(node)
-            if not m or m.group(1) not in flipped:
-                raise SystemExit(f"alarm pass: cannot assert the {key!r} template on {keyed}; "
-                                 f"extend seed.alarm_labels for it: {node[:160]!r}")
+            if not m or m.group(1) not in states:
+                raise SystemExit(f"cannot assert the {key!r} template on {keyed}; "
+                                 f"extend seed.expected_labels for it: {node[:160]!r}")
             eid, st, if_text, else_text = m.groups()
-            found.append(((if_text if flipped[eid] == st else else_text).strip(), {eid}))
+            found.append(((if_text if states[eid] == st else else_text).strip(), {eid}))
 
     walk(views)
     return [(label, eids) for label, eids in found if label]
@@ -271,12 +347,12 @@ class WS:
                 return msg.get("result")
 
 
-async def seed_states(session, base, token, entities, problems=frozenset(), alarm=False):
+async def seed_states(session, base, token, entities, problems=frozenset(), states=None):
     """POST each state; returns {entity_id: the state sent}, for callers that read it back."""
     headers = {"Authorization": f"Bearer {token}"}
     posted = {}
     for eid in entities:
-        st, attrs = state_for(eid, problems, alarm)
+        st, attrs = state_for(eid, problems, states)
         posted[eid] = st
         async with session.post(f"{base}/api/states/{eid}", headers=headers,
                                 json={"state": st, "attributes": attrs}) as r:
@@ -286,44 +362,54 @@ async def seed_states(session, base, token, entities, problems=frozenset(), alar
     return posted
 
 
-async def seed_alarm(session, args, built, entities, problems):
-    """Flip the referenced problem sensors, read them back, and write the alarm-pass manifest."""
-    flipped = {eid: state_for(eid, problems, alarm=True)[0] for eid in entities if eid in problems}
-    if not flipped:
-        # An empty alarm pass renders nothing and passes: the catalog-to-id derivation or the
-        # dashboards changed, and the gate must say so rather than go quietly blind.
-        raise SystemExit(f"alarm pass: no dashboard references any problem sensor {sorted(problems)}")
-    derived = sorted(eid for eid, (src, _) in DERIVED_AGE.items() if src in flipped and eid in entities)
-    # Every re-seeded state is read back, the derived timestamps included: a failed POST only
-    # logs, and would leave the normal pass's stale age beside data_stale off with the gate green.
-    posted = await seed_states(session, args.base, args.token, sorted(flipped) + derived, problems,
-                               alarm=True)
+async def verify_pass(session, args, where, posted, states):
+    """Read back every state the pass depends on and stop unless HA holds what was seeded and
+    production could publish it. A failed POST only logs, and a named pass follows another on the
+    same instance, so this is what shows the page renders this pass and nothing left over."""
     headers = {"Authorization": f"Bearer {args.token}"}
-    for eid, want in posted.items():
+    held, ages = {}, {}
+    for eid in sorted(set(states) | {e for e in posted if e in DERIVED_AGE}):
         async with session.get(f"{args.base}/api/states/{eid}", headers=headers) as r:
             got = (await r.json()).get("state") if r.status == 200 else f"HTTP {r.status}"
+        want = posted[eid] if eid in posted else states[eid]
         if got != want:
-            raise SystemExit(f"alarm pass: {eid} is {got!r} in HA, seeded {want!r}")
-        print(f"  {eid} -> {want}")
+            raise SystemExit(f"{where} pass: {eid} is {got!r} in HA, this pass needs {want!r}")
+        if eid in DERIVED_AGE:
+            ages[eid] = (datetime.now(timezone.utc) - datetime.fromisoformat(got)).total_seconds() / 3600
+            print(f"  {eid} -> {ages[eid]:.1f}h old")
+        else:
+            held[eid] = got
+            print(f"  {eid} -> {got}")
+    if why := unreachable(held, ages):
+        raise SystemExit(f"{where} pass: HA holds states production cannot publish together: {why}")
+
+
+def write_manifest(path, built, name, states, normal):
+    """{dashboard: [labels]} for one pass. A named pass re-checks only the dashboards that
+    reference a state it changed from the normal pass; the normal pass checks every dashboard."""
+    changed = {eid for eid, st in states.items() if st != normal[eid]}
+    changed |= {ts for ts, (src, _, _) in DERIVED_AGE.items() if src in changed}
+    where = name or "normal"
     manifest = {}
     for url_path, views in built.items():
-        refs = set(extract_entities([yaml.safe_dump(views)])) & flipped.keys()
-        if not refs:
+        refs = set(extract_entities([yaml.safe_dump(views)]))
+        if name and not refs & changed:
             continue
-        pairs = alarm_labels(views, flipped)
+        pairs = expected_labels(views, states)
         # The labels are read from the same file a regression would edit: hard-code a switching
         # tile and its expected branch vanishes with it. What survives is the sensor still being
         # referenced (its icon/colour templates) with no text left switching on it; fail on that.
-        silent = refs - {eid for _, eids in pairs for eid in eids}
+        # Every referenced sensor changes in some pass (derive_passes), so each is checked once.
+        silent = (refs & changed & states.keys()) - {eid for _, eids in pairs for eid in eids}
         if silent:
-            raise SystemExit(f"alarm pass: {url_path} references {sorted(silent)} but no text on it "
+            raise SystemExit(f"{where} pass: {url_path} references {sorted(silent)} but no text on it "
                              "switches on them in a form the gate can assert (a conditional card's "
-                             "name, or an IF_IS_STATE text template), so the alarm pass cannot fail "
+                             "name, or an IF_IS_STATE text template), so this pass cannot fail "
                              "for them")
         manifest[url_path] = list(dict.fromkeys(label for label, _ in pairs))
-    with open(args.alarm, "w", encoding="utf-8") as fh:
+    with open(path, "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=1)
-    print(f"  alarm pass re-checks {manifest}")
+    print(f"  {where} pass checks {manifest}")
 
 
 def load_views(dash_dir, fname):
@@ -352,10 +438,12 @@ def inject_smart_charging(url_path, views):
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="http://localhost:8123")
-    ap.add_argument("--token", required=True)
+    ap.add_argument("--token")
     ap.add_argument("--dashboards", default=DASH_DIR_DEFAULT)
-    ap.add_argument("--alarm", metavar="MANIFEST",
-                    help="flip the problem sensors of an already-seeded instance; write the manifest here")
+    ap.add_argument("--list-passes", action="store_true", help="print the named passes, one per line")
+    ap.add_argument("--pass", dest="pass_name", default="", metavar="NAME",
+                    help="reseed an already-seeded instance for this named pass")
+    ap.add_argument("--manifest", help="write the pass's {dashboard: [expected labels]} here")
     args = ap.parse_args()
 
     # Build each dashboard's views with the Smart Charging injection applied, then extract the
@@ -367,14 +455,44 @@ async def main():
         built[url_path] = views
     entities = extract_entities([yaml.safe_dump(v) for v in built.values()])
     problems = problem_sensors()
+    # A rename in the catalog would otherwise make a relation match nothing and pass silently.
+    declared = ({a for a, _ in IMPLIES} | {b for then in IMPLIES.values() for b in then}
+                | {src for src, _, _ in DERIVED_AGE.values()})
+    if declared - problems:
+        raise SystemExit(f"IMPLIES/DERIVED_AGE name {sorted(declared - problems)}, which the catalog "
+                         f"does not publish as problem sensors {sorted(problems)}")
+    referenced = [eid for eid in entities if eid in problems]
+    if not referenced:
+        # No named pass would render anything and each would pass: the catalog-to-id derivation or
+        # the dashboards changed, and the gate must say so rather than go quietly blind.
+        raise SystemExit(f"no dashboard references any problem sensor {sorted(problems)}")
+    passes = derive_passes(referenced)
+    if args.list_passes:
+        print("\n".join(name for name, _ in passes if name))
+        return
+    if not args.token:
+        ap.error("--token is required to seed")
+    by_name = dict(passes)
+    if args.pass_name not in by_name:
+        raise SystemExit(f"unknown pass {args.pass_name!r}; derived: {[n for n, _ in passes if n]}")
+    states, where = by_name[args.pass_name], args.pass_name or "normal"
 
     async with aiohttp.ClientSession() as session:
-        if args.alarm:
-            print("Seeding the alarm states…")
-            await seed_alarm(session, args, built, entities, problems)
+        if args.pass_name:
+            print(f"Seeding the {where} pass…")
+            # Every problem sensor and derived timestamp, not only those this pass changes: the
+            # previous pass's states are still in HA.
+            reseed = sorted(states) + sorted(ts for ts in DERIVED_AGE if ts in entities)
+            posted = await seed_states(session, args.base, args.token, reseed, problems, states)
+            await verify_pass(session, args, where, posted, states)
+            if args.manifest:
+                write_manifest(args.manifest, built, args.pass_name, states, by_name[""])
             return
         print("Seeding entity states…")
-        await seed_states(session, args.base, args.token, entities, problems)
+        posted = await seed_states(session, args.base, args.token, entities, problems, states)
+        await verify_pass(session, args, where, posted, states)
+        if args.manifest:
+            write_manifest(args.manifest, built, "", states, states)
 
         ws_url = args.base.replace("http", "ws", 1) + "/api/websocket"
         async with session.ws_connect(ws_url) as ws:
