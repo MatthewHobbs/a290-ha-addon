@@ -85,8 +85,11 @@ KNOWN = {
     "sensor.alpine_a290_charge_mode": ("Scheduled", {"icon": "mdi:ev-station"}),
     # Writable numbers, not sensors: the dashboards read number.* (catalog.NUMBERS). Seeded as
     # sensor.* they were never referenced, and the numbers fell back to the generic "50".
-    "number.alpine_a290_charge_target_soc": ("80", {"min": 55, "max": 100, "step": 5, "mode": "slider", "unit_of_measurement": "%"}),
-    "number.alpine_a290_minimum_soc": ("20", {"min": 15, "max": 45, "step": 5, "mode": "slider", "unit_of_measurement": "%"}),
+    # device_class battery as the core publishes it, so the seeded control matches the real one.
+    "number.alpine_a290_charge_target_soc": ("80", {"min": 55, "max": 100, "step": 5, "mode": "slider",
+        "unit_of_measurement": "%", "device_class": "battery"}),
+    "number.alpine_a290_minimum_soc": ("20", {"min": 15, "max": 45, "step": 5, "mode": "slider",
+        "unit_of_measurement": "%", "device_class": "battery"}),
     "sensor.alpine_a290_hvac_soc_threshold": ("40", {"unit_of_measurement": "%", "device_class": "battery"}),
     "sensor.alpine_a290_preconditioning_temperature": ("20", {"unit_of_measurement": "°C"}),
     "sensor.alpine_a290_last_charge_type": ("Rapid/Public", {"icon": "mdi:ev-station"}),
@@ -109,9 +112,10 @@ KNOWN = {
     # normally-parked car sits in, and the branch carrying the longer text. poll_failing off
     # alongside it is the pairing that means "working fine, car simply parked". The alarm pass
     # (--alarm) flips both, and every other problem sensor, to render the branches this one hides.
+    # last_updated's state is set per pass by DERIVED_AGE below, to match data_stale.
     "binary_sensor.alpine_a290_data_stale": ("on", {"device_class": "problem"}),
     "binary_sensor.alpine_a290_poll_failing": ("off", {"device_class": "problem"}),
-    "sensor.alpine_a290_last_updated": (_ago(hours=3, minutes=12), {"device_class": "timestamp"}),
+    "sensor.alpine_a290_last_updated": (None, {"device_class": "timestamp"}),
     "sensor.alpine_a290_hvac_last_activity": (_ago(hours=5, minutes=12), {"device_class": "timestamp"}),
     "sensor.alpine_a290_gps_last_activity": (_ago(hours=4, minutes=12), {"device_class": "timestamp"}),
     # Demo Octopus Intelligent charger entities (Smart Charging card / bubble pop-up).
@@ -124,6 +128,15 @@ KNOWN = {
                     "08:00", "08:30", "09:00", "09:30", "10:00", "10:30", "11:00"]}),
     "binary_sensor.demo_intelligent_dispatching": ("on", {"friendly_name": "Dispatching",
         "next_start": "2026-06-27T23:30:00+00:00", "next_end": "2026-06-28T05:30:00+00:00"}),
+}
+# Timestamps a problem sensor is computed from, so neither pass seeds a pair production cannot
+# publish: data_stale is on exactly when last_updated is older than stale_hours (36h default,
+# 48h maximum). {timestamp: (problem sensor, {its state: age})}; the alarm pass reseeds these too.
+DERIVED_AGE = {
+    "sensor.alpine_a290_last_updated": ("binary_sensor.alpine_a290_data_stale", {
+        "on": {"days": 2, "hours": 3, "minutes": 12},  # 51h12m: stale under any stale_hours
+        "off": {"hours": 3, "minutes": 12},
+    }),
 }
 DEFAULTS = {
     "binary_sensor": ("off", {}),
@@ -168,6 +181,9 @@ def state_for(eid, problems=frozenset(), alarm=False):
         st, attrs = DEFAULTS.get(eid.split(".")[0], ("42", {}))
     attrs = dict(attrs)
     attrs.setdefault("friendly_name", _name_from_id(eid))
+    if eid in DERIVED_AGE:
+        src, ages = DERIVED_AGE[eid]
+        st = _ago(**ages[state_for(src, problems, alarm)[0]])
     if eid in problems:
         attrs.setdefault("device_class", "problem")  # as published: "Problem"/"OK", not "On"/"Off"
         if alarm:
@@ -272,14 +288,15 @@ async def seed_alarm(session, args, built, entities, problems):
         # An empty alarm pass renders nothing and passes: the catalog-to-id derivation or the
         # dashboards changed, and the gate must say so rather than go quietly blind.
         raise SystemExit(f"alarm pass: no dashboard references any problem sensor {sorted(problems)}")
-    await seed_states(session, args.base, args.token, sorted(flipped), problems, alarm=True)
+    derived = sorted(eid for eid, (src, _) in DERIVED_AGE.items() if src in flipped and eid in entities)
+    await seed_states(session, args.base, args.token, sorted(flipped) + derived, problems, alarm=True)
     headers = {"Authorization": f"Bearer {args.token}"}
-    for eid, want in flipped.items():
+    for eid in sorted(flipped) + derived:
         async with session.get(f"{args.base}/api/states/{eid}", headers=headers) as r:
             got = (await r.json()).get("state") if r.status == 200 else f"HTTP {r.status}"
-        if got != want:
-            raise SystemExit(f"alarm pass: {eid} is {got!r} in HA, seeded {want!r}")
-        print(f"  {eid} -> {want}")
+        if eid in flipped and got != flipped[eid]:
+            raise SystemExit(f"alarm pass: {eid} is {got!r} in HA, seeded {flipped[eid]!r}")
+        print(f"  {eid} -> {got}")
     manifest = {}
     for url_path, views in built.items():
         refs = set(extract_entities([yaml.safe_dump(views)])) & flipped.keys()
