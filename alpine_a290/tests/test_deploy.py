@@ -99,6 +99,46 @@ def test_charger_cards_include_offpeak_badge(monkeypatch):
     assert "{% else %}Schedule unavailable{% endif %}" in badge["secondary"]
 
 
+def test_offpeak_badge_styles_the_tile_parts_mushroom_v5_renders():
+    # Mushroom v5's template card is built from ha-tile-icon/ha-tile-info; a key naming
+    # mushroom-shape-icon/mushroom-state-info matches nothing there and card-mod gives up.
+    style = deploy._offpeak_badge("binary_sensor.disp", preset_style=True)["card_mod"]["style"]
+    assert "ha-tile-icon$" in style
+    assert not {"mushroom-shape-icon$", "mushroom-state-info$"} & set(style)
+    assert "--tile-icon-size:55px" in style["."]
+    assert "--ha-tile-info-primary-color:{% if is_state('binary_sensor.disp','on') %}" in style["."]
+    assert "--card-primary-color" not in style["."]
+    # the bubble pop-up variant is a plain string: the rate colour must use the tile property too
+    popup_style = deploy._offpeak_badge("binary_sensor.disp")["card_mod"]["style"]
+    assert "--ha-tile-info-primary-color:" in popup_style
+    assert "--card-primary-color" not in popup_style
+    # both variants wrap rather than ellipsise ("Now: Peak rate" did not fit the pop-up at 360px)
+    for css in (style["."], popup_style):
+        assert "ha-tile-info span{white-space:normal !important;" in css
+
+
+def _template_cards(node):
+    if isinstance(node, dict):
+        if node.get("type") == "custom:mushroom-template-card":
+            yield node
+        for v in node.values():
+            yield from _template_cards(v)
+    elif isinstance(node, list):
+        for v in node:
+            yield from _template_cards(v)
+
+
+def test_no_generated_template_card_targets_mushroom_v4_parts(monkeypatch):
+    for env, _ in deploy._CHARGER_ENTITIES:
+        monkeypatch.setenv(env, "binary_sensor.disp" if env == "A290_CHARGER_DISPATCHING" else "switch.x")
+    cards = list(_template_cards([deploy._charger_cards(), deploy._charger_popup()]))
+    assert len(cards) == 2                      # standard badge + bubble pop-up badge
+    for card in cards:
+        style = card.get("card_mod", {}).get("style", "")
+        text = " ".join(style) if isinstance(style, dict) else style
+        assert "mushroom-shape-icon" not in text and "mushroom-state-info" not in text
+
+
 def test_fetch_dashboard_adds_charger_block_when_configured(tmp_path, monkeypatch):
     (tmp_path / "front-end.txt").write_text("- title: Home\n  cards: []\n", encoding="utf-8")
     monkeypatch.setattr(deploy, "DASHBOARD_DIR", str(tmp_path))

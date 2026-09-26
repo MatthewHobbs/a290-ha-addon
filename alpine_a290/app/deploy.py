@@ -110,6 +110,19 @@ _MUSH_INFO = (".container{--card-secondary-color:#FFFF00;}"
               "opacity:0.75;white-space:normal !important;overflow:visible !important;"
               "text-overflow:clip !important;}")
 _MUSH_RESET = "ha-card{background:none !important;box-shadow:none !important;border:none !important;}"
+# The same look for a Mushroom v5 template card, which is built from HA's tile parts
+# (ha-tile-icon/ha-tile-info) and has no mushroom-shape-icon/mushroom-state-info to select.
+_TILE_DISC = ".container{background-color:color-mix(in srgb,var(--tile-icon-color) 20%,transparent);}"
+# ha-tile-info truncates both lines with an ellipsis by default; wrap them instead.
+_TILE_WRAP = ("ha-tile-info span{white-space:normal !important;overflow:visible !important;"
+              "text-overflow:clip !important;}")
+_TILE_STYLE = ("ha-tile-icon{--tile-icon-size:55px;--mdc-icon-size:28px;}"
+               "ha-tile-info{--ha-tile-info-primary-font-size:12px;--ha-tile-info-primary-font-weight:400;"
+               "--ha-tile-info-primary-letter-spacing:0.3px;--ha-tile-info-primary-line-height:1.15;"
+               "--ha-tile-info-secondary-font-size:11px;--ha-tile-info-secondary-color:#FFFF00;}"
+               + _TILE_WRAP +
+               "ha-tile-info span{font-family:system-ui,sans-serif !important;}"
+               "ha-tile-info span[slot=secondary]{opacity:0.75;}")
 _HEADING_STYLE = ('.content{font-family:"Zen Dots",system-ui,sans-serif !important;'
                   'font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;'
                   'border-bottom:1px solid var(--divider-color);padding-bottom:6px;'
@@ -211,12 +224,13 @@ def _offpeak_badge(entity, *, preset_style=False):
         return s.replace("@E@", entity)
     reset = fill("ha-card{background:none !important;box-shadow:none !important;"
                  "border:none !important;width:100% !important;"
-                 "--card-primary-color:{% if is_state('@E@','on') %}#5BE36A"
+                 "--ha-tile-info-primary-color:{% if is_state('@E@','on') %}#5BE36A"
                  "{% else %}#FF6B6B{% endif %};}")
-    # On the standard dashboard the badge sits in a narrow 2-up cell; we keep its label short
-    # ("Off-peak"/"Peak rate") so it fits, since Mushroom renders the template card's text in
-    # an inner shadow root that card-mod text rules here can't reach.
-    style = ({"mushroom-shape-icon$": _MUSH_SHAPE, ".": reset} if preset_style else reset)
+    # On the standard dashboard the badge sits in a narrow 2-up cell, so the label stays short
+    # ("Off-peak"/"Peak rate") and wraps like the preset cards beside it. The pop-up badge is
+    # half-width too, where "Now: Peak rate" ellipsised at 360px until it was allowed to wrap.
+    style = ({"ha-tile-icon$": _TILE_DISC, ".": _TILE_STYLE + reset} if preset_style
+             else _TILE_WRAP + reset)
     return {
         "type": "custom:mushroom-template-card",
         "entity": entity,

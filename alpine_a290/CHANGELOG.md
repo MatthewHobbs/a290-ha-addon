@@ -9,6 +9,13 @@
   one. They now get the same 55px icon circle, small wrapping text and yellow sub-line as the
   cards beside them. Re-copy or redeploy the standard dashboard to pick it up
   (`redeploy_dashboard: true`, or paste `front-end.txt` again).
+- **Smart Charging: the off-peak tile gets the same fix, and its rate shows in colour again.**
+  With `charger_dispatching` set, the tile now matches the Smart Charging cards beside it on the
+  standard dashboard, and on both dashboards its label is green for **Off-peak** and red for
+  **Peak rate** as intended; it had been showing in the plain text colour. On narrow phones the
+  Bubble pop-up cut "Now: Peak rate" short to "Now: Peak ra…"; it now wraps onto a second line.
+  The add-on adds this tile itself when it deploys a dashboard, so redeploy
+  (`redeploy_dashboard: true`) to pick it up.
 
 ## 1.28.1
 
