@@ -4,9 +4,12 @@ Covers the pure CDN URL rewrite and the create-once-vs-redeploy decision — two
 failure modes (no dashboard on first install / silently clobbering edits) from one branch.
 """
 import asyncio
+import glob
+import os
 
 import deploy
 import pytest
+import yaml
 
 
 # --------------------------------------------------------------------------- #
@@ -134,9 +137,26 @@ def test_no_generated_template_card_targets_mushroom_v4_parts(monkeypatch):
     cards = list(_template_cards([deploy._charger_cards(), deploy._charger_popup()]))
     assert len(cards) == 2                      # standard badge + bubble pop-up badge
     for card in cards:
-        style = card.get("card_mod", {}).get("style", "")
-        text = " ".join(style) if isinstance(style, dict) else style
-        assert "mushroom-shape-icon" not in text and "mushroom-state-info" not in text
+        assert _v4_targets(card) == []
+
+
+def _v4_targets(card):
+    style = card.get("card_mod", {}).get("style", "")
+    text = " ".join(style) if isinstance(style, dict) else str(style)
+    return [t for t in ("mushroom-shape-icon", "mushroom-state-info") if t in text]
+
+
+def test_no_bundled_template_card_targets_mushroom_v4_parts():
+    dash_dir = os.path.join(os.path.dirname(__file__), "..", "dashboards")
+    found, dead = 0, []
+    for path in sorted(glob.glob(os.path.join(dash_dir, "*.txt"))):
+        with open(path, encoding="utf-8") as fh:
+            for card in _template_cards(yaml.safe_load(fh)):
+                found += 1
+                if _v4_targets(card):
+                    dead.append((os.path.basename(path), card.get("primary"), _v4_targets(card)))
+    assert found >= 4, f"only {found} template cards found: is the dashboard glob still right?"
+    assert dead == []
 
 
 def test_fetch_dashboard_adds_charger_block_when_configured(tmp_path, monkeypatch):

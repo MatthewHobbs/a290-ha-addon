@@ -16,6 +16,10 @@
   Bubble pop-up cut "Now: Peak rate" short to "Now: Peak ra…"; it now wraps onto a second line.
   The add-on adds this tile itself when it deploys a dashboard, so redeploy
   (`redeploy_dashboard: true`) to pick it up.
+- **Bubble dashboard: the Location tile in the Status and Location pop-ups gets the same fix.**
+  It had the same small icon and unstyled, non-wrapping text, and now shows the 55px icon circle,
+  small wrapping text and yellow address line it was designed with. Re-copy or redeploy the Bubble
+  dashboard to pick it up (`redeploy_dashboard: true`, or paste `front-end-bubble.txt` again).
 
 ## 1.28.1
 
