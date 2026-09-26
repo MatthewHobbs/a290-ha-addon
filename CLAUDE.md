@@ -191,8 +191,9 @@ already solved:
   `PILOT_APPARMOR_CHECK=skip`; the script refuses that under Actions.
 - **Renault must never be reached**, and `--add-host` can't be given to a container the
   Supervisor creates. So an iptables `DOCKER-USER` rule refuses everything from the add-on range
-  (`172.30.33.0/24`) to anywhere off the hassio network. The probe requires that rule to have
-  refused something, or it proves nothing.
+  (`172.30.33.0/24`) to anywhere off the hassio network. The broker shares that range, so the
+  rule counts per source address. The probe requires a refusal from **this add-on's own
+  address** since just before it started, or it proves nothing.
 - **The broker is the Mosquitto add-on**, not a service container. `services: mqtt:need` and
   `run.sh` take the broker from the Supervisor's service registry, which only a providing
   add-on fills.

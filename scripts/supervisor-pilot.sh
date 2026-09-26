@@ -236,7 +236,7 @@ cmd_up() {
   log "Starting Supervisor (channel stable)"
   docker exec -d "$NAME" bash -c 'supervisor_run > /var/log/supervisor_run.log 2>&1'
   poll "hassio_supervisor container running" 180 3 \
-    bash -c "docker exec '$NAME' docker inspect -f '{{.State.Running}}' hassio_supervisor | grep -qx true"
+    bash -c "[[ \"\$(docker exec '$NAME' docker inspect -f '{{.State.Running}}' hassio_supervisor)\" == true ]]"
   cmd_wait_core
 }
 
@@ -362,34 +362,80 @@ cmd_sideload() {
 # hassio DNS plugin forwards the lookup), but no connection can be opened.
 # The Supervisor, Core and the inner dockerd's image pulls are not in the
 # add-on range, so they are unaffected.
+#
+# The broker is in the same range, so a range-wide counter cannot say whose
+# connection was refused. The chain therefore counts per source address
+# first, one rule per address in the range, each jumping to an empty chain so
+# `iptables -L` always has a target column to parse, then refuses.
+EGRESS_CHAIN="A290-PILOT-EGRESS"
+EGRESS_SEEN="A290-PILOT-SEEN"
+
+# Captured, then matched: `producer | grep -q` under pipefail fails when grep
+# exits on an early match and the producer takes SIGPIPE.
 egress_rules_present() {
-  dc iptables -S DOCKER-USER | grep -q -- "$EGRESS_COMMENT"
+  local rules
+  rules="$(dc iptables -S DOCKER-USER)" || return 1
+  grep -q -- "$EGRESS_COMMENT" <<<"$rules"
+}
+
+egress_ruleset() {
+  local i
+  echo "*filter"
+  echo ":$EGRESS_CHAIN - [0:0]"
+  echo ":$EGRESS_SEEN - [0:0]"
+  for i in $(seq 0 254); do
+    echo "-A $EGRESS_CHAIN -s ${HASSIO_ADDON_RANGE%.*}.$i/32 -p tcp -j $EGRESS_SEEN"
+  done
+  echo "-A $EGRESS_CHAIN -p tcp -j REJECT --reject-with tcp-reset"
+  echo "-A $EGRESS_CHAIN -j REJECT --reject-with icmp-port-unreachable"
+  echo "-I DOCKER-USER 1 -s $HASSIO_ADDON_RANGE ! -d $HASSIO_NETWORK -m comment --comment $EGRESS_COMMENT -j $EGRESS_CHAIN"
+  echo "COMMIT"
 }
 
 cmd_egress() {
+  local rules6
   dc iptables -S DOCKER-USER >/dev/null || fail "no DOCKER-USER chain on the inner daemon"
   if ! egress_rules_present; then
-    dc iptables -I DOCKER-USER 1 -s "$HASSIO_ADDON_RANGE" ! -d "$HASSIO_NETWORK" -p tcp \
-      -m comment --comment "$EGRESS_COMMENT" -j REJECT --reject-with tcp-reset
-    dc iptables -I DOCKER-USER 2 -s "$HASSIO_ADDON_RANGE" ! -d "$HASSIO_NETWORK" \
-      -m comment --comment "$EGRESS_COMMENT" -j REJECT
+    egress_ruleset | docker exec -i "$NAME" iptables-restore --noflush ||
+      fail "could not install the egress rules"
   fi
   if [[ "$(dc docker network inspect hassio -f '{{.EnableIPv6}}')" == true ]]; then
-    dc ip6tables -S DOCKER-USER >/dev/null || fail "hassio has IPv6 but there is no ip6tables DOCKER-USER chain"
-    if ! dc ip6tables -S DOCKER-USER | grep -q -- "$EGRESS_COMMENT"; then
+    rules6="$(dc ip6tables -S DOCKER-USER)" || fail "hassio has IPv6 but there is no ip6tables DOCKER-USER chain"
+    if ! grep -q -- "$EGRESS_COMMENT" <<<"$rules6"; then
       dc ip6tables -I DOCKER-USER 1 -s "$HASSIO_NETWORK6" ! -d "$HASSIO_NETWORK6" \
         -m comment --comment "$EGRESS_COMMENT" -j REJECT
     fi
   fi
   egress_rules_present || fail "egress rules did not install"
-  log "OK add-on egress off the hassio network is refused:"
+  [[ "$(egress_counts | wc -l | tr -d ' ')" == 255 ]] || fail "expected 255 per-address counting rules"
+  log "OK add-on egress off the hassio network is refused, counted per source address:"
   dc iptables -L DOCKER-USER -v -n -x | sed 's/^/    /'
 }
 
-# Packets the TCP rule has refused so far.
-egress_rejected_tcp() {
-  dc iptables -L DOCKER-USER -v -n -x |
-    awk -v c="$EGRESS_COMMENT" 'index($0, c) && / tcp / { print $1; exit }'
+# "address packets" for every per-address counting rule.
+egress_counts() {
+  local listing
+  listing="$(dc iptables -L "$EGRESS_CHAIN" -v -n -x)" || return 1
+  awk -v seen="$EGRESS_SEEN" '$3 == seen { sub(/\/32$/, "", $8); print $8, $1 }' <<<"$listing"
+}
+
+# count_for COUNTS ADDRESS: that address's packets; fails if it has no rule.
+count_for() {
+  awk -v ip="$2" '$1 == ip { print $2; found = 1 } END { exit !found }' <<<"$1"
+}
+
+# egress_delta BEFORE AFTER ADDRESS: packets refused from ADDRESS in between.
+egress_delta() {
+  local before after
+  before="$(count_for "$1" "$3")" || return 1
+  after="$(count_for "$2" "$3")" || return 1
+  echo $((after - before))
+}
+
+# Every address whose count moved, for the log.
+egress_movers() {
+  awk 'NR == FNR { b[$1] = $2; next } $2 != b[$1] { print "    " $1 " +" ($2 - b[$1]) }' \
+    <(printf '%s\n' "$1") <(printf '%s\n' "$2")
 }
 
 # --- broker: the Mosquitto add-on, as users run it ---------------------------
@@ -454,7 +500,12 @@ cmd_install() {
       '{options: (.data.options + {username: $u, password: $p, account_id: $a, vin: $v, log_level: "debug"})}')" ||
     fail "could not read the add-on's current options"
   supervisor_post "/addons/$SLUG/options" "$options" >/dev/null || fail "Supervisor rejected the options"
-  log "egress packets refused before the add-on starts: $(egress_rejected_tcp)"
+  # The baseline the egress check diffs against: taken immediately before the
+  # start, so only what happens after it can count.
+  local baseline
+  baseline="$(egress_counts)" || fail "could not read the egress counters"
+  [[ "$(wc -l <<<"$baseline" | tr -d ' ')" == 255 ]] || fail "the egress counters are incomplete"
+  printf '%s\n' "$baseline" >"$WORKDIR/egress-baseline.txt"
   log "Starting $SLUG"
   ha_ok apps start "$SLUG" || fail "start of $SLUG failed"
   poll "Supervisor reports $SLUG started" 180 3 started "$SLUG" || fail "$SLUG did not start"
@@ -498,9 +549,12 @@ addon_log() {
 }
 
 # The container's whole log: `ha apps logs` returns only the tail, and at
-# debug level the first poll scrolls out of it within minutes.
+# debug level the first poll scrolls out of it within minutes. Captured, then
+# matched, for the same pipefail reason as egress_rules_present.
 addon_log_has() {
-  addon_log | grep -q -- "$1"
+  local out
+  out="$(addon_log)" || return 1
+  grep -q -- "$1" <<<"$out"
 }
 
 # Retained messages only: -W ends the read once the retained set is drained.
@@ -532,18 +586,25 @@ check_availability() {
 }
 
 # No connection off the hassio network may have succeeded, and the refusal
-# must actually have been exercised, or the check proves nothing.
+# must have been exercised by THIS add-on since it started, or the check
+# proves nothing: the broker shares the range, and counters outlive restarts.
 check_egress() {
-  local refused
+  local ip baseline after refused log_text
   poll "the first poll has failed (it cannot reach Renault)" 150 5 addon_log_has "Poll failed" ||
     fail "the add-on never logged a failed poll"
-  refused="$(egress_rejected_tcp)"
-  log "egress TCP connections refused: ${refused:-0}"
-  ((${refused:-0} > 0)) || fail "the egress rule never refused anything, so it proves nothing"
+  ip="$(addon_ip)" || fail "no container $ADDON_CONTAINER"
+  baseline="$(cat "$WORKDIR/egress-baseline.txt")" || fail "no egress baseline (run 'install')"
+  after="$(egress_counts)" || fail "could not read the egress counters"
+  log "egress TCP packets refused since the add-on started, by source:"
+  egress_movers "$baseline" "$after"
+  refused="$(egress_delta "$baseline" "$after" "$ip")" || fail "no egress counter for the add-on's address $ip"
+  log "refused from the add-on ($ip): $refused"
+  ((refused > 0)) || fail "nothing from the add-on's own address was refused, so the check proves nothing"
   if addon_log_has "Published: "; then
     fail "the add-on logged a successful poll, so it reached Renault"
   fi
-  addon_log | grep -E "Poll failed|Cannot connect" | head -3 | sed 's/^/    /' || true
+  log_text="$(addon_log)" || true
+  grep -E "Poll failed|Cannot connect" <<<"$log_text" | head -3 | sed 's/^/    /' || true
   log "OK the add-on tried Renault and was refused before any connection opened"
 }
 
@@ -554,7 +615,7 @@ proc_label() {
 # Enforced, not merely loaded: the kernel has the profile in enforce mode, the
 # container was started with it, and the running processes carry it.
 check_apparmor() {
-  local want="$PROFILE (enforce)" container_profile pid label denials
+  local want="$PROFILE (enforce)" container_profile pid label denials kernel_log rc
   if [[ "${PILOT_APPARMOR_CHECK:-}" == skip ]]; then
     [[ -z "${GITHUB_ACTIONS:-}" ]] || fail "PILOT_APPARMOR_CHECK=skip is for local runs only"
     log "WARNING AppArmor check skipped (PILOT_APPARMOR_CHECK=skip); this run proves nothing about confinement"
@@ -574,9 +635,15 @@ check_apparmor() {
     [[ "$label" == "$want" ]] || fail "pid $pid runs as '$label', not '$want'"
   done < <(dc docker top "$ADDON_CONTAINER" -eo pid | tail -n +2)
   log "OK every process in $ADDON_CONTAINER runs under '$want'"
-  denials="$(dc dmesg 2>/dev/null | grep 'apparmor="DENIED"' | grep -F "profile=\"$PROFILE\"" || true)"
-  if [[ -n "$denials" ]]; then
-    printf '%s\n' "$denials" | head -20 | sed 's/^/    /' >&2
+  # A log that cannot be read, or is empty, would pass as "no denial": only a
+  # search that ran and matched nothing may.
+  kernel_log="$(dc dmesg 2>&1)" ||
+    fail "could not read the kernel log, so a denial would go unseen: ${kernel_log:0:200}"
+  [[ -n "$kernel_log" ]] || fail "the kernel log is empty, so a denial would go unseen"
+  denials="$(grep -E "apparmor=\"DENIED\".*profile=\"$PROFILE\"" <<<"$kernel_log")" && rc=0 || rc=$?
+  ((rc <= 1)) || fail "could not search the kernel log (grep exit $rc)"
+  if ((rc == 0)); then
+    head -20 <<<"$denials" | sed 's/^/    /' >&2
     fail "the kernel denied the add-on under its profile"
   fi
   log "OK no AppArmor denial for $PROFILE in the kernel log"
@@ -608,7 +675,7 @@ cmd_diagnostics() {
   addon_log >"$out/addon.log" 2>&1 || ha_cli apps logs "$SLUG" >"$out/addon.log" 2>&1 || true
   ha_cli apps logs "$BROKER_SLUG" >"$out/broker.log" 2>&1 || true
   ha_cli resolution info --raw-json >"$out/resolution.json" 2>&1 || true
-  dc iptables -L DOCKER-USER -v -n -x >"$out/egress.txt" 2>&1 || true
+  { dc iptables -L DOCKER-USER -v -n -x; egress_counts | awk '$2 > 0'; } >"$out/egress.txt" 2>&1 || true
   # AppArmor is the runner host's kernel, not the devcontainer's: a denial for
   # the add-on's profile shows up in the host ring buffer with the operation
   # and address family that was refused, which the add-on's own log never says.

@@ -13,11 +13,16 @@ on:
     paths:
       - .github/workflows/supervisor.yml
       - scripts/supervisor-pilot.sh
-      - alpine_a290/apparmor.txt
-      - alpine_a290/config.yaml
-      - alpine_a290/Dockerfile
-      - alpine_a290/run.sh
-      - alpine_a290/app/**
+      # Everything the Supervisor installs, runs or deploys: the image ships
+      # app/, run.sh and the dashboards, which the pilot's default options
+      # deploy through Core. An allow-list missed dashboards/ once, so it is
+      # the whole add-on minus what cannot change a run: prose and the
+      # unit tests, which the image does not contain. Both .md patterns, as in
+      # ui-tests.yaml: whether `**/` matches zero directories is not assumed.
+      - alpine_a290/**
+      - "!alpine_a290/*.md"
+      - "!alpine_a290/**/*.md"
+      - "!alpine_a290/tests/**"
   workflow_dispatch:
     inputs:
       break:
