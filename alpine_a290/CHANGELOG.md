@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.28.3
+
+- **Standard dashboard: the Location and Last Updated tiles match the tiles around them again.**
+  Mushroom 5 rebuilt its template card from different parts, so the styling these two tiles
+  carried no longer found anything to apply to. They showed a small icon with no coloured circle,
+  larger text in a different font that did not wrap, and a dark sub-line instead of the yellow
+  one. They now get the same 55px icon circle, small wrapping text and yellow sub-line as the
+  cards beside them. Re-copy or redeploy the standard dashboard to pick it up
+  (`redeploy_dashboard: true`, or paste `front-end.txt` again).
+
 ## 1.28.1
 
 - **The standard dashboard says "Last Seen" instead of "Car Parked".** When the car has not
