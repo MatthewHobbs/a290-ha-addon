@@ -296,6 +296,9 @@ COMMAND_ACTIONS = {
 # charge-limit sliders must apply every value, and Start then Stop Climate must both go through.
 COMMAND_DEBOUNCE_S = 5
 _last_command = {}
+# Commands still logging in or executing. A login can take the whole 60s API timeout, so the 5s
+# window alone would let a repeat through while the first press's outcome is still unknown.
+_in_flight = set()
 
 # Command suffixes that trigger a location refresh — rejected unless the user has opted in AND
 # location publishing is on (publish_discovery clears the button in the same cases). Gating the
@@ -367,11 +370,16 @@ async def run_command(cmd, payload=""):
     if action is None:
         LOG.warning("Ignoring unknown command: %s", cmd)
         return
-    # No await between the check and the stamp, so two presses scheduled together cannot both pass.
+    # No await between these checks and the marks below, so two presses scheduled together cannot
+    # both pass.
+    if cmd in _in_flight:
+        LOG.info("Ignoring '%s': the previous one is still being sent", cmd)
+        return
     if now_ts() - _last_command.get(cmd, 0) < COMMAND_DEBOUNCE_S:
         LOG.info("Ignoring repeated '%s' within %ds (debounce)", cmd, COMMAND_DEBOUNCE_S)
         return
-    stamp = _last_command[cmd] = now_ts()
+    _last_command[cmd] = now_ts()
+    _in_flight.add(cmd)
     locale = cfg("A290_LOCALE", "en_GB")
     dispatched = False
     try:
@@ -381,13 +389,15 @@ async def run_command(cmd, payload=""):
             await action(vehicle)
         LOG.info("Command '%s' sent", cmd)
     except Exception as err:  # noqa: BLE001
-        # Nothing reached the car, so let an immediate retry through. Once the action has started
-        # the outcome is unknown and a retry could send it twice, so the stamp stays. A press
-        # dropped while this one was logging in is not replayed; that is accepted. The equality
-        # check leaves alone a newer press's stamp set during a slow login.
-        if not dispatched and _last_command.get(cmd) == stamp:
-            del _last_command[cmd]
         LOG.error("Command '%s' failed: %s", cmd, redact(err))
+    finally:
+        # Also on cancellation, so a cancelled press cannot wedge the button. If nothing reached
+        # the car, drop the stamp too so a retry goes straight through; once the action has
+        # started its outcome is unknown and a retry could send it twice, so the stamp stays. A
+        # press ignored while this one was in flight is not replayed; that is accepted.
+        _in_flight.discard(cmd)
+        if not dispatched:
+            _last_command.pop(cmd, None)
 
 
 def detect_plug_suspect(state, plug, mileage, soc, charging):

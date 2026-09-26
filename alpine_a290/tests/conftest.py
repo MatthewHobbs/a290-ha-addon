@@ -20,9 +20,11 @@ def _isolate_module_globals():
     resolve_account, read by redact)."""
     import main
     from renault_mqtt import config, debug, mqtt
-    # _last_command is the button debounce: left populated, a second test pressing the same button
-    # within 5 real seconds would be silently dropped and pass while testing nothing.
-    dict_globals = ((main, "_LATEST"), (main, "_last_command"), (mqtt, "_MQTT_CTX"), (debug, "_DEBUG_STATE"))
+    # _last_command and _in_flight are the button debounce: left populated, a second test pressing
+    # the same button would be silently dropped and pass while testing nothing. (Sets restore the
+    # same way as dicts: clear() then update().)
+    dict_globals = ((main, "_LATEST"), (main, "_last_command"), (main, "_in_flight"),
+                    (mqtt, "_MQTT_CTX"), (debug, "_DEBUG_STATE"))
     scalar_globals = ((config, "_DISCOVERED_ACCOUNT_ID"),)
     saved_dicts = {(mod, name): copy.deepcopy(getattr(mod, name)) for mod, name in dict_globals}
     saved_scalars = {(mod, name): getattr(mod, name) for mod, name in scalar_globals}

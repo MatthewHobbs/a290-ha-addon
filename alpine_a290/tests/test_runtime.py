@@ -439,35 +439,112 @@ def test_simultaneous_presses_pass_the_debounce_once(monkeypatch, login_fails):
     assert ("horn" in main._last_command) is not login_fails
 
 
-def test_a_slow_failed_login_keeps_a_newer_press_stamp(monkeypatch):
-    """Press A's login outlasts the window, press B goes through meanwhile, then A fails: A must
-    not clear B's stamp, or a repeat of B would be let through inside B's window."""
-    v, clock, release = _Horn(), {"t": 1000.0}, {}
+def _bounded(coro):
+    """Run a scenario that parks logins on an event, failing instead of hanging if a regression
+    leaves a command waiting on a login nobody releases."""
+    return asyncio.run(asyncio.wait_for(coro, 2))
+
+
+def _blocking_login(monkeypatch, vehicle, fail=False):
+    """Every login waits on the returned event, then succeeds (or raises if `fail`)."""
+    gate, logins = asyncio.Event(), {"n": 0}
 
     async def login(ws, loc):
-        if "a" not in release:
-            release["a"] = asyncio.Event()
-            await release["a"].wait()
+        logins["n"] += 1
+        await gate.wait()
+        if fail:
             raise RuntimeError("login timed out")
-        return v
+        return vehicle
 
     _fake_client_session(monkeypatch)
     monkeypatch.setattr(main, "_login_vehicle", login)
+    return gate, logins
+
+
+def test_a_repeat_after_the_window_is_ignored_while_the_first_is_still_being_sent(monkeypatch):
+    """A login can take up to the 60s API timeout, so the 5s window alone let a second identical
+    press through while the first was still logging in, and both reached the car."""
+    v, clock = _Horn(), {"t": 1000.0}
     monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
 
     async def scenario():
-        a = asyncio.create_task(main.run_command("horn"))
-        await asyncio.sleep(0)                         # A is now waiting in login
-        clock["t"] = 1006.0
-        await main.run_command("horn")                 # B: outside A's window, sent
-        release["a"].set()
-        await a                                        # A fails at login
-        clock["t"] = 1007.0
-        await main.run_command("horn")                 # inside B's window
+        gate, logins = _blocking_login(monkeypatch, v)
+        first = asyncio.create_task(main.run_command("horn"))
+        await asyncio.sleep(0)                         # first is now waiting in login
+        clock["t"] = 1006.0                            # past the 5s window
+        second = asyncio.create_task(main.run_command("horn"))
+        await asyncio.sleep(0)
+        gate.set()                                     # release every login, successfully
+        await asyncio.gather(first, second)
+        return logins["n"]
 
-    asyncio.run(scenario())
+    assert _bounded(scenario()) == 1
     assert v.honks == 1
-    assert main._last_command["horn"] == 1006.0
+
+
+def test_a_failed_slow_login_frees_the_button_for_the_next_press(monkeypatch):
+    """The repeat that arrived mid-login was dropped; once the login fails and nothing was sent,
+    the next press goes through."""
+    v, clock = _Horn(), {"t": 1000.0}
+    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+
+    async def scenario():
+        gate, logins = _blocking_login(monkeypatch, v, fail=True)
+        first = asyncio.create_task(main.run_command("horn"))
+        await asyncio.sleep(0)
+        clock["t"] = 1006.0
+        await main.run_command("horn")                 # in flight: ignored, no login
+        gate.set()
+        await first                                    # fails at login
+        assert logins["n"] == 1
+        monkeypatch.setattr(main, "_login_vehicle", lambda ws, loc: _acoro_value(v))
+        clock["t"] = 1006.5
+        await main.run_command("horn")
+
+    _bounded(scenario())
+    assert v.honks == 1
+    assert "horn" not in main._in_flight
+
+
+async def _acoro_value(value):
+    return value
+
+
+@pytest.mark.parametrize("stage", ["login", "action"])
+def test_a_cancelled_command_does_not_wedge_the_button(monkeypatch, stage):
+    """A cancelled task must clear the in-flight mark. Before dispatch nothing was sent, so the
+    stamp goes too and the next press is sent at once; once the action has started the outcome is
+    unknown, so the stamp stays and the 5s window applies."""
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+
+    class Hangs(_Horn):
+        async def start_horn(self):
+            self.honks += 1
+            if self.honks == 1 and stage == "action":
+                await asyncio.Event().wait()
+
+    v = Hangs()
+
+    async def scenario():
+        gate, _ = _blocking_login(monkeypatch, v)
+        if stage == "action":
+            gate.set()
+        task = asyncio.create_task(main.run_command("horn"))
+        for _ in range(3):
+            await asyncio.sleep(0)                     # reach the login or the action
+        assert "horn" in main._in_flight
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert "horn" not in main._in_flight
+        gate.set()
+        before = v.honks
+        clock["t"] = 1001.0
+        await main.run_command("horn")                 # inside the 5s window
+        return v.honks - before
+
+    assert _bounded(scenario()) == (1 if stage == "login" else 0)
 
 
 # --------------------------------------------------------------------------- #
