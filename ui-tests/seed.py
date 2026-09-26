@@ -175,27 +175,51 @@ def state_for(eid, problems=frozenset(), alarm=False):
     return st, attrs
 
 
+# Card fields rendered as visible text, and the one template form whose branch text can be read
+# statically: {% if is_state('<id>','<state>') %}A{% else %}B{% endif %}. icon/icon_color/card_mod
+# templates key on the same sensors but render no text, so they are not labels.
+TEXT_KEYS = {"primary", "secondary", "name", "label", "title", "heading", "content"}
+IF_IS_STATE = re.compile(
+    r"^\s*\{%-?\s*if\s+is_state\(\s*'([^']+)'\s*,\s*'([^']+)'\s*\)\s*-?%\}([^{}]*)"
+    r"\{%-?\s*else\s*-?%\}([^{}]*)\{%-?\s*endif\s*-?%\}\s*$")
+# Pop-up content opened by a tap: not on the page, so never an expected label.
+ACTION_KEYS = {"tap_action", "hold_action", "double_tap_action"}
+
+
 def alarm_labels(views, flipped):
-    """`name` of every conditional card whose conditions are all met by the flipped states:
-    the cards the alarm pass exists to render, so the gate can insist they appeared."""
+    """(label, sensors) for the text the flipped states must put on the page: the `name` of every
+    conditional card whose conditions they all meet, and the selected branch of every
+    IF_IS_STATE text template keyed on one. A text template on a flipped sensor in any other
+    form cannot be asserted, so it is an error rather than a silent gap."""
     found = []
 
-    def walk(node):
+    def walk(node, key=None):
         if isinstance(node, dict):
             conds = node.get("conditions") if node.get("type") == "conditional" else None
             if conds and all(isinstance(c, dict) and c.get("entity") in flipped
                              and str(c.get("state")) == flipped[c["entity"]] for c in conds):
                 name = (node.get("card") or {}).get("name")
                 if name:
-                    found.append(name)
-            for v in node.values():
-                walk(v)
+                    found.append((name, {c["entity"] for c in conds}))
+            for k, v in node.items():
+                if k not in ACTION_KEYS:
+                    walk(v, k)
         elif isinstance(node, list):
             for v in node:
-                walk(v)
+                walk(v, key)
+        elif isinstance(node, str) and key in TEXT_KEYS and "{%" in node:
+            keyed = [eid for eid in flipped if eid in node]
+            if not keyed:
+                return
+            m = IF_IS_STATE.match(node)
+            if not m or m.group(1) not in flipped:
+                raise SystemExit(f"alarm pass: cannot assert the {key!r} template on {keyed}; "
+                                 f"extend seed.alarm_labels for it: {node[:160]!r}")
+            eid, st, if_text, else_text = m.groups()
+            found.append(((if_text if flipped[eid] == st else else_text).strip(), {eid}))
 
     walk(views)
-    return found
+    return [(label, eids) for label, eids in found if label]
 
 
 def extract_entities(texts):
@@ -256,9 +280,22 @@ async def seed_alarm(session, args, built, entities, problems):
         if got != want:
             raise SystemExit(f"alarm pass: {eid} is {got!r} in HA, seeded {want!r}")
         print(f"  {eid} -> {want}")
-    manifest = {url_path: alarm_labels(views, flipped)
-                for url_path, views in built.items()
-                if set(extract_entities([yaml.safe_dump(views)])) & flipped.keys()}
+    manifest = {}
+    for url_path, views in built.items():
+        refs = set(extract_entities([yaml.safe_dump(views)])) & flipped.keys()
+        if not refs:
+            continue
+        pairs = alarm_labels(views, flipped)
+        # The labels are read from the same file a regression would edit: hard-code a switching
+        # tile and its expected branch vanishes with it. What survives is the sensor still being
+        # referenced (its icon/colour templates) with no text left switching on it; fail on that.
+        silent = refs - {eid for _, eids in pairs for eid in eids}
+        if silent:
+            raise SystemExit(f"alarm pass: {url_path} references {sorted(silent)} but no text on it "
+                             "switches on them in a form the gate can assert (a conditional card's "
+                             "name, or an IF_IS_STATE text template), so the alarm pass cannot fail "
+                             "for them")
+        manifest[url_path] = list(dict.fromkeys(label for label, _ in pairs))
     with open(args.alarm, "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=1)
     print(f"  alarm pass re-checks {manifest}")

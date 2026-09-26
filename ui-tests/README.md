@@ -26,8 +26,20 @@ Mushroom tile labels clipping on a phone.
    in step 3. `seed.py --alarm` flips every problem-class binary sensor the dashboards
    reference (derived from `catalog.py`, not listed here), and `check_overflow.py --pass-name
    alarm` re-checks only the dashboards that reference one, across the same devices. It also
-   fails if a conditional card gated on those states does not appear. Its screenshots are
-   `<dashboard>__alarm__<device>.png`, so they never overwrite the normal pass's.
+   fails unless the text those states select is visible: the `name` of each conditional card
+   gated on them, and the chosen branch of each text field (`primary`, `secondary`, `name`,
+   `label`, `title`, `heading`, `content`) of the form
+   `{% if is_state('<sensor>','<state>') %}A{% else %}B{% endif %}`, read from the dashboard
+   file. The seed stops with an error if a text field is templated on a flipped sensor in any
+   other form, or if a dashboard references a flipped sensor but no text on it switches with
+   that sensor. The second check is what catches a tile hard-coded to one branch: the expected
+   text is read from the same file, so it disappears along with the switch, but the sensor is
+   still referenced by the tile's icon and colour templates. It cannot catch a change that
+   removes every reference to the sensor, and it names the sensor, not the lost text. Not
+   asserted: icons, colours and `card_mod` styles keyed on those sensors (they are rendered and
+   truncation-checked, but carry no text), and pop-up content opened by a tap.
+   Its screenshots are `<dashboard>__alarm__<device>.png`, so they never overwrite the normal
+   pass's.
 
 ## Device matrix
 
