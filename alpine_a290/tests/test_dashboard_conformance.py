@@ -23,6 +23,7 @@ from __future__ import annotations
 import ast
 import json
 import re
+import sys
 from pathlib import Path
 
 import catalog
@@ -135,6 +136,11 @@ def _seeded() -> set[str]:
     }
 
 
+def _allowed(eid: str) -> bool:
+    """A reference in a domain _ALLOWED_DOMAINS admits, so no check below expects to find it."""
+    return eid.split(".", 1)[0] in _ALLOWED_DOMAINS
+
+
 def _elsewhere(eid: str, published: set[str]) -> list[str]:
     """The same name published under another domain, if any."""
     name = eid.split(".", 1)[1]
@@ -186,7 +192,7 @@ def test_dashboard_entities_exist(published) -> None:
     unknown = sorted(
         f"{src}: {eid}"
         for src, eid in _dashboard_refs()
-        if eid not in published and eid not in helpers and not _elsewhere(eid, published)
+        if eid not in published and eid not in helpers and not _elsewhere(eid, published) and not _allowed(eid)
     )
     assert not unknown, (
         "Dashboards reference entity ids this build does not publish. Home Assistant names "
@@ -200,7 +206,7 @@ def test_dashboard_entities_use_the_domain_the_catalog_publishes(published) -> N
     wrong = sorted(
         f"{src}: {eid} — published as {', '.join(_elsewhere(eid, published))}"
         for src, eid in _dashboard_refs()
-        if eid not in published and _elsewhere(eid, published)
+        if eid not in published and _elsewhere(eid, published) and not _allowed(eid)
     )
     assert not wrong, "Dashboard entity domains disagree with what is published:\n  " + "\n  ".join(wrong)
 
@@ -221,6 +227,25 @@ def test_dashboard_references_use_a_domain_this_build_publishes(published) -> No
         f"defines (known: {', '.join(sorted(known))}). Fix the reference, or add the domain to "
         "_ALLOWED_DOMAINS with its reason:\n  " + "\n  ".join(foreign)
     )
+
+
+def test_allowed_domain_admits_a_reference_every_check_would_otherwise_reject(published, monkeypatch) -> None:
+    """The escape hatch the failure message points at has to work end to end: a listed domain
+    passes the existence and wrong-domain checks too, not only the domain check, and the same
+    reference fails all three without the listing."""
+    name = next(iter(published)).split(".", 1)[1]
+    # One name published under another domain (the wrong-domain check's case) and one nothing
+    # publishes (the existence check's case): the two checks split the cases between them.
+    refs = {("fixture", f"switch.{name}"), ("fixture", "switch.alpine_a290_nothing_publishes_this")}
+    monkeypatch.setattr(sys.modules[__name__], "_dashboard_refs", lambda: refs)
+    checks = (test_dashboard_entities_exist, test_dashboard_entities_use_the_domain_the_catalog_publishes,
+              test_dashboard_references_use_a_domain_this_build_publishes)
+    for check in checks:
+        with pytest.raises(AssertionError):
+            check(published)
+    monkeypatch.setattr(sys.modules[__name__], "_ALLOWED_DOMAINS", {"switch": "fixture"})
+    for check in checks:
+        check(published)
 
 
 def test_helper_packages_do_not_shadow_published_ids(published) -> None:
