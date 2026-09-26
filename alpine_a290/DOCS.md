@@ -288,6 +288,10 @@ won't see a control your A290 rejects):
 | **Start Charging** | *Requests* an immediate charge by disabling any scheduled-charge programs. New via renault-api 0.5.13 — see note. |
 | **Refresh Location** | Forces a fresh GPS fix. *(May report forbidden on the A290 — see note.)* |
 
+A second press of the **same** button within 5 seconds is ignored (the add-on log says so), so a
+double-tap cannot send the car the action twice. Different buttons are independent, and the
+charge-limit sliders are never ignored.
+
 > Remote **charge-start** (renault-api 0.5.13) works by *clearing the car's own scheduled-charge
 > programs* to trigger an immediate charge. **It only does anything if you use the car's built-in
 > charge timer.** If your charging is scheduled **externally — e.g. Octopus Intelligent** — the car

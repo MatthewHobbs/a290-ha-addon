@@ -337,6 +337,39 @@ def test_run_command_error_is_swallowed(monkeypatch):
     asyncio.run(main.run_command("horn"))
 
 
+def test_run_command_debounces_repeat(monkeypatch):
+    monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
+    main._last_command["horn"] = 998.0               # 2s ago, inside the 5s window
+    called = {"login": 0}
+
+    async def login(ws, loc):
+        called["login"] += 1
+
+    _fake_client_session(monkeypatch)
+    monkeypatch.setattr(main, "_login_vehicle", login)
+    asyncio.run(main.run_command("horn"))
+    assert called["login"] == 0                       # suppressed, never logged in
+
+
+def test_debounce_is_per_command_and_ends_after_the_window(monkeypatch):
+    sent = []
+
+    class V:
+        async def start_horn(self):
+            sent.append("horn")
+
+        async def start_lights(self):
+            sent.append("lights")
+
+    _login_as(monkeypatch, V())
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+    for t, cmd in ((1000.0, "horn"), (1004.9, "horn"), (1004.9, "lights"), (1005.0, "horn")):
+        clock["t"] = t
+        asyncio.run(main.run_command(cmd))
+    assert sent == ["horn", "lights", "horn"]         # only the repeat inside 5s was dropped
+
+
 # --------------------------------------------------------------------------- #
 # charge-limit numbers (set_battery_soc)
 # --------------------------------------------------------------------------- #
@@ -426,6 +459,16 @@ def test_set_soc_error_is_swallowed(monkeypatch):
 
     monkeypatch.setattr(main, "_login_vehicle", boom)
     asyncio.run(main.run_command("soc_target", "90"))   # no raise
+
+
+def test_numbers_not_debounced(monkeypatch):
+    # A number set must not be dropped by the button debounce window.
+    monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
+    v = SocVehicle()
+    _login_as(monkeypatch, v)
+    asyncio.run(main.run_command("soc_target", "70"))
+    asyncio.run(main.run_command("soc_target", "75"))   # immediate repeat still applies
+    assert v.soc_set == (20, 75)
 
 
 def test_detect_supported_adds_soc_levels(monkeypatch):

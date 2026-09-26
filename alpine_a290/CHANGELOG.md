@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.28.2
+
+- **Pressing the same button twice within 5 seconds sends it to the car once.** A double-tap, or
+  the same button pressed by a dashboard and an automation at the same moment, used to log in to
+  Renault twice and send the car the action twice (two horn blasts, two climate starts). The
+  repeat is now ignored and logged. Each button has its own 5-second window, so Start Climate
+  followed straight away by Stop Climate still sends both. The charge-limit sliders are not
+  affected: every value you set is applied.
+
 ## 1.28.1
 
 - **The standard dashboard says "Last Seen" instead of "Car Parked".** When the car has not

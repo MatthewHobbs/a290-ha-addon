@@ -291,6 +291,12 @@ COMMAND_ACTIONS = {
     "refresh_location": lambda v: v.refresh_location(),
 }
 
+# A double-tap, or the same press arriving from a dashboard and an automation at once, would
+# otherwise log in twice and send the car the action twice. Per command, and buttons only: the
+# charge-limit sliders must apply every value, and Start then Stop Climate must both go through.
+COMMAND_DEBOUNCE_S = 5
+_last_command = {}
+
 # Command suffixes that trigger a location refresh — rejected unless the user has opted in AND
 # location publishing is on (publish_discovery clears the button in the same cases). Gating the
 # command as well as the button is the point: the entity is pressable from voice, automations and
@@ -361,6 +367,11 @@ async def run_command(cmd, payload=""):
     if action is None:
         LOG.warning("Ignoring unknown command: %s", cmd)
         return
+    # No await between the check and the stamp, so two presses scheduled together cannot both pass.
+    if now_ts() - _last_command.get(cmd, 0) < COMMAND_DEBOUNCE_S:
+        LOG.info("Ignoring repeated '%s' within %ds (debounce)", cmd, COMMAND_DEBOUNCE_S)
+        return
+    _last_command[cmd] = now_ts()
     locale = cfg("A290_LOCALE", "en_GB")
     try:
         async with aiohttp.ClientSession(timeout=API_TIMEOUT) as websession:
