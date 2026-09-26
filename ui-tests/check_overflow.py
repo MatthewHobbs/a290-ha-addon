@@ -9,8 +9,8 @@ non-zero with a report if any truncation or card error is found.
 
 A named pass (--pass-name alarm) writes its screenshots as <dashboard>__<pass>__<device>.png, so
 it never overwrites the normal pass's files, which the screenshot-drift workflow reads by name.
---expect takes seed.py's alarm manifest: it picks the dashboards and lists labels that must be
-visible on each, so a pass whose states failed to switch the cards on cannot pass.
+--expect takes seed.py's manifest for the pass: it picks the dashboards and lists labels that must
+be visible on each, so a pass whose states failed to switch the cards on cannot pass.
 """
 import argparse
 import json
@@ -421,7 +421,7 @@ def run():
     ap.add_argument("--out", default=os.path.join(HERE, "screenshots"))
     ap.add_argument("--pass-name", default="", help="names this pass in screenshots and the report")
     ap.add_argument("--expect", metavar="MANIFEST",
-                    help="seed.py --alarm manifest {dashboard: [labels]}; replaces --dashboards")
+                    help="seed.py --manifest output {dashboard: [labels]}; replaces --dashboards")
     args = ap.parse_args()
 
     expect = {}
