@@ -238,7 +238,9 @@ trip-end-old.** It will not move until the car is driven again. Specifically:
 
 `sensor.alpine_a290_last_updated` always tells you when the **car** last reported, as distinct
 from `…_last_successful_poll`, which tells you when the **add-on** last reached Renault. If the
-first is old and the second is recent, everything is working and the car is simply parked.
+first is old and the second is recent, the add-on is working and the car has not reported since —
+usually because it has not been driven. The add-on cannot tell that apart from the car's own link
+to Renault failing, which is why the dashboard tile says **Last Seen** rather than guessing.
 
 **`binary_sensor.alpine_a290_data_stale` measures the car, not the connection.** It turns on
 after `stale_hours` without the car reporting — so a car parked overnight will show it on, and
@@ -247,8 +249,8 @@ is answering "how old is this data", which is the honest answer for a sleeping c
 
 If what you want instead is "can the add-on reach Renault", that is a separate entity:
 `binary_sensor.alpine_a290_poll_failing`. The two are deliberately distinct — a parked car is
-`data_stale: on` and `poll_failing: off`, which together read as "everything is working, the car
-simply has not reported since its last journey". Raise `stale_hours` if you would rather it
+`data_stale: on` and `poll_failing: off`, which together read as "the add-on is working, the car
+has not reported since its last journey". Raise `stale_hours` if you would rather it
 tolerated your normal parking gap.
 
 ## Entities

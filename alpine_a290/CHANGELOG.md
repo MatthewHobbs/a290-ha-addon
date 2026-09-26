@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.28.1
+
+- **The standard dashboard says "Last Seen" instead of "Car Parked".** When the car has not
+  reported for longer than `stale_hours`, the Last Updated tile now reads **Last Seen** with the
+  time underneath, under a clock icon instead of the parking lights. "Car Parked" was a guess: an
+  old report looks the same whether the car is asleep on the drive or its own connection to
+  Renault has failed, and the add-on cannot tell which. Nothing else changes: `data_stale`,
+  `poll_failing` and the Not Polling card behave as before.
+- **Bubble dashboard: the Home, Car and Test buttons in the bottom bar no longer sit on top of
+  each other.** Bubble Card sizes those buttons by measuring them. On a first load it measured them
+  while the bar was still hidden, got zero, and stacked all three in one spot until any entity
+  changed state. It happens on Bubble Card 3.2.5 and 3.4.1 alike. The bar is now laid out with
+  plain CSS, so it no longer depends on that measurement. Re-copy or redeploy the Bubble dashboard
+  to pick it up (`redeploy_dashboard: true`, or paste `front-end-bubble.txt` again).
+
 ## 1.28.0
 
 - **Requires Home Assistant 2026.8.1 or newer**, now declared in the app's manifest. If your Home

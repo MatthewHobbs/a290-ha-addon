@@ -907,9 +907,9 @@
         cards:
         - type: custom:mushroom-template-card
           entity: sensor.alpine_a290_last_updated
-          primary: "{% if is_state('binary_sensor.alpine_a290_data_stale','on') %}Car Parked{% else %}Last Updated{% endif %}"
+          primary: "{% if is_state('binary_sensor.alpine_a290_data_stale','on') %}Last Seen{% else %}Last Updated{% endif %}"
           secondary: "{% set t = states('sensor.alpine_a290_last_updated') | as_datetime %}{% if t %}{{ relative_time(t) }} ago{% else %}unknown{% endif %}"
-          icon: "{% if is_state('binary_sensor.alpine_a290_data_stale','on') %}mdi:car-parking-lights{% else %}mdi:car-connected{% endif %}"
+          icon: "{% if is_state('binary_sensor.alpine_a290_data_stale','on') %}mdi:history{% else %}mdi:car-connected{% endif %}"
           icon_color: "{% if is_state('binary_sensor.alpine_a290_data_stale','on') %}blue-grey{% else %}green{% endif %}"
           tap_action:
             action: call-service
@@ -925,11 +925,11 @@
 
                     The time above is when the **car** last sent data — not when the add-on last polled. The two are different, and the difference is normal.
 
-                    The car commits a batch of data when it is **powered off** and then sleeps. It does not report again until it is driven. So a parked car shows a time that stops moving, and the tile reads **Car Parked**. That is expected — the readings are real, just from the end of the last journey.
+                    The car commits a batch of data when it is **powered off** and then sleeps. It does not report again until it is driven. So a car that is not being driven shows a time that stops moving, and once it is older than `stale_hours` the tile reads **Last Seen**. Usually that just means the car has not been driven: the readings are real, from the end of the last journey. The add-on cannot tell that apart from the car itself failing to reach Renault, so the tile does not guess which.
 
                     Mileage and Location only update after a completed journey. Battery, range and plug status refresh while the car is awake (briefly after power-on, and during a charge).
 
-                    There is nothing to refresh by hand. If you want to know whether the add-on itself is working, look at **Last Successful Poll** — if that is recent while this one is old, everything is fine and the car is simply parked.
+                    There is nothing to refresh by hand. If you want to know whether the add-on itself is working, look at **Last Successful Poll** — if that is recent while this one is old, the add-on is reaching Renault and the car simply has not reported since.
                 - type: custom:mushroom-entity-card
                   entity: sensor.alpine_a290_last_updated
                   icon: mdi:refresh
@@ -1090,7 +1090,7 @@
 
                         The add-on has not reached the Renault/Kamereon API for longer than the `stale_hours` threshold (36 hours by default).
 
-                        **This is not the same as a parked car.** A car that has not reported simply shows **Car Parked** with the time of its last update — that is normal. This card only appears when the *add-on* cannot get through at all.
+                        **This is not the same as Last Seen.** A car that has not reported recently shows **Last Seen** with the time of its last update — usually it just has not been driven. This card only appears when the *add-on* cannot get through at all.
 
                         **What to do?**
 
