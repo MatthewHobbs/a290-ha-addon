@@ -84,7 +84,9 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
-        run: python3 scripts/docs_sync_check.py "$BASE_SHA"
+        run: |
+          python3 scripts/docs_sync_check.py --self-test
+          python3 scripts/docs_sync_check.py "$BASE_SHA"
 
   docs-cite-check:
     name: Docs cite-check
