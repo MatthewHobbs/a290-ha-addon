@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.28.5
+
+- **Entity ids are now pinned by the add-on to the names Home Assistant already assigns.** Every
+  entity's discovery config now carries `default_entity_id`, set to the id Home Assistant derives
+  from the device and entity names (`sensor.alpine_a290_battery_level` and so on), so a future
+  rename of the car's device, or an area assigned to it, cannot put a prefix on the ids the
+  bundled dashboards use. Nothing changes for existing installs: entities already registered keep
+  the ids they have, which are the same ones. Shared core `renault-mqtt` v0.18.0.
+
 ## 1.28.4
 
 - **Standard dashboard: the Location and Last Updated tiles match the tiles around them again.**
