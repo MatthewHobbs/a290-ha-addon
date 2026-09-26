@@ -1,9 +1,11 @@
 """Runtime/async coverage: poll_once, command dispatch, detection, MQTT wiring, health
 server, account resolution, and one happy + one failing iteration of main()."""
+import ast
 import asyncio
 import json
 import logging
 import types
+from pathlib import Path
 
 import main
 import pytest
@@ -134,6 +136,25 @@ def test_poll_once_full(monkeypatch):
     assert data["available_energy"] == 30.0                                  # reported by the car
 
 
+def test_poll_once_produces_every_catalog_key(monkeypatch):
+    """Every published sensor/binary_sensor reads value_json.<key>; a key poll_once never produces
+    renders empty and HA shows unknown, with no error anywhere. Excluded, and only these: the
+    last_charge_* keys (need a completed session, covered in test_main) and the keys main()
+    stamps after poll_once returns, from its own clock and error path."""
+    monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
+    monkeypatch.setattr(main, "_BREAKERS", {})
+    monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", True)
+    data, _ = asyncio.run(
+        main.poll_once(FakeVSession(FakeVehicle()), {}, 52.0,
+                       {"pressure", "charge-mode", "hvac-settings"}, "km"))
+    stamped_by_main = {"last_successful_poll", "api_auth_failure", "data_stale", "poll_failing"}
+    keys = {obj[len(main.OBJ_PREFIX):] for obj in (*main.catalog.SENSORS, *main.catalog.BINARY_SENSORS)}
+    expected = {k for k in keys if not k.startswith("last_charge_")} - stamped_by_main
+    assert expected - set(data) == set(), f"poll_once did not produce: {expected - set(data)}"
+    # the keys the success log line reads
+    assert {"battery_level", "plug_status", "charging", "plug_suspect"} <= set(data)
+
+
 def test_poll_once_available_energy_falls_back_to_soc_estimate(monkeypatch):
     monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
 
@@ -242,11 +263,31 @@ def test_poll_once_skips_location_when_publish_disabled(monkeypatch):
     assert "gps_last_activity" not in data     # and no location-derived field set
 
 
-def test_setup_logging_clamps_library_loggers(monkeypatch):
-    import logging
-    monkeypatch.setenv("A290_LOG_LEVEL", "debug")
-    main.setup_logging()
-    assert logging.getLogger("renault_api").getEffectiveLevel() >= logging.INFO
+# Every logger renault-api 0.5.13 creates. At DEBUG they log unredacted Kamereon bodies (VIN,
+# account ids, unrounded GPS), which is what the clamp in setup_logging exists to stop.
+_LIBRARY_LOGGERS = ("renault_api", "renault_api.gigya", "renault_api.kamereon", "renault_api.kamereon.models",
+                    "renault_api.renault_session", "renault_api.renault_account", "renault_api.renault_client")
+
+
+def test_setup_logging_keeps_library_debug_off_at_debug(monkeypatch):
+    # pytest's root handlers make basicConfig a no-op and leave root at WARNING, which would
+    # pass this with no clamp at all. Strip them so basicConfig really sets root to DEBUG.
+    root = logging.getLogger()
+    saved_handlers, saved_level = root.handlers[:], root.level
+    saved_levels = {name: logging.getLogger(name).level for name in _LIBRARY_LOGGERS}
+    root.handlers.clear()
+    try:
+        monkeypatch.setenv("A290_LOG_LEVEL", "debug")
+        main.setup_logging()
+        assert root.level == logging.DEBUG                       # the precondition is real
+        assert main.LOG.isEnabledFor(logging.DEBUG)              # our own debug still flows
+        for name in _LIBRARY_LOGGERS:                            # the library's does not
+            assert not logging.getLogger(name).isEnabledFor(logging.DEBUG), name
+    finally:
+        root.handlers[:] = saved_handlers
+        root.setLevel(saved_level)
+        for name, level in saved_levels.items():
+            logging.getLogger(name).setLevel(level)
 
 
 def test_poll_once_debug_dump_branch(monkeypatch):
@@ -696,8 +737,11 @@ def test_main_handles_failing_poll(monkeypatch):
     async def poll(vs, state, cap, sup, du):
         raise RuntimeError("403 forbidden")   # exercises the except/backoff branch
 
-    _wire_main(monkeypatch, poll)
+    fc = _wire_main(monkeypatch, poll)
     asyncio.run(main.main())
+    published = [json.loads(p) for t, p in fc.pubs if t == mqtt.STATE_TOPIC]
+    assert published and all(d["api_auth_failure"] == "on" for d in published)
+    assert main._LATEST["data"]["api_auth_failure"] == "on"     # the status panel agrees
 
 
 def test_main_redacts_secret_in_error_snapshot(monkeypatch):
@@ -718,6 +762,119 @@ def test_main_exits_on_missing_config(monkeypatch):
         monkeypatch.delenv(k, raising=False)
     with pytest.raises(SystemExit):
         asyncio.run(main.main())
+
+
+class _StopAfterPolls:
+    """Stands in for main()'s stop Event: the loop ends once `polls` reaches `limit`."""
+    polls, limit = {"n": 0}, 0
+
+    def is_set(self):
+        return self.polls["n"] >= self.limit
+
+    def set(self):
+        pass
+
+    async def wait(self):   # never awaited: the test's wait_for records its timeout instead
+        pass
+
+
+@pytest.mark.parametrize("interval,expected", [
+    (3600, [3600, 3600, 3600, 3600]),        # a slow interval must not retry faster when failing
+    (300, [300, 600, 1200, 1800, 1800]),     # a fast one still backs off to the 30-minute cap
+])
+def test_failure_backoff_never_drops_below_the_interval(monkeypatch, interval, expected):
+    polls = {"n": 0}
+
+    async def poll(vs, state, cap, sup, du):
+        polls["n"] += 1
+        raise RuntimeError("Kamereon unreachable")
+
+    _wire_main(monkeypatch, poll)
+    monkeypatch.setenv("A290_POLL_INTERVAL", str(interval))
+    monkeypatch.setattr(_StopAfterPolls, "polls", polls)
+    monkeypatch.setattr(_StopAfterPolls, "limit", len(expected))
+    monkeypatch.setattr(main.asyncio, "Event", _StopAfterPolls)
+    delays, real_wait_for = [], asyncio.wait_for
+
+    async def fake_wait_for(aw, timeout):
+        if getattr(aw, "__qualname__", "") == "_StopAfterPolls.wait":   # the inter-poll sleep
+            delays.append(timeout)
+            aw.close()
+            raise asyncio.TimeoutError
+        return await real_wait_for(aw, timeout)
+
+    monkeypatch.setattr(main.asyncio, "wait_for", fake_wait_for)
+    asyncio.run(main.main())
+    assert delays == expected
+
+
+# --------------------------------------------------------------------------- #
+# every Renault API session is bounded, so a hung connection can't wedge a poll or command
+# --------------------------------------------------------------------------- #
+class _TimedSession:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    async def close(self):
+        pass
+
+
+class _TimedVehicle:
+    async def start_horn(self):
+        pass
+
+    async def get_battery_soc(self):
+        return ns(socMin=20, socTarget=80)
+
+    async def set_battery_soc(self, min, target):
+        pass
+
+
+def _poll_session():
+    asyncio.run(main.VehicleSession("en_GB").vehicle())
+
+
+def _command_session():
+    asyncio.run(main.run_command("horn"))
+
+
+def _soc_session():
+    asyncio.run(main.set_soc_level(sorted(main.NUMBER_CMDS)[0], "70"))
+
+
+SESSION_PATHS = {"poll": _poll_session, "command": _command_session, "charge_limit": _soc_session}
+
+
+@pytest.mark.parametrize("path", sorted(SESSION_PATHS))
+def test_renault_session_is_created_with_the_api_timeout(monkeypatch, path):
+    made = []
+
+    def factory(*a, **k):
+        made.append(k)
+        return _TimedSession()
+
+    async def login(ws, locale):
+        return _TimedVehicle()
+
+    monkeypatch.setattr(main.aiohttp, "ClientSession", factory)
+    monkeypatch.setattr(main, "_login_vehicle", login)
+    SESSION_PATHS[path]()
+    assert len(made) == 1
+    timeout = made[0].get("timeout")
+    assert isinstance(timeout, main.aiohttp.ClientTimeout), made[0]
+    assert (timeout.total, timeout.connect) == (60, 10)
+
+
+def test_no_client_session_in_main_escapes_the_timeout_tests():
+    """A new session in main.py fails here until it passes a timeout and gets a SESSION_PATHS entry."""
+    tree = ast.parse(Path(main.__file__).read_text())
+    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
+             and isinstance(n.func, ast.Attribute) and n.func.attr == "ClientSession"]
+    assert len(calls) == len(SESSION_PATHS)
+    assert all(any(kw.arg == "timeout" for kw in c.keywords) for c in calls)
 
 
 # --------------------------------------------------------------------------- #
@@ -1201,3 +1358,4 @@ def test_main_failure_path_publishes_both_signals(monkeypatch):
     published = [json.loads(p) for t, p in fc.pubs if t == mqtt.STATE_TOPIC]
     assert published[0]["poll_failing"] == "on"      # never succeeded in this process
     assert "data_stale" not in published[0]          # and no car timestamp to judge
+    assert published[0]["api_auth_failure"] == "off"  # not every failure is a credentials one
