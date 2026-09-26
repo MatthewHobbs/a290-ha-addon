@@ -6,6 +6,11 @@ cards + the Zen Dots font, then walks the (shadow-DOM-pierced) tree for any text
 that is clipped (text-overflow:ellipsis / nowrap+overflow:hidden with scrollWidth >
 clientWidth) or any broken card (hui-error-card). A screenshot is saved per device. Exits
 non-zero with a report if any truncation or card error is found.
+
+A named pass (--pass-name alarm) writes its screenshots as <dashboard>__<pass>__<device>.png, so
+it never overwrites the normal pass's files, which the screenshot-drift workflow reads by name.
+--expect takes seed.py's alarm manifest: it picks the dashboards and lists labels that must be
+visible on each, so a pass whose states failed to switch the cards on cannot pass.
 """
 import argparse
 import json
@@ -13,6 +18,7 @@ import os
 import sys
 import traceback
 
+from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import sync_playwright
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -152,6 +158,39 @@ JS_POPUP_SHOWS = r"""
 """
 
 
+# True once an element whose own text is exactly `label` is laid out anywhere in the pierced tree.
+JS_SHOWS_TEXT = r"""
+(label) => {
+  const find = (root) => {
+    let nodes; try { nodes = root.querySelectorAll('*'); } catch (e) { return false; }
+    for (const el of nodes) {
+      let own = '';
+      for (const n of el.childNodes) if (n.nodeType === 3) own += n.textContent;
+      if (own.trim() === label && getComputedStyle(el).visibility === 'visible') {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) return true;
+      }
+      if (el.shadowRoot && find(el.shadowRoot)) return true;
+    }
+    return false;
+  };
+  return find(document);
+}
+"""
+
+
+def _missing_labels(page, labels, timeout_ms=5000):
+    """Findings for each expected label that never became visible. Only a timeout is a finding;
+    any other error (a torn-down context) propagates to the caller's retry like the rest."""
+    missing = []
+    for label in labels:
+        try:
+            page.wait_for_function(JS_SHOWS_TEXT, arg=label, timeout=timeout_ms)
+        except PlaywrightTimeout:
+            missing.append({"type": "not-rendered", "tag": "-", "text": label})
+    return missing
+
+
 def _failing_step(err):
     """The deepest line of THIS file `err` came through, plus its message's first line. The last
     traceback frame is inside Playwright, which cannot tell a screenshot timeout from a scan one."""
@@ -243,8 +282,18 @@ def run():
     ap.add_argument("--devices", default=os.path.join(HERE, "devices.json"))
     ap.add_argument("--dashboards", nargs="+", default=["alpine-standard", "alpine-bubble"])
     ap.add_argument("--out", default=os.path.join(HERE, "screenshots"))
+    ap.add_argument("--pass-name", default="", help="names this pass in screenshots and the report")
+    ap.add_argument("--expect", metavar="MANIFEST",
+                    help="seed.py --alarm manifest {dashboard: [labels]}; replaces --dashboards")
     args = ap.parse_args()
 
+    expect = {}
+    if args.expect:
+        with open(args.expect, encoding="utf-8") as fh:
+            expect = json.load(fh)
+        if not expect:
+            sys.exit(f"{args.expect} names no dashboard: this pass would check nothing")
+        args.dashboards = list(expect)
     tokens = json.load(open(args.tokens))
     devices = json.load(open(args.devices))["devices"]
     os.makedirs(args.out, exist_ok=True)
@@ -275,7 +324,9 @@ def run():
             page = ctx.new_page()
             for dash in args.dashboards:
                 slug = dev["name"].lower().replace(" ", "_").replace("(", "").replace(")", "")
-                shot = os.path.join(args.out, f"{dash}__{slug}.png")
+                stem = f"{dash}__{args.pass_name}" if args.pass_name else dash
+                where = f"{dash} [{args.pass_name}]" if args.pass_name else dash
+                shot = os.path.join(args.out, f"{stem}__{slug}.png")
                 issues = None
                 for attempt in range(MAX_RENDER_ATTEMPTS):
                     try:
@@ -296,6 +347,7 @@ def run():
                             pass
                         page.wait_for_timeout(1200)  # settle layout + late cards
                         issues = _stable_issues(page)   # confirm truncations across two passes (see helper)
+                        issues += _missing_labels(page, expect.get(dash, []))
                         # Drop HA's startup toasts only AFTER the truncation scan, so removing the
                         # toast node can never perturb the gate's measurement — it only cleans the shot.
                         page.evaluate(JS_DISMISS_TOASTS)
@@ -308,7 +360,7 @@ def run():
                         # attempts are exhausted. Genuine truncations are returned by _stable_issues,
                         # not raised, so they never reach this branch and are never retried away.
                         if attempt < MAX_RENDER_ATTEMPTS - 1:
-                            print(f"    [retry {attempt + 1}/{MAX_RENDER_ATTEMPTS - 1}] {dash} @ "
+                            print(f"    [retry {attempt + 1}/{MAX_RENDER_ATTEMPTS - 1}] {where} @ "
                                   f"{dev['name']}: transient {type(err).__name__} — re-rendering")
                             page.wait_for_timeout(600)
                             continue
@@ -356,15 +408,15 @@ def run():
                                 opened = False
                             if opened:
                                 break
-                            print(f"    [popup empty {popup_attempt + 1}/2] {dash} @ "
+                            print(f"    [popup empty {popup_attempt + 1}/2] {where} @ "
                                   f"{dev['name']}: pop-up not open on screen — reopening")
                             page.evaluate("() => { location.hash = ''; }")
                             page.wait_for_timeout(400)
                         else:
-                            print(f"    [popup skipped] {dash} @ {dev['name']}: pop-up never "
+                            print(f"    [popup skipped] {where} @ {dev['name']}: pop-up never "
                                   f"stayed open; not overwriting the committed screenshot")
                             raise RuntimeError("smart-charging pop-up never stayed open on screen")
-                        pshot = os.path.join(args.out, f"{dash}__smart_charging__{slug}.png")
+                        pshot = os.path.join(args.out, f"{stem}__smart_charging__{slug}.png")
                         _write_diag(page, pshot)
                         page.screenshot(path=pshot, full_page=True, animations="disabled")
                         issues += _stable_issues(page)
@@ -381,9 +433,9 @@ def run():
                         _uniq.append(_it)
                 issues = _uniq
                 if issues:
-                    failures.append((dash, dev["name"], dev["width"], issues))
+                    failures.append((where, dev["name"], dev["width"], issues))
                 status = "FAIL" if issues else "ok"
-                print(f"  [{status}] {dash} @ {dev['name']} ({dev['width']}px): "
+                print(f"  [{status}] {where} @ {dev['name']} ({dev['width']}px): "
                       f"{len(issues)} issue(s)  -> {os.path.relpath(shot, HERE)}")
             ctx.close()
         browser.close()
@@ -402,7 +454,8 @@ def run():
             if len(issues) > 12:
                 print(f"  …and {len(issues) - 12} more")
         sys.exit(1)
-    print("All dashboards render with no text truncation across the device matrix. ✅")
+    print(f"All dashboards render with no text truncation across the device matrix"
+          f"{f' ({args.pass_name} pass)' if args.pass_name else ''}. ✅")
 
 
 if __name__ == "__main__":
