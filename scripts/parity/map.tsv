@@ -118,7 +118,6 @@ verbatim	scripts/pii_check.py	-	-	shared check, copied verbatim
 verbatim	scripts/ha_minimum_check.py	-	-	shared check, copied verbatim
 verbatim	ruff.toml	-	-	shared lint config
 verbatim	.hadolint.yaml	-	-	shared lint config
-verbatim	.data-class	-	-	both repos are Public / others
 verbatim	LICENSE	-	-	same licence
 verbatim	alpine_a290/app/requirements.in	-	-	same pinned dependencies (renault-api 0.5.13)
 verbatim	alpine_a290/app/requirements.txt	-	-	same hash-locked dependencies
