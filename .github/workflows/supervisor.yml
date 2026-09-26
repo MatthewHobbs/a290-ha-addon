@@ -1,0 +1,94 @@
+name: Supervisor pilot
+
+# ADR 0002: install, configure and run the add-on under a real stable-channel
+# Supervisor and Core, in the official add-on devcontainer, on both arches,
+# with AppArmor enforced by the runner's kernel. Not a required check yet
+# (ADR row 5). All of the logic is in scripts/supervisor-pilot.sh, which runs
+# the same way locally.
+
+on:
+  # A PR that changes the pilot or what the Supervisor runs gets the pilot,
+  # so the change is proven on the real runners before it merges.
+  pull_request:
+    paths:
+      - .github/workflows/supervisor.yml
+      - scripts/supervisor-pilot.sh
+      - alpine_a290/apparmor.txt
+      - alpine_a290/config.yaml
+      - alpine_a290/Dockerfile
+      - alpine_a290/run.sh
+      - alpine_a290/app/**
+  workflow_dispatch:
+    inputs:
+      break:
+        description: Break the run on purpose, to show the probes can fail
+        type: choice
+        options: [none, start, apparmor]
+        default: none
+  schedule:
+    - cron: "17 4 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supervisor-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pilot:
+    name: ${{ matrix.arch }} / Core ${{ matrix.core }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, aarch64]
+        # "stable" is whatever stable.json names today; "minimum" pins Core to
+        # config.yaml's homeassistant: under the same stable Supervisor.
+        core: [stable, minimum]
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    env:
+      CORE_VERSION: ${{ matrix.core }}
+      PILOT_KEEP: "1"
+      PILOT_BREAK: ${{ inputs.break != 'none' && inputs.break || '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run the add-on under the stable Supervisor
+        env:
+          PILOT_WORKDIR: ${{ runner.temp }}/pilot
+        run: scripts/supervisor-pilot.sh all
+
+      - name: Collect diagnostics
+        if: failure()
+        env:
+          PILOT_WORKDIR: ${{ runner.temp }}/pilot
+        run: scripts/supervisor-pilot.sh diagnostics "$PILOT_WORKDIR/diagnostics"
+
+      # The kernel's AppArmor verdict is the evidence ADR 0002 row 6 turns on,
+      # so it goes in the log itself, not only in the artifact.
+      - name: Show AppArmor denials
+        if: failure()
+        env:
+          PILOT_WORKDIR: ${{ runner.temp }}/pilot
+        run: cat "$PILOT_WORKDIR/diagnostics/apparmor.txt" || true
+
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: supervisor-pilot-${{ matrix.arch }}-${{ matrix.core }}
+          path: ${{ runner.temp }}/pilot/diagnostics
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Tear down
+        if: always()
+        run: scripts/supervisor-pilot.sh down
