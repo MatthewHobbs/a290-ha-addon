@@ -56,9 +56,11 @@ timer. The add-on probes `supports_endpoint()` at startup and only publishes wha
 
 **The pinned 0.5.13 still carries two wrong entries for `A5E1AE`**, which is why the add-on
 carries its own guards rather than trusting the table: `actions/refresh-location` is absent (it
-works on the car — verified, response in 12s), and `hvac-settings` is declared while the server
-answers `502000` to every call, which is what the v1.23.1 circuit breaker exists for. Both are
-filed upstream as [#2254](https://github.com/hacf-fr/renault-api/pull/2254) and
+works on the car — verified, response in 12s; DOCS.md and README.md still say it may be
+refused (403) on purpose, because one verified car is not every account or region), and
+`hvac-settings` is declared while the server answers `502000` to every call, which is what the
+v1.23.1 circuit breaker exists for. Both are filed upstream as
+[#2254](https://github.com/hacf-fr/renault-api/pull/2254) and
 [#2255](https://github.com/hacf-fr/renault-api/pull/2255); they will not appear in a release
 before 0.5.14, so do not expect a bump to remove those guards until then.
 
@@ -169,9 +171,10 @@ Exceptions (CI is enough): docs-only, CI-YAML-only, or test-only changes.
 
 Any user-facing change bumps **`alpine_a290/config.yaml` `version`** and adds a
 **`alpine_a290/CHANGELOG.md`** entry (Supervisor keys the update on the version). When
-mirroring to `r5-ha-addon`, bump **`renault_5/config.yaml`** and the `VERSION` constant in
-**`renault_5/app/main.py`** together. Feature branches are **squash-merged** to `main` and
-deleted once merged.
+mirroring to `r5-ha-addon`, bump **`renault_5/config.yaml`** `version` and its
+**`renault_5/CHANGELOG.md`**; r5 has no version literal in code (`main.py` reads `R5_VERSION`,
+which its release workflow sets from `config.yaml` via the Dockerfile's `BUILD_VERSION`).
+Feature branches are **squash-merged** to `main` and deleted once merged.
 
 ## Gotchas
 
