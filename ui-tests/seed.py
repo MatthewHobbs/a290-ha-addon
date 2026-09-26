@@ -47,11 +47,12 @@ CHARGER_DEMO = {
     "A290_CHARGER_DISPATCHING": "binary_sensor.demo_intelligent_dispatching",
 }
 
-# Lovelace resources. card-mod first (it patches card rendering); all four cards are vendored
-# single-file bundles served same-origin from /local/cards (see run.sh) so no card is fetched
-# over the network at render time; Zen Dots (the display font) is the one remaining remote load.
+# Lovelace resources. card-mod is not one: run.sh loads it as a frontend module, ahead of the cards
+# it patches (listing it here too would load it twice, which its README warns against). The cards
+# are vendored single-file bundles served same-origin from /local/cards (see run.sh) so no card is
+# fetched over the network at render time; Zen Dots (the display font) is the one remaining remote
+# load.
 RESOURCES = [
-    ("/local/cards/card-mod.js", "module"),
     ("/local/cards/mushroom.js", "module"),
     ("/local/cards/button-card.js", "module"),
     ("/local/cards/bubble-card.js", "module"),
