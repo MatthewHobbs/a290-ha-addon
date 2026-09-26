@@ -16,6 +16,7 @@ import logging
 import os
 import signal
 import sys
+import time
 
 import aiohttp
 import catalog
@@ -291,6 +292,21 @@ COMMAND_ACTIONS = {
     "refresh_location": lambda v: v.refresh_location(),
 }
 
+# A double-tap, or the same press arriving from a dashboard and an automation at once, would
+# otherwise log in twice and send the car the action twice. Per command, and buttons only: the
+# charge-limit sliders must apply every value, and Start then Stop Climate must both go through.
+COMMAND_DEBOUNCE_S = 5
+_last_command = {}
+# Commands still logging in or executing. A login can take the whole 60s API timeout, so the 5s
+# window alone would let a repeat through while the first press's outcome is still unknown.
+_in_flight = set()
+
+
+def _debounce_now():
+    """The debounce's clock. Monotonic, not wall time: an NTP or manual correction that moves the
+    wall clock back would otherwise hold a button suppressed for the size of the jump."""
+    return time.monotonic()
+
 # Command suffixes that trigger a location refresh — rejected unless the user has opted in AND
 # location publishing is on (publish_discovery clears the button in the same cases). Gating the
 # command as well as the button is the point: the entity is pressable from voice, automations and
@@ -361,14 +377,35 @@ async def run_command(cmd, payload=""):
     if action is None:
         LOG.warning("Ignoring unknown command: %s", cmd)
         return
+    # No await between these checks and the marks below, so two presses scheduled together cannot
+    # both pass.
+    if cmd in _in_flight:
+        LOG.info("Ignoring '%s': the previous one is still being sent", cmd)
+        return
+    # No 0 default: monotonic time starts near zero at boot, so "never pressed" must not read as t=0.
+    if cmd in _last_command and _debounce_now() - _last_command[cmd] < COMMAND_DEBOUNCE_S:
+        LOG.info("Ignoring repeated '%s' within %ds (debounce)", cmd, COMMAND_DEBOUNCE_S)
+        return
+    _last_command[cmd] = _debounce_now()
+    _in_flight.add(cmd)
     locale = cfg("A290_LOCALE", "en_GB")
+    dispatched = False
     try:
         async with aiohttp.ClientSession(timeout=API_TIMEOUT) as websession:
             vehicle = await _login_vehicle(websession, locale)
+            dispatched = True
             await action(vehicle)
         LOG.info("Command '%s' sent", cmd)
     except Exception as err:  # noqa: BLE001
         LOG.error("Command '%s' failed: %s", cmd, redact(err))
+    finally:
+        # Also on cancellation, so a cancelled press cannot wedge the button. If nothing reached
+        # the car, drop the stamp too so a retry goes straight through; once the action has
+        # started its outcome is unknown and a retry could send it twice, so the stamp stays. A
+        # press ignored while this one was in flight is not replayed; that is accepted.
+        _in_flight.discard(cmd)
+        if not dispatched:
+            _last_command.pop(cmd, None)
 
 
 def detect_plug_suspect(state, plug, mileage, soc, charging):
