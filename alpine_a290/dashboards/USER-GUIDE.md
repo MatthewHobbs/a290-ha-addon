@@ -85,7 +85,9 @@ with movement/charging — e.g. "Connected" but driven).
 - **Data Stale** — the *car* has not reported for longer than `stale_hours`. The readings on
   screen are real but old. **A car parked overnight will show this on, and that is expected** —
   the car commits data at power-off and then sleeps, so the readings genuinely are older than
-  your threshold. Paired with **Poll Failing** off, it reads as "all working, car simply parked".
+  your threshold. Paired with **Poll Failing** off, it reads as "the add-on is working, the car has
+  not reported since" — usually because it has not been driven. The dashboard tile shows this as
+  **Last Seen** with the time underneath.
 - **Poll Failing** — the *add-on* has not reached Renault for longer than `stale_hours`.
 
 They are independent. A car parked in an underground car park goes Data Stale while polling
