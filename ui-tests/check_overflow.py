@@ -263,7 +263,6 @@ JS_CARD_MOD_STATE = r"""
 async () => {
   const PENDING = {};
   const peek = (p) => Promise.race([p, Promise.resolve(PENDING)]);
-  const hasTpl = (s) => s.includes('{%') || s.includes('{{');
   const nonEmpty = (v) => (typeof v === 'string' ? v.trim() !== '' : !!v && Object.keys(v).length > 0);
   // How many elements card-mod's selectTree(parent, key, all) would style now; a synchronous replica
   // of src/helpers/selecttree.ts (split on '$' and ' ', '$' enters shadow roots, first match onward).
@@ -282,10 +281,13 @@ async () => {
     if (!cm || !cm.isConnected || cm._processStylesOnConnect) return false;
     const fixed = cm._fixed_styles || {};
     if (nonEmpty(cm.card_mod_input) && Object.keys(fixed).length === 0) return false;
+    // A `.` style must be in the <style>. For a template that means its first render_template
+    // result arrived: card-mod renders "" until then (src/helpers/templates.ts), so a template that
+    // legitimately renders "" reads as pending; none on these dashboards does (measured).
     const own = typeof fixed['.'] === 'string' ? fixed['.'] : '';
     if (own.trim()) {
       const st = cm.querySelector(':scope > style');
-      if (!st || (hasTpl(own) ? !cm._renderer : !st.textContent.trim())) return false;
+      if (!st || !st.textContent.trim()) return false;
     }
     if (depth > 8) return true;
     const kids = cm.card_mod_children || {};
@@ -310,7 +312,9 @@ async () => {
   };
   const WRAPPERS = new Set(['hui-card', 'hui-section']);
   const EXCLUDED = new Set(['conditional', 'entity-filter']);
-  const out = { declared: 0, applied: 0, pending: [], loaded: !!customElements.get('card-mod') };
+  // `ids` names each declaring element across polls, so the caller can see the set change.
+  const ids = window.__cardModProbeIds = window.__cardModProbeIds || new WeakMap();
+  const out = { declared: 0, applied: 0, pending: [], ids: [], loaded: !!customElements.get('card-mod') };
   const walk = async (root) => {
     let nodes; try { nodes = root.querySelectorAll('*'); } catch (e) { return; }
     for (const el of nodes) {
@@ -319,6 +323,8 @@ async () => {
       if (!WRAPPERS.has(el.localName) && cfg && typeof cfg === 'object' && nonEmpty(cfg.card_mod)
           && !EXCLUDED.has(String(cfg.type || '').toLowerCase())) {
         out.declared++;
+        if (!ids.has(el)) ids.set(el, (window.__cardModProbeSeq = (window.__cardModProbeSeq || 0) + 1));
+        out.ids.push(ids.get(el));
         const cms = Array.isArray(el._cardMod) ? el._cardMod : [];
         let ok = cms.length > 0;
         for (const cm of cms) if (ok && !(await cmReady(cm, 0))) ok = false;
@@ -335,26 +341,37 @@ async () => {
 
 # A lost race never recovers, so this cap only decides how long a failure takes to report.
 CARD_MOD_WAIT_S = 25
+# How long the set of declaring cards must hold still, all applied. "All applied" is also true of
+# a page whose card_mod cards have not rendered yet (0 of 0); readiness only requires ONE custom
+# card, so a later card must not slip in after this returns. Cold loads declare their last card
+# within ~0.3 s of the first, and the scan already waits 1.2 s past the first card before this.
+CARD_MOD_QUIET_S = 1.0
 
 
-def _wait_card_mod(page, cap_s=CARD_MOD_WAIT_S, poll_ms=250):
-    """Wait until card-mod has applied every `card_mod` the page declares, confirmed by two
-    consecutive polls over the same set of cards. Returns [] once it has (or when nothing on the
-    page declares card_mod), else a single finding: a page card-mod never styled must fail the
+def _wait_card_mod(page, cap_s=CARD_MOD_WAIT_S, poll_ms=250, quiet_s=CARD_MOD_QUIET_S):
+    """Wait until card-mod has applied every `card_mod` the page declares, with the same cards
+    declaring it for `quiet_s`. Returns [] once it has (or when nothing on the page declares
+    card_mod for that long), else a single finding: a page card-mod never styled must fail the
     gate by name, never pass on whatever the scan happens to measure."""
     deadline = time.monotonic() + cap_s
-    streak, last = 0, None
+    quiet_since, last_ids = None, None
     while True:
         st = page.evaluate(JS_CARD_MOD_STATE)
+        now = time.monotonic()
         done = st["applied"] == st["declared"]
-        streak = streak + 1 if done and st["declared"] == last else int(done)
-        last = st["declared"]
-        if streak >= 2:
+        if not (done and st["ids"] == last_ids and quiet_since is not None):
+            quiet_since = now if done else None
+        last_ids = st["ids"]
+        if quiet_since is not None and now - quiet_since >= quiet_s:
             return []
-        if time.monotonic() >= deadline:
+        if now >= deadline:
             break
         page.wait_for_timeout(poll_ms)
     missing = st["declared"] - st["applied"]
+    if not missing:
+        return [{"type": "card-mod-not-applied", "tag": "card-mod",
+                 "text": f"card-mod state never settled within {cap_s}s: the cards declaring card_mod "
+                         f"kept changing ({st['declared']} at the cap)"}]
     return [{"type": "card-mod-not-applied", "tag": "card-mod",
              "text": f"card-mod never applied to {missing} of {st['declared']} card(s) declaring card_mod "
                      f"within {cap_s}s (card-mod.js {'loaded' if st['loaded'] else 'NOT loaded'}); "
