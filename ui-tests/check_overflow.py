@@ -16,6 +16,7 @@ import argparse
 import json
 import os
 import sys
+import time
 import traceback
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -246,6 +247,100 @@ def auth_script(base, tokens):
     return f"window.localStorage.setItem('hassTokens', {json.dumps(json.dumps(payload))});"
 
 
+# How far card-mod (the pinned v4.2.1) has got. It styles a card only through prototype patches
+# (hui-card._loadElement, ha-card.firstUpdated, hui-grid-section.firstUpdated: src/patch/*.ts), so
+# a card built before card-mod.js runs is NEVER styled on that load. That is a lost load-order race,
+# not a slow apply, and no wait recovers it; run.sh loads card-mod as a frontend module for a head
+# start in that race, which is not a guarantee.
+# Scanning an unstyled page reports every wrapping label as truncated, so this proves the styles
+# are in before the scan. A card is applied once card-mod's `_cardMod` list on the element that
+# declares `card_mod` is non-empty and each <card-mod> in it is connected, has processed its
+# input, rendered its own `.` style into its <style>, and resolved every `selector$` child
+# (recursively). Promises are peeked with Promise.race, so a pending one never blocks the probe.
+# hui-card/hui-section hold a card's config but are never styled themselves; conditional and
+# entity-filter are skipped by card-mod (src/patch/hui-card.ts EXCLUDED_CARDS).
+JS_CARD_MOD_STATE = r"""
+async () => {
+  const PENDING = {};
+  const peek = (p) => Promise.race([p, Promise.resolve(PENDING)]);
+  const hasTpl = (s) => s.includes('{%') || s.includes('{{');
+  const nonEmpty = (v) => (typeof v === 'string' ? v.trim() !== '' : !!v && Object.keys(v).length > 0);
+  const cmReady = async (cm, depth) => {
+    if (!cm || !cm.isConnected || cm._processStylesOnConnect) return false;
+    const fixed = cm._fixed_styles || {};
+    if (nonEmpty(cm.card_mod_input) && Object.keys(fixed).length === 0) return false;
+    const own = typeof fixed['.'] === 'string' ? fixed['.'] : '';
+    if (own.trim()) {
+      const st = cm.querySelector(':scope > style');
+      if (!st || (hasTpl(own) ? !cm._renderer : !st.textContent.trim())) return false;
+    }
+    if (depth > 8) return true;
+    const kids = cm.card_mod_children || {};
+    for (const key of Object.keys(fixed)) {
+      if (key === '.') continue;
+      if (!(key in kids)) return false;
+      const list = await peek(kids[key]);
+      if (list === PENDING) return false;
+      for (const p of (list || [])) {          // undefined: card-mod gave up on the selector
+        const child = await peek(p);
+        if (child === PENDING || !(await cmReady(child, depth + 1))) return false;
+      }
+    }
+    return true;
+  };
+  const WRAPPERS = new Set(['hui-card', 'hui-section']);
+  const EXCLUDED = new Set(['conditional', 'entity-filter']);
+  const out = { declared: 0, applied: 0, pending: [], loaded: !!customElements.get('card-mod') };
+  const walk = async (root) => {
+    let nodes; try { nodes = root.querySelectorAll('*'); } catch (e) { return; }
+    for (const el of nodes) {
+      let cfg = null;
+      try { cfg = el._config || el.config; } catch (e) {}
+      if (!WRAPPERS.has(el.localName) && cfg && typeof cfg === 'object' && nonEmpty(cfg.card_mod)
+          && !EXCLUDED.has(String(cfg.type || '').toLowerCase())) {
+        out.declared++;
+        const cms = Array.isArray(el._cardMod) ? el._cardMod : [];
+        let ok = cms.length > 0;
+        for (const cm of cms) if (ok && !(await cmReady(cm, 0))) ok = false;
+        if (ok) out.applied++;
+        else out.pending.push(el.localName + (cfg.type ? ' (' + cfg.type + ')' : ''));
+      }
+      if (el.shadowRoot) await walk(el.shadowRoot);
+    }
+  };
+  await walk(document);
+  return out;
+}
+"""
+
+# A lost race never recovers, so this cap only decides how long a failure takes to report.
+CARD_MOD_WAIT_S = 25
+
+
+def _wait_card_mod(page, cap_s=CARD_MOD_WAIT_S, poll_ms=250):
+    """Wait until card-mod has applied every `card_mod` the page declares, confirmed by two
+    consecutive polls over the same set of cards. Returns [] once it has (or when nothing on the
+    page declares card_mod), else a single finding: a page card-mod never styled must fail the
+    gate by name, never pass on whatever the scan happens to measure."""
+    deadline = time.monotonic() + cap_s
+    streak, last = 0, None
+    while True:
+        st = page.evaluate(JS_CARD_MOD_STATE)
+        done = st["applied"] == st["declared"]
+        streak = streak + 1 if done and st["declared"] == last else int(done)
+        last = st["declared"]
+        if streak >= 2:
+            return []
+        if time.monotonic() >= deadline:
+            break
+        page.wait_for_timeout(poll_ms)
+    missing = st["declared"] - st["applied"]
+    return [{"type": "card-mod-not-applied", "tag": "card-mod",
+             "text": f"card-mod never applied to {missing} of {st['declared']} card(s) declaring card_mod "
+                     f"within {cap_s}s (card-mod.js {'loaded' if st['loaded'] else 'NOT loaded'}); "
+                     f"e.g. {', '.join(st['pending'][:4])}"}]
+
+
 def _stable_issues(page, settle_ms=500, max_passes=12):
     """Poll the truncation scan across a settle window and report only issues that SURVIVE it.
     card-mod styles (e.g. `white-space:normal` on the card labels) and webfonts apply
@@ -263,16 +358,21 @@ def _stable_issues(page, settle_ms=500, max_passes=12):
     the entire window. So keep scanning up to `max_passes`; exit early only on a clean state
     (confirmed by two consecutive empty scans, to rule out a transient empty), and otherwise report
     whatever is still flagged when the window closes. Fast path: a clean pair returns quickly; a
-    genuine failure uses the full window (~6s), which is fine since failures are rare."""
+    genuine failure uses the full window (~6s), which is fine since failures are rare.
+
+    The window alone assumes card-mod DOES land; when it lost the load race it never will, and the
+    window reported the unstyled page as mass truncation. So first wait for card-mod
+    (`_wait_card_mod`), whose own finding fails the gate by name when it never applies."""
+    not_applied = _wait_card_mod(page)
     issues, clean_streak = [], 0
     for i in range(max_passes):
         issues = page.evaluate(JS_DETECT)
         clean_streak = clean_streak + 1 if not issues else 0
         if clean_streak >= 2:                  # two consecutive clean scans → genuinely settled
-            return []
+            return not_applied
         if i < max_passes - 1:                 # no point sleeping after the final scan
             page.wait_for_timeout(settle_ms)
-    return issues                              # still flagged when the window closed → genuine
+    return not_applied + issues                # still flagged when the window closed → genuine
 
 
 def run():
