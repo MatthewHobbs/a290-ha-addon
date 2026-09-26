@@ -132,7 +132,8 @@ _HEADING_STYLE = ('.content{font-family:"Zen Dots",system-ui,sans-serif !importa
 _BUBBLE_SEP_STYLE = (
     '.bubble-line{background:#FFFF00 !important;}'
     '.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;'
-    'text-transform:uppercase;letter-spacing:2px;}'
+    'text-transform:uppercase;letter-spacing:2px;white-space:normal !important;'
+    'overflow:visible !important;text-overflow:clip !important;}'
     '.bubble-icon-container{color:#FFFF00 !important;}'
 )
 # Alpine's recommended charge target — drawn as a draggable-to reference line on the slider.

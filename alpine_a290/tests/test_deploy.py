@@ -245,6 +245,20 @@ def test_charger_popup_builds_native_controls(monkeypatch):
     assert "next_start" in badge["secondary"] and "%H:%M" in badge["secondary"]
 
 
+def test_charger_popup_separator_matches_the_bundled_separators(monkeypatch):
+    """The deploy-time Smart Charging separator carries exactly the style the bundled bubble
+    dashboard gives its own separators, wrap included, so a fix to one cannot miss the other."""
+    monkeypatch.setenv("A290_CHARGER_SMART_CHARGE", "switch.smart")
+    sep = deploy._charger_popup()["cards"][0]
+    assert sep["card_type"] == "separator"
+    bundled = (Path(deploy.__file__).resolve().parents[1] / "dashboards" / "front-end-bubble.txt").read_text()
+    # Every bundled separator, not just one: a fix that reached some of them would still match.
+    separators = bundled.count("card_type: separator\n")
+    assert separators == 13
+    assert bundled.count(f"styles: {sep['styles']}\n") == separators
+    assert "white-space:normal !important" in sep["styles"]
+
+
 def _flat_menu_names(menu):
     out = []
     for item in menu["cards"]:
