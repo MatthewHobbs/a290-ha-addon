@@ -14,6 +14,18 @@ A sibling repo, **`MatthewHobbs/r5-ha-addon`**, is the Renault 5 port of the sam
 **Keep the two in lockstep** — most feature/fix work here should be mirrored there
 (adjusting for per-model API differences), and vice-versa.
 
+**The parity check enforces that** ([ADR 0001](docs/adr/0001-r5-inherits-from-a290.md), stage A;
+decisions live in `docs/adr/`). `scripts/parity_check.py` rewrites r5's names onto a290's
+(`scripts/parity/map.tsv`), diffs the trees, and fails on any difference that
+`scripts/parity/expected.tsv` does not list with a category, an exact count and a reason, and on
+any entry whose difference is gone. Run `just parity` (clones r5's main, or
+`PARITY_TWIN=../r5-ha-addon just parity` to use a git checkout; tracked files and modes are
+compared, and a non-git tree is refused unless the script gets `--walk`); CI runs it as
+`Parity with r5`. When
+your change creates a difference, port it or add a `pending` entry naming its Target; when you
+fix one, delete its entry. Never raise a count without reading the lines it printed. The script
+is shared verbatim with r5; the map and list are each repo's own copy.
+
 ## Layout
 
 ```
@@ -166,6 +178,40 @@ to host accounts.eu1.gigya.com` is expected and correct: it is the proof no traf
 machine.
 
 Exceptions (CI is enough): docs-only, CI-YAML-only, or test-only changes.
+
+## Supervisor pilot (ADR 0002)
+
+`.github/workflows/supervisor.yml` runs `scripts/supervisor-pilot.sh`. The script installs this
+add-on under a real **stable-channel Supervisor** in the official add-on devcontainer, on amd64 and
+aarch64. It runs two Core legs: current stable, and the `homeassistant:` minimum read from
+`config.yaml`. It runs nightly, on demand, and on PRs that touch the pilot or what the Supervisor
+runs. It is **not a required check** yet (ADR row 5). It checks that versions match `stable.json`,
+that the running image is this checkout's build (provenance label), `/healthz`, the image
+HEALTHCHECK, the retained MQTT discovery and availability topics, and that Renault was tried and
+refused. It also checks AppArmor enforcement: the container runs under `local_alpine_a290
+(enforce)` and the kernel logged no denial. Adapted from polygonal-zones' pilot; the traps it
+already solved:
+
+- **The Supervisor always pulls** an add-on whose `config.yaml` names an `image:`, and never uses
+  a local one. The copy in `apps/local` therefore points at a registry on the devcontainer's
+  loopback, and a per-run provenance label proves the running container is this build.
+- **A floor Core can't be reached with `ha core update --version`**: the older Core refuses the
+  newer `.storage`. The version is seeded into `/mnt/supervisor/homeassistant.json` before the
+  Supervisor first starts.
+- **AppArmor is enforced only on the GitHub runner** (kernel 6.17, the devcontainer's parser
+  4.1.0), not under Docker Desktop, which has no AppArmor. Locally, set
+  `PILOT_APPARMOR_CHECK=skip`; the script refuses that under Actions.
+- **Renault must never be reached**, and `--add-host` can't be given to a container the
+  Supervisor creates. So an iptables `DOCKER-USER` rule refuses everything from the add-on range
+  (`172.30.33.0/24`) to anywhere off the hassio network. The broker shares that range, so the
+  rule counts per source address. The probe requires a refusal from **this add-on's own
+  address** since just before it started, or it proves nothing.
+- **The broker is the Mosquitto add-on**, not a service container. `services: mqtt:need` and
+  `run.sh` take the broker from the Supervisor's service registry, which only a providing
+  add-on fills.
+
+Local run (about 2 minutes warm): `PILOT_APPARMOR_CHECK=skip scripts/supervisor-pilot.sh all`, with
+`CORE_VERSION=minimum` for the floor. `PILOT_BREAK=start|apparmor` breaks a run on purpose.
 
 ## Release / versioning
 

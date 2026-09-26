@@ -1,0 +1,137 @@
+# Parity normalisation map: how the derived tree (r5-ha-addon) is read in the canonical tree's
+# (a290-ha-addon) names before the two are diffed. Read by scripts/parity_check.py; ADR 0001.
+#
+# Columns, tab-separated: kind, scope, pattern, replacement, why.
+#   side          scope canonical|derived; pattern = marker file that identifies that tree;
+#                 replacement = the label used in expected.tsv's side column
+#   define        pattern = NAME; replacement = regex text substituted for <NAME> in later rows
+#   path          regex on the derived file's path -> canonical path. Always scope `*`: a
+#                 scope names canonical paths, but a path rule rewrites derived names before
+#                 any canonical path exists, so a scoped path rule is refused (exit 2)
+#   legacy        content rewrite: r5's Topolino65-compatible names -> a290's. Expected to go:
+#                 r5 moves to a290's names in one migration release (ADR 0001), and each
+#                 rule is deleted once r5 no longer uses that name
+#   identity      content rewrite: names that differ only because the car differs
+#   verbatim      files that must be byte-identical: compared raw, never normalised
+#   skip          files never compared (each repo's own copy of this map and its list)
+#   collapse-ws   Python only: runs of whitespace BETWEEN tokens collapse to one space before
+#                 comparing; string literals and comments are kept exact (tokenized, so
+#                 "Charging  Power" never equals "Charging Power"); indentation is kept
+#   ignore-blank  whitespace-only lines are not differences
+# Scopes are globs on the CANONICAL path: `*` all, `a,b` only these, `!a,b` all but these.
+# Two files in one tree that land on the same canonical path (after the path rules) stop the
+# run with an error naming both, since one of them would otherwise never be compared.
+# Content rows apply in file order to the derived text only; a replacement never spans a
+# line, so a reported line number is the derived file's own. Order matters: legacy before
+# identity, because the identity rule for the r5_ prefix would otherwise consume them.
+#
+# Adding a rule here hides every difference it rewrites, in every file. A rule belongs here
+# only if the two names mean the same thing everywhere; anything narrower is an expected.tsv
+# entry, where it is counted. The audit that produced these rules (2026-09-26) checked they
+# leave known real differences visible: MQTT_KEEPALIVE, PESSIMISTIC_ENDPOINTS, cabin
+# temperature, COMMAND_DEBOUNCE_S and r5's Cabin Temp card all still reach the diff.
+
+side	canonical	alpine_a290/config.yaml	a290	a290-ha-addon holds the names every comparison is made in (a290 is upstream, ADR 0001)
+side	derived	renault_5/config.yaml	r5	r5-ha-addon is normalised onto a290's names
+
+define	-	DOMAIN	(?<![a-z_])(sensor|binary_sensor|button|number|device_tracker|switch|select|text|update|image)	entity-id domains; the lookbehind stops a match inside a longer word
+
+path	*	^renault_5/	alpine_a290/	add-on directory
+path	*	r5_background	alpine_a290_background	background image file name
+path	*	r5_side	alpine_a290_side	side image file name
+
+# Legacy entity ids: slug(device name + friendly name), from the two catalog.py files.
+legacy	*	<DOMAIN>\.r5_battery_autonomy\b	\1.alpine_a290_range	legacy entity id (Range)
+legacy	*	<DOMAIN>\.r5_charging_rate\b	\1.alpine_a290_charging_power	legacy entity id (Charging Power)
+legacy	*	<DOMAIN>\.r5_charging_remaining_time\b	\1.alpine_a290_charging_time_remaining	legacy entity id (Charging Time Remaining)
+legacy	*	<DOMAIN>\.r5_charger_plug_status\b	\1.alpine_a290_plug_status	legacy entity id (Plug Status)
+legacy	*	<DOMAIN>\.r5_charger_status\b	\1.alpine_a290_charging_status	legacy entity id (Charging Status)
+legacy	*	<DOMAIN>\.r5_charging_flap_status\b	\1.alpine_a290_charging_flap	legacy entity id (Charging Flap)
+legacy	*	<DOMAIN>\.r5_vehicle_mileage\b	\1.alpine_a290_mileage	legacy entity id (Mileage)
+legacy	*	<DOMAIN>\.r5_battery_last_activity\b	\1.alpine_a290_last_updated	legacy entity id (Last Updated)
+legacy	*	<DOMAIN>\.r5_start_air_conditioner\b	\1.alpine_a290_start_climate	legacy entity id (Start Climate)
+legacy	*	<DOMAIN>\.r5_stop_air_conditioner\b	\1.alpine_a290_stop_climate	legacy entity id (Stop Climate)
+legacy	*	<DOMAIN>\.r5_soc_min_target\b	\1.alpine_a290_minimum_soc	legacy entity id (Minimum SoC)
+legacy	*	<DOMAIN>\.r5_soc_max_target\b	\1.alpine_a290_charge_target_soc	legacy entity id (Charge Target SoC)
+
+# Legacy object ids: same Kamereon field or role, different name (r5 catalog.py vs a290's).
+legacy	*	(?<!\.)\br5_battery_autonomy\b	a290_range	legacy object id
+legacy	*	(?<!\.)\br5_charging_rate\b	a290_charging_power	legacy object id
+legacy	*	(?<!\.)\br5_charging_remaining_time\b	a290_charging_remaining	legacy object id
+legacy	*	(?<!\.)\br5_charger_plug_status\b	a290_plug_status	legacy object id
+legacy	*	(?<!\.)\br5_charger_status\b	a290_charging_status	legacy object id
+legacy	*	(?<!\.)\br5_charging_flap_status\b	a290_charging_flap	legacy object id
+legacy	*	(?<!\.)\br5_vehicle_mileage\b	a290_mileage	legacy object id
+legacy	*	(?<!\.)\br5_battery_last_activity\b	a290_last_updated	legacy object id
+legacy	*	(?<!\.)\br5_flash_lights\b	a290_lights	legacy object id
+legacy	*	(?<!\.)\br5_sound_horn\b	a290_horn	legacy object id
+legacy	*	(?<!\.)\br5_start_air_conditioner\b	a290_climate_start	legacy object id
+legacy	*	(?<!\.)\br5_stop_air_conditioner\b	a290_climate_stop	legacy object id
+legacy	*	(?<!\.)\br5_soc_min_target\b	a290_soc_min	legacy object id
+legacy	*	(?<!\.)\br5_soc_max_target\b	a290_soc_target	legacy object id
+
+# Legacy friendly names. Not in dashboards or the UI harness, where a card's display name is
+# free text chosen per dashboard and must stay visible as a difference.
+legacy	!alpine_a290/dashboards/*,ui-tests/*	Battery Autonomy	Range	legacy friendly name
+legacy	!alpine_a290/dashboards/*,ui-tests/*	Charging Rate	Charging Power	legacy friendly name
+legacy	!alpine_a290/dashboards/*,ui-tests/*	Charging Remaining Time	Charging Time Remaining	legacy friendly name
+legacy	!alpine_a290/dashboards/*,ui-tests/*	Charger Plug Status	Plug Status	legacy friendly name
+legacy	!alpine_a290/dashboards/*,ui-tests/*	Charger Status	Charging Status	legacy friendly name
+legacy	!alpine_a290/dashboards/*,ui-tests/*	Charging Flap Status	Charging Flap	legacy friendly name
+legacy	!alpine_a290/dashboards/*,ui-tests/*	Vehicle Mileage	Mileage	legacy friendly name
+legacy	!alpine_a290/dashboards/*,ui-tests/*	Battery Last Activity	Last Updated	legacy friendly name
+legacy	!alpine_a290/dashboards/*,ui-tests/*	Start Air Conditioner	Start Climate	legacy friendly name
+legacy	!alpine_a290/dashboards/*,ui-tests/*	Stop Air Conditioner	Stop Climate	legacy friendly name
+legacy	!alpine_a290/dashboards/*,ui-tests/*	SOC Min Target	Minimum SoC	legacy friendly name
+legacy	!alpine_a290/dashboards/*,ui-tests/*	SOC Max Target	Charge Target SoC	legacy friendly name
+
+identity	*	r5-ha-addon	a290-ha-addon	repository name
+identity	*	%2Frenault_5%2F	%2Falpine_a290%2F	URL-encoded add-on directory (README badge)
+identity	*	\brenault_5\b	alpine_a290	add-on directory, slug, NODE, image name
+identity	*	\brenault-5\b	alpine-a290	dashboard url_path default
+identity	*	\bcar-r5\b	car-alpine	standard dashboard view path
+identity	*	R5E1VE	A5E1AE	Kamereon model code
+identity	*	\bR5_	A290_	option environment-variable prefix
+identity	*	__r5AutoOpen	__alpineAutoOpen	dashboard JS global
+identity	*	#r5-	#alpine-	dashboard pop-up hash
+identity	*	#r5\b	#alpine	dashboard pop-up hash root
+identity	*	\br5-(verify|mqtt|local)\b	a290-\1	container-verify names (CLAUDE.md)
+identity	*	\br5v\b	a290v	container-verify network (CLAUDE.md)
+identity	*	\br5_(background|side)\b	alpine_a290_\1	background image basenames
+identity	*	\br5_pretty_location\b	alpine_pretty_location	location template sensor
+identity	*	<DOMAIN>\.r5_test_	\1.a290_test_	test-mode helper entities
+identity	*	<DOMAIN>\.r5_	\1.alpine_a290_	entity-id prefix (slug of the device name)
+identity	*	\br5_	a290_	object-id and helper prefix
+identity	*	Renault 5 E-Tech	Alpine A290	brand name
+identity	*	R5 E-Tech	A290	brand and model
+identity	*	Renault 5	Alpine A290	brand name
+identity	*	My Renault	My Alpine	companion app name
+identity	*	\bR5\b	A290	short model name
+
+# Shared verbatim: these must stay byte-identical. Compared raw, because normalising a file
+# that names both cars can manufacture a match: docs_cite_check.py says "the R5's ids" in
+# both repos, and the R5 rule would rewrite r5's copy to "the A290's".
+verbatim	scripts/parity_check.py	-	-	this script: r5 runs the same file
+verbatim	scripts/docs_cite_check.py	-	-	shared check, copied verbatim
+verbatim	scripts/docs_sync_check.py	-	-	shared check, copied verbatim
+verbatim	scripts/pii_check.py	-	-	shared check, copied verbatim
+verbatim	scripts/ha_minimum_check.py	-	-	shared check, copied verbatim
+verbatim	ruff.toml	-	-	shared lint config
+verbatim	.hadolint.yaml	-	-	shared lint config
+verbatim	.data-class	-	-	both repos are Public / others
+verbatim	LICENSE	-	-	same licence
+verbatim	alpine_a290/app/requirements.in	-	-	same pinned dependencies (renault-api 0.5.13)
+verbatim	alpine_a290/app/requirements.txt	-	-	same hash-locked dependencies
+verbatim	alpine_a290/tests/conftest.py	-	-	shared test fixtures
+verbatim	ui-tests/.gitignore	-	-	shared harness
+verbatim	ui-tests/devices.json	-	-	same device matrix
+
+# Each repo's gate reads its own copy of these; comparing them would make a list edit in one
+# repo turn the other red until it copied the edit, which no single PR can fix.
+skip	scripts/parity/*	-	-	per-repo copy of this map and the expected list
+
+# The legacy renames change identifier lengths, so column alignment in the catalog's tables
+# differs for no other reason. Leading indentation is kept.
+collapse-ws	alpine_a290/app/catalog.py	-	-	alignment after renamed keys
+
+ignore-blank	*	-	-	a blank line carries no behaviour or wording

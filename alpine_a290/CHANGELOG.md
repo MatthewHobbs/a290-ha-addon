@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.28.3
+## 1.28.4
 
 - **Standard dashboard: the Location and Last Updated tiles match the tiles around them again.**
   Mushroom 5 rebuilt its template card from different parts, so the styling these two tiles
@@ -20,6 +20,15 @@
   It had the same small icon and unstyled, non-wrapping text, and now shows the 55px icon circle,
   small wrapping text and yellow address line it was designed with. Re-copy or redeploy the Bubble
   dashboard to pick it up (`redeploy_dashboard: true`, or paste `front-end-bubble.txt` again).
+
+## 1.28.3
+
+- **The add-on's AppArmor profile now names the policy version it was written for.** Without that,
+  a newer AppArmor compiles the profile using the running kernel's newest rules. Under enforcing
+  AppArmor on Linux 6.17 with AppArmor 4.1, the add-on was denied the internal socket its process
+  supervisor needs and never started. Home Assistant OS currently ships an older AppArmor, so no
+  install is known to be affected today; the pin keeps the profile meaning what it was written to
+  mean when that changes. Nothing else changes: no options, entities or dashboards move.
 
 ## 1.28.2
 
