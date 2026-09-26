@@ -42,6 +42,7 @@ model	alpine_a290/dashboards/Images/Models/*	r5	only	22	r5's car_render option p
 model	alpine_a290/dashboards/Images/Map Markers/*	r5	only	6	r5's map markers per paint colour; a290's dashboards use the default marker
 
 # ---------------------------------------------------------------- one repository only
+pending	.data-class	r5	only	1	a290 stopped tracking its machine-local data-class marker (#167, at claude-config's request); r5 still tracks its copy. Target: r5 untracks it on the same request
 local	BACKLOG.md	a290	only	1	a290's own backlog; r5 tracks work in its issues
 local	.orchestrate/*	a290	only	2	a290's review-orchestration helpers; whether r5 wants them is the owner's call (audit H-C7)
 local	docs/adr/*	a290	only	2	a290's architecture decision records (0001 parity, 0002 Supervisor pilot)
