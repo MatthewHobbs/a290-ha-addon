@@ -53,13 +53,20 @@ NAME="${PILOT_NAME:-a290-supervisor}"
 CORE_VERSION="${CORE_VERSION:-stable}"
 BREAK="${PILOT_BREAK:-}"
 WORKDIR="${PILOT_WORKDIR:-}"
-# Only a directory this run created is removed on exit; a caller's is theirs.
+# Only a directory this run created is removed on exit; a caller's PILOT_WORKDIR is theirs.
+# Every command gets the trap, not only `all`: a lone `down` or `versions` made a mktemp dir
+# it never used again. `diagnostics` and PILOT_KEEP=1 disown it below to keep the output.
 WORKDIR_OWNED=0
 if [[ -z "$WORKDIR" ]]; then
   WORKDIR="$(mktemp -d)"
   WORKDIR_OWNED=1
 fi
 mkdir -p "$WORKDIR"
+cleanup_workdir() {
+  ((WORKDIR_OWNED)) && rm -rf "$WORKDIR"
+  return 0
+}
+trap 'cleanup_workdir' EXIT
 # The registry lives on the devcontainer's loopback: Docker allows plain HTTP
 # to 127.0.0.1 without any daemon configuration, and nothing leaves the job.
 LOCAL_REGISTRY="127.0.0.1:5000"
@@ -810,6 +817,8 @@ cmd_probe() {
 
 cmd_diagnostics() {
   local out="${1:-$WORKDIR/diagnostics}"
+  # The default output lives in WORKDIR, so a run that owns it keeps it.
+  [[ -n "${1:-}" ]] || WORKDIR_OWNED=0
   mkdir -p "$out"
   dc cat /var/log/supervisor_run.log >"$out/supervisor_run.log" 2>&1 || true
   dc docker ps -a >"$out/inner-docker-ps.txt" 2>&1 || true
@@ -848,14 +857,18 @@ cmd_down() {
 
 cleanup_all() {
   cmd_down
-  ((WORKDIR_OWNED)) && rm -rf "$WORKDIR"
-  return 0
+  cleanup_workdir
 }
 
 cmd_all() {
   local t0=$SECONDS t phase timings=""
   export PILOT_WORKDIR="$WORKDIR"
-  [[ "${PILOT_KEEP:-0}" == 1 ]] || trap 'cleanup_all' EXIT
+  if [[ "${PILOT_KEEP:-0}" == 1 ]]; then
+    WORKDIR_OWNED=0
+    log "PILOT_KEEP=1: leaving $NAME running and its state in $WORKDIR"
+  else
+    trap 'cleanup_all' EXIT
+  fi
   [[ -z "$BREAK" || "$BREAK" == start || "$BREAK" == apparmor || "$BREAK" == dashboard ]] ||
     fail "unknown PILOT_BREAK '$BREAK'"
   # Each phase in its own process: a function called on the left of || runs
