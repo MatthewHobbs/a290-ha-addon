@@ -478,9 +478,9 @@ def _open_popup(page, popup, where, dev_name):
 def _capture_popup(page, popup, where, dev_name, shot):
     """Open one pop-up, scan it, then screenshot it. Returns its findings, or None when it never
     stayed open or its scan never completed (reported; the committed screenshot is kept rather
-    than overwritten by the menu behind it). Best-effort and ISOLATED per device: a miss here
-    must not fail the run; the pop-up config is identical across viewports, so a real break still
-    surfaces on the ones that scan cleanly, and run() fails a pop-up captured on no device.
+    than overwritten by the menu behind it). run() then FAILS that device for that pop-up: a
+    truncation is specific to a width, so a pop-up scanned at 430px says nothing about 360px, and
+    a skip that passed was a false green for that viewport (Codex on #171).
     The one miss that recurs is HA's own reload: once, ~5 s after a context's first load, as its
     service worker takes control (measured on Bubble 3.2.5, 3.4.0 and 3.4.1; the r5 twin saw it
     land inside the pop-up scan on 4 of 8 legs). It tears down the JS context ("Execution
@@ -491,7 +491,12 @@ def _capture_popup(page, popup, where, dev_name, shot):
     for attempt in range(2):
         try:
             if not _open_popup(page, popup, where, dev_name):
-                print(f"    [popup skipped] {where} @ {dev_name}: {popup['hash']} never stayed open; "
+                if attempt == 0:
+                    print(f"    [popup reopen] {where} @ {dev_name}: {popup['hash']} never stayed open — "
+                          "trying once more")
+                    page.wait_for_timeout(600)
+                    continue
+                print(f"    [popup skipped] {where} @ {dev_name}: {popup['hash']} never stayed open twice; "
                       "not overwriting its screenshot")
                 return None
             issues = _stable_issues(page)
@@ -509,7 +514,7 @@ def _capture_popup(page, popup, where, dev_name, shot):
                 page.wait_for_timeout(600)
                 continue
             print(f"    [popup skipped] {where} @ {dev_name}: {popup['hash']} scan failed twice "
-                  f"({type(err).__name__}) — not failing this device\n      at {_failing_step(err)}")
+                  f"({type(err).__name__})\n      at {_failing_step(err)}")
             return None
 
 
@@ -619,7 +624,13 @@ def run():
                     pshot = os.path.join(args.out, f"{stem}__{pname}__{slug}.png")
                     found = _capture_popup(page, popup, where, dev["name"], pshot)
                     captured[(dash, popup["hash"])][found is None] += 1
-                    if found is not None:
+                    if found is None:
+                        # Not covered on this device, so not green on it: a truncation at this
+                        # width would have been missed, whatever the other devices found.
+                        issues.append({"type": "popup-not-scanned", "tag": "-", "popup": popup["hash"],
+                                       "text": f"pop-up {popup['hash']} could not be opened or scanned on "
+                                               "this device after a retry"})
+                    else:
                         issues += found
                 # De-dupe: the pop-up scan re-walks the whole document, so a main-dashboard finding
                 # can otherwise appear twice when both the main view and the pop-up are flagged.
@@ -638,16 +649,13 @@ def run():
             ctx.close()
         browser.close()
 
-    # A pop-up skipped on one device is covered by the others; one scanned on none was never
-    # checked at all, and a hash that opens nothing must fail here rather than print ten skips.
+    # Each skip already failed its device above; the summary names the pop-up once so a hash that
+    # opens nothing anywhere reads as one fact rather than ten device failures.
     print()
     for (dash, phash), (scanned, skipped) in captured.items():
         if skipped:
             print(f"  pop-up {phash} on {dash}: scanned on {scanned}, skipped on {skipped} of "
-                  f"{scanned + skipped} device(s)")
-        if not scanned:
-            failures.append((dash, "every device", None, [{"type": "popup-never-scanned", "tag": "-",
-                             "text": f"pop-up {phash} was skipped on every device, so it was never checked"}]))
+                  f"{scanned + skipped} device(s)" + ("" if scanned else " — never checked at all"))
     if failures:
         print(f"=== {len(failures)} device/dashboard combos with issues ===")
         for dash, name, width, issues in failures:

@@ -35,13 +35,14 @@ Mushroom tile labels clipping on a phone.
    stops on a pop-up without a hash or a name, on two sharing either, on a `navigate` action whose
    target no pop-up defines, and on a Bubble dashboard defining fewer than `MIN_POPUPS`.
 
-   A pop-up that never stays open on one device is skipped there and reported, never captured as
-   the menu behind it, and the run goes on: opening by hash can tear down the JS context on a slow
-   viewport, and the pop-up config is identical across viewports. HA also reloads the page once,
-   about five seconds after a context's first load, as its service worker takes control; when
-   that lands inside a pop-up's scan the pop-up is reopened and rescanned once before it counts
-   as skipped. Each pass prints how many devices skipped each pop-up, and **fails when a pop-up
-   was skipped on every device**, since it was then never checked at all.
+   A pop-up that never stays open, or whose scan is torn down, gets one more attempt on that
+   device: HA reloads the page once, about five seconds after a context's first load, as its
+   service worker takes control, and opening by hash can tear down the JS context on a slow
+   viewport; neither recurs. A pop-up still unscanned after that is reported, its committed
+   screenshot is kept rather than overwritten by the menu behind it, and **that device fails for
+   that pop-up**: a truncation is specific to a width, so a scan at 430px says nothing about
+   360px. Each pass also prints how many devices skipped each pop-up, so a hash that opens
+   nothing anywhere reads as one fact.
 5. **Problem-sensor and toggle passes.** The seed is a parked car on a working add-on (Data
    Stale on, Poll Failing and API Auth Failure off) with the demo charger dispatching, so the rest
    of what those sensors switch (the Not Polling and Auth Failure cards, the Last Updated branch
