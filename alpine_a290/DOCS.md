@@ -273,6 +273,17 @@ not `sensor.`s** — if you upgraded from an early version that published them a
 the leftover `sensor.alpine_a290_soc_*` entities HA shows as *unavailable* (Settings →
 Devices & Services → Entities → filter *Unavailable*).
 
+**Entity ids with an area prefix.** If the Alpine A290 device was put in an area *before* its
+entities were first registered, Home Assistant named them after the area too
+(`sensor.garage_alpine_a290_battery_level`), and the bundled dashboards, which use
+`sensor.alpine_a290_…`, show those tiles as unavailable. Since 1.28.5 every entity is published
+with a pinned id, so this cannot happen to a new install or a new entity, but Home Assistant never
+renames an entity it has already registered. To repair an affected install either rename each
+prefixed entity to the pinned id (Settings → Devices & Services → Entities → the entity → settings
+cog → *Entity ID*), which keeps its history, or delete the Alpine A290 device (Settings → Devices &
+Services → MQTT → the device → *Delete*) and restart the add-on, which re-creates every entity
+under the pinned ids with fresh history.
+
 ### Control buttons
 
 The app publishes a button for each remote action the car supports (it probes
