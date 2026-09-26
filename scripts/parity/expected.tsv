@@ -146,6 +146,13 @@ pending	.trivyignore	r5	*	3	r5 still ignores AVD-DS-0026 (no HEALTHCHECK) althou
 pending	.yamllint	a290	*	4	a290 exempts dashboards/ because it bundles upstream YAML packages there. Target: follows the Packages/Templates decision
 pending	scripts/docs_cite_ignore.txt	both	*	3	the comment follows the bundled-template difference. Target: follows the Templates decision
 
+# --- UI gate coverage: dispatching-off pass and all Bubble pop-ups
+# Listed before the whole-file harness entries below so these lines are taken here, not there.
+pending	ui-tests/seed.py	both	py:<docstring>,<imports>,TOGGLES,MIN_POPUPS,TEMPLATE_DIR,HELPER_STATES,helper_states,state_for,derive_passes,TEXT_KEYS,IF_IS_STATE,ACTION_KEYS,_reads_state,expected_labels,popups_in,write_manifest,main	189	a290 derives a pass per TOGGLES entry (the off-peak badge's "Peak rate"), lists every Bubble pop-up with its labels in the manifest, and seeds the bundled pretty-location template at a real length. Target: r5's harness PR porting this
+pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_labels,POPUP_SHOT_NAMES,_open_popup,_capture_popup,run	233	a290 opens every Bubble pop-up by hash, proves each open by hash and header name, rescans once after HA's service-worker reload, and fails a pop-up skipped on every device. Target: r5's harness PR porting this
+pending	ui-tests/run.sh	both	hunk:demo toggles|reseed the sensors it switches	11	the pass loop's comment and echo also name the toggles and pop-ups. Target: r5's harness PR porting this
+pending	ui-tests/README.md	both	hunk:Bubble pop-ups|Problem-sensor and toggle passes|TOGGLES|popup_	64	'How it works' items 4-5 describe the pop-up loop and the toggle passes. Target: r5's harness PR porting this
+
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
 pending	ui-tests/check_overflow.py	both	*	124	residue after r5 #105 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow ADR 0001 row 13
 pending	ui-tests/seed.py	both	*	54	residue after r5 #105: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
