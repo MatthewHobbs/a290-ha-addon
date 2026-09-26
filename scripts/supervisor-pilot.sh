@@ -694,11 +694,20 @@ dashboard_targets() {
   esac
 }
 
-# Matched with -E, else as addon_log_has.
-addon_log_matches() {
-  local out
+# addon_log_deploy_settled URL_PATH...: the deploy has reached an outcome for
+# every expected dashboard. deploy.py deploys 'both' targets one after the
+# other and logs each on its own, so the first "Deployed" line is not the end:
+# querying Core then would miss the second dashboard still being saved. A skip
+# or error line ends the whole deploy, whichever target it was on.
+addon_log_deploy_settled() {
+  local out target
   out="$(addon_log)" || return 1
-  grep -qE -- "$1" <<<"$out"
+  if grep -qE "Dashboard auto-deploy skipped|skipping dashboard deploy|deploy_dashboard=.*not recognised" <<<"$out"; then
+    return 0
+  fi
+  for target; do
+    grep -qE "Deployed '[a-z]+' dashboard to '$target'|Dashboard '$target' already exists" <<<"$out" || return 1
+  done
 }
 
 check_dashboard() {
@@ -711,9 +720,9 @@ check_dashboard() {
   # The deploy runs once at start, before the poll loop; whichever way it
   # went, the add-on logs it. Not just the skip: a deploy that hangs would
   # never log at all, and the timeout is what catches that.
-  poll "the add-on has logged its dashboard deploy outcome" 120 3 addon_log_matches \
-    "Dashboard auto-deploy skipped|skipping dashboard deploy|Deployed '[a-z]+' dashboard to|Dashboard '.*' already exists|deploy_dashboard=.*not recognised" ||
-    fail "the add-on never logged a dashboard deploy outcome"
+  # shellcheck disable=SC2086  # one url_path per word, by construction
+  poll "the add-on has logged an outcome for every expected dashboard" 120 3 addon_log_deploy_settled $targets ||
+    fail "the add-on never logged a dashboard deploy outcome for every expected dashboard"
   log_text="$(addon_log)" || fail "could not read the add-on's log"
   grep -E "Dashboard|dashboard" <<<"$log_text" | grep -vE "^.* DEBUG " | head -5 | sed 's/^/    /' || true
   if grep -q "Dashboard auto-deploy skipped" <<<"$log_text"; then
