@@ -59,7 +59,8 @@ jobs:
 
       # Global rule: the declared minimum HA must be present and no newer than the .1 of the month
       # before current stable, read live - stable moves monthly, so a hard-coded bound would rot.
-      # It does not prove the version is a real release; the UI gate's minimum leg pulls that image.
+      # It must also be a published release (looked up on PyPI; no pre-releases), and an
+      # unreachable PyPI fails the step rather than passing it.
       - name: Home Assistant minimum is declared and allowed
         run: |
           python3 scripts/ha_minimum_check.py --self-test
