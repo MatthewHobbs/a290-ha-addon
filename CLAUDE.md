@@ -187,10 +187,13 @@ aarch64. It runs two Core legs: current stable, and the `homeassistant:` minimum
 `config.yaml`. It runs nightly, on demand, and on PRs that touch the pilot or what the Supervisor
 runs. It is **not a required check** yet (ADR row 5). It checks that versions match `stable.json`,
 that the running image is this checkout's build (provenance label), `/healthz`, the image
-HEALTHCHECK, the retained MQTT discovery and availability topics, and that Renault was tried and
-refused. It also checks AppArmor enforcement: the container runs under `local_alpine_a290
-(enforce)` and the kernel logged no denial. Adapted from polygonal-zones' pilot; the traps it
-already solved:
+HEALTHCHECK, the retained MQTT discovery and availability topics, that Renault was tried and
+refused, and that the dashboard the default options deploy (`deploy_dashboard: standard` at
+`dashboard_url_path`) exists in Core with views, read back through Core's Lovelace WebSocket API
+from inside the add-on container (the Supervisor's Core proxy admits only an add-on token), with
+no `Dashboard auto-deploy skipped` in the log. It also checks AppArmor enforcement: the container
+runs under `local_alpine_a290 (enforce)` and the kernel logged no denial. Adapted from
+polygonal-zones' pilot; the traps it already solved:
 
 - **The Supervisor always pulls** an add-on whose `config.yaml` names an `image:`, and never uses
   a local one. The copy in `apps/local` therefore points at a registry on the devcontainer's
@@ -211,7 +214,8 @@ already solved:
   add-on fills.
 
 Local run (about 2 minutes warm): `PILOT_APPARMOR_CHECK=skip scripts/supervisor-pilot.sh all`, with
-`CORE_VERSION=minimum` for the floor. `PILOT_BREAK=start|apparmor` breaks a run on purpose.
+`CORE_VERSION=minimum` for the floor. `PILOT_BREAK=start|apparmor|dashboard` breaks a run on
+purpose.
 
 ## Release / versioning
 

@@ -131,8 +131,7 @@ pending	.github/workflows/ci.yaml	both	hunk:a VIN in a test fixture|pair of publ
 pending	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant/base	4	the same comment on the build step, in a different place. Target: one place in both
 pending	.github/workflows/ui-tests.yaml	both	hunk:NOT the prose in there	42	the path-filter comment names each repo's own dashboard docs. Target: follows the dashboard-docs reconciliation
 pending	.github/workflows/ui-tests.yaml	both	hunk:Path-filtered so it only runs when	5	a290's header also names deploy.py as a render input. Target: port to r5
-pending	.github/workflows/ui-tests.yaml	a290	re:alpine_a290/app/catalog\.py	2	a290's alarm pass derives its sensors from catalog.py (#152). Target: r5's harness PR porting #152
-pending	.github/workflows/refresh-screenshots.yaml	both	hunk:cp ui-tests/screenshots/	17	screenshot names follow each harness's dashboard slugs, and a290 keeps the committed pop-up shot when it was not captured (#144). Target: r5's harness PR porting #144
+pending	.github/workflows/refresh-screenshots.yaml	both	re:ui-tests/screenshots/	10	screenshot file names carry each repo's dashboard slugs (alpine-standard/alpine-bubble vs renault-5/renault-5-bubble), in the cp lines and the pop-up guard. Target: follows the naming decision (ADR 0001 row 13)
 local	.github/workflows/renault-api-watch.yaml	r5	re:Ported from the A290 twin	1	r5's provenance note pointing at a290
 pending	.github/workflows/renault-api-watch.yaml	both	re:cron:	2	schedule comment wording. Target: converge, either way
 pending	.github/workflows/renault-api-watch.yaml	both	hunk:sort -V ranks	8	a290's comment also covers compound versions such as 0.5.14rc1.dev2. Target: port a290's comment to r5
@@ -145,12 +144,9 @@ pending	.yamllint	a290	*	4	a290 exempts dashboards/ because it bundles upstream 
 pending	scripts/docs_cite_ignore.txt	both	*	3	the comment follows the bundled-template difference. Target: follows the Templates decision
 
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
-pending	ui-tests/run.sh	both	hunk:extra_module_url|default_config	7	a290 loads card-mod as a frontend module to win the styling race. Target: r5's harness PR
-pending	ui-tests/run.sh	both	hunk:Alarm pass|check_overflow\.py" --base	15	a290 re-renders once per pass seed.py derives, each a state production can publish (#152, reworked by #161). Target: r5's single harness PR (porting #152 and #161)
-pending	ui-tests/run.sh	both	re:HERE/seed\.py" --base	2	a290's seed writes the manifest the main pass is checked against (#161); r5's seeds without one. Target: r5's single harness PR
-pending	ui-tests/check_overflow.py	both	*	378	a290 has the pop-up hardening (#144), the alarm pass (#152) and the card-mod wait; r5 does not yet. Target: r5's harness PR, then per-symbol entries for what legitimately differs
-pending	ui-tests/seed.py	both	*	295	as check_overflow.py, plus card-mod loaded as a module on a290 (#154) but a resource on r5, the production-reachable passes (#161), and about 40 legitimate model tokens. Target: r5's single harness PR, then per-symbol entries
-pending	ui-tests/README.md	both	*	60	harness documentation follows the harness (#161 rewrote the passes section). Target: r5's single harness PR
+pending	ui-tests/check_overflow.py	both	*	124	residue after r5 #105 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow ADR 0001 row 13
+pending	ui-tests/seed.py	both	*	54	residue after r5 #105: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
+pending	ui-tests/README.md	both	*	26	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow ADR 0001 row 13
 
 # ---------------------------------------------------------------- prose and tests, excused wholesale
 # These are the only unguarded entries (count *): drift inside them is not caught. They are
@@ -168,6 +164,11 @@ pending	alpine_a290/apparmor.txt	both	*	10	a290 pins `abi <abi/3.0>,` (runner-pr
 pending	.github/workflows/ci.yaml	a290	hunk:ShellCheck \(Supervisor pilot\)	2	ShellCheck step for the pilot script. Target: r5 adds it with the pilot
 pending	justfile	both	re:^\s+shellcheck alpine_a290/run\.sh	2	`just lint` also shellchecks the pilot script. Target: r5 adds it with the pilot
 pending	.github/renovate.json	both	hunk:Supervisor pilot	25	Renovate rule and manager for the pilot's digest-pinned images. Target: r5 adds them with the pilot
+# --- pilot dashboard probe (a290 follow-up to #160)
+# The probe lives in the two a290-only pilot files above, which their `only` entries already
+# take whole, and in ADR 0002 row 11 (docs/adr/*, local). A per-line entry here would take
+# nothing and fail as stale. Target: r5 mirrors it with the pilot (ADR 0002 row 10); when
+# r5 gains its pilot, those `only` entries become per-line ones and the probe's go here.
 # ---------------------------------------------------------------- mushroom v5 template-card styling (a290 #164, 1.28.4)
 pending	alpine_a290/app/deploy.py	both	py:_TILE_DISC,_TILE_WRAP,_TILE_STYLE,_offpeak_badge	24	a290 #164 styles the off-peak badge for mushroom v5's tile parts and lets it wrap; r5 still targets mushroom-shape-icon$. Target: r5 ports #164 (deploy.py part)
 pending	alpine_a290/dashboards/front-end*.txt	both	re:^\s+(# Mushroom v5 builds the template card|# not mushroom-shape-icon/mushroom-state-info|# entity cards to reach the same 55px disc|# Template card: tile selectors|ha-tile-icon\$:|\.: ha-tile-icon\{|mushroom-shape-icon\$:|mushroom-state-info\$:|\.: ha-card\{background:none !important;box-shadow:none !important;border:none !important;\}$)	27	a290 #164 re-targets the LOCATION and Last Updated template cards' card_mod at mushroom v5's tile parts (ha-tile-icon$); r5's still name mushroom-shape-icon$/mushroom-state-info$, which v5 no longer renders. Target: r5 ports #164 (dashboards part). Listed last on purpose: the r5-only tile hunks above claim their own mushroom-* keys first
