@@ -110,7 +110,7 @@ pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUT
 pending	alpine_a290/app/deploy.py	both	py:_WS	2	one comment. Target: converge, either way
 
 # ---------------------------------------------------------------- dashboards
-pending	alpine_a290/dashboards/front-end*.txt	r5	hunk:name: Refresh Location	31	the Refresh Location tile, on both r5 dashboards (see deploy.py). Target: owner decision on the tile
+pending	alpine_a290/dashboards/front-end*.txt	r5	hunk:name: Refresh Location	34	the Refresh Location tile, on both r5 dashboards (see deploy.py); on front-end.txt the same changed block also holds the Last Updated card's pre-mushroom-v5 card_mod keys (a290 #164). Target: owner decision on the tile; the keys go with the #164 port
 pending	alpine_a290/dashboards/front-end.txt	both	re:sensor\.(a290_)?test_	32	a290's test-mode package is namespaced a290_test_*; r5's is bare test_* (audit H-C4). Target: port to r5 with Packages/a290_test.yaml
 pending	alpine_a290/dashboards/front-end.txt	r5	hunk:name: Cabin Temp	14	r5's Cabin Temp card; the A290 never returns cabin temperature. Target: follows the cabin-temperature decision
 pending	alpine_a290/dashboards/front-end.txt	r5	hunk:^\s+name: (Initial|Uplift)$	16	r5 still has duplicate Initial and Uplift tiles, and Initial is mislabelled (audit H-C5). Target: remove from r5
@@ -168,3 +168,6 @@ pending	alpine_a290/apparmor.txt	both	*	10	a290 pins `abi <abi/3.0>,` (runner-pr
 pending	.github/workflows/ci.yaml	a290	hunk:ShellCheck \(Supervisor pilot\)	2	ShellCheck step for the pilot script. Target: r5 adds it with the pilot
 pending	justfile	both	re:^\s+shellcheck alpine_a290/run\.sh	2	`just lint` also shellchecks the pilot script. Target: r5 adds it with the pilot
 pending	.github/renovate.json	both	hunk:Supervisor pilot	25	Renovate rule and manager for the pilot's digest-pinned images. Target: r5 adds them with the pilot
+# ---------------------------------------------------------------- mushroom v5 template-card styling (a290 #164, 1.28.4)
+pending	alpine_a290/app/deploy.py	both	py:_TILE_DISC,_TILE_WRAP,_TILE_STYLE,_offpeak_badge	24	a290 #164 styles the off-peak badge for mushroom v5's tile parts and lets it wrap; r5 still targets mushroom-shape-icon$. Target: r5 ports #164 (deploy.py part)
+pending	alpine_a290/dashboards/front-end*.txt	both	re:^\s+(# Mushroom v5 builds the template card|# not mushroom-shape-icon/mushroom-state-info|# entity cards to reach the same 55px disc|# Template card: tile selectors|ha-tile-icon\$:|\.: ha-tile-icon\{|mushroom-shape-icon\$:|mushroom-state-info\$:|\.: ha-card\{background:none !important;box-shadow:none !important;border:none !important;\}$)	27	a290 #164 re-targets the LOCATION and Last Updated template cards' card_mod at mushroom v5's tile parts (ha-tile-icon$); r5's still name mushroom-shape-icon$/mushroom-state-info$, which v5 no longer renders. Target: r5 ports #164 (dashboards part). Listed last on purpose: the r5-only tile hunks above claim their own mushroom-* keys first
