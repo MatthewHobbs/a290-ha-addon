@@ -6,8 +6,9 @@
   the same button pressed by a dashboard and an automation at the same moment, used to log in to
   Renault twice and send the car the action twice (two horn blasts, two climate starts). The
   repeat is now ignored and logged. Each button has its own 5-second window, so Start Climate
-  followed straight away by Stop Climate still sends both. The charge-limit sliders are not
-  affected: every value you set is applied.
+  followed straight away by Stop Climate still sends both. If a press fails before anything is
+  sent to the car, for example because the login to Renault fails, pressing again straight away
+  is not ignored. The charge-limit sliders are not affected: every value you set is applied.
 
 ## 1.28.1
 

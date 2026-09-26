@@ -289,8 +289,9 @@ won't see a control your A290 rejects):
 | **Refresh Location** | Forces a fresh GPS fix. *(May report forbidden on the A290 — see note.)* |
 
 A second press of the **same** button within 5 seconds is ignored (the add-on log says so), so a
-double-tap cannot send the car the action twice. Different buttons are independent, and the
-charge-limit sliders are never ignored.
+double-tap cannot send the car the action twice. A press that failed before reaching the car (for
+example, the login to Renault failed) does not count, so you can retry straight away. Different
+buttons are independent, and the charge-limit sliders are never ignored.
 
 > Remote **charge-start** (renault-api 0.5.13) works by *clearing the car's own scheduled-charge
 > programs* to trigger an immediate charge. **It only does anything if you use the car's built-in

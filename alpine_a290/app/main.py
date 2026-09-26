@@ -371,14 +371,22 @@ async def run_command(cmd, payload=""):
     if now_ts() - _last_command.get(cmd, 0) < COMMAND_DEBOUNCE_S:
         LOG.info("Ignoring repeated '%s' within %ds (debounce)", cmd, COMMAND_DEBOUNCE_S)
         return
-    _last_command[cmd] = now_ts()
+    stamp = _last_command[cmd] = now_ts()
     locale = cfg("A290_LOCALE", "en_GB")
+    dispatched = False
     try:
         async with aiohttp.ClientSession(timeout=API_TIMEOUT) as websession:
             vehicle = await _login_vehicle(websession, locale)
+            dispatched = True
             await action(vehicle)
         LOG.info("Command '%s' sent", cmd)
     except Exception as err:  # noqa: BLE001
+        # Nothing reached the car, so let an immediate retry through. Once the action has started
+        # the outcome is unknown and a retry could send it twice, so the stamp stays. A press
+        # dropped while this one was logging in is not replayed; that is accepted. The equality
+        # check leaves alone a newer press's stamp set during a slow login.
+        if not dispatched and _last_command.get(cmd) == stamp:
+            del _last_command[cmd]
         LOG.error("Command '%s' failed: %s", cmd, redact(err))
 
 

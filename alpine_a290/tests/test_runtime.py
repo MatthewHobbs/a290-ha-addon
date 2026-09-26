@@ -370,6 +370,106 @@ def test_debounce_is_per_command_and_ends_after_the_window(monkeypatch):
     assert sent == ["horn", "lights", "horn"]         # only the repeat inside 5s was dropped
 
 
+class _Horn:
+    def __init__(self, fail=False):
+        self.fail, self.honks = fail, 0
+
+    async def start_horn(self):
+        self.honks += 1
+        if self.fail:
+            raise RuntimeError("action failed at the car")
+
+
+def test_a_press_that_never_reached_the_car_does_not_block_the_retry(monkeypatch):
+    """The login failed, so nothing was sent; the retry inside the window must go through."""
+    v, logins = _Horn(), {"n": 0}
+
+    async def login(ws, loc):
+        logins["n"] += 1
+        if logins["n"] == 1:
+            raise RuntimeError("login failed")
+        return v
+
+    _fake_client_session(monkeypatch)
+    monkeypatch.setattr(main, "_login_vehicle", login)
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+    asyncio.run(main.run_command("horn"))
+    clock["t"] = 1001.0                                # well inside the 5s window
+    asyncio.run(main.run_command("horn"))
+    assert (logins["n"], v.honks) == (2, 1)
+
+
+def test_a_press_that_failed_during_the_action_still_debounces(monkeypatch):
+    """Once the action has started the outcome is unknown, so a retry could send it twice."""
+    v = _Horn(fail=True)
+    _login_as(monkeypatch, v)
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+    asyncio.run(main.run_command("horn"))
+    clock["t"] = 1001.0
+    asyncio.run(main.run_command("horn"))
+    assert v.honks == 1
+
+
+@pytest.mark.parametrize("login_fails", [False, True])
+def test_simultaneous_presses_pass_the_debounce_once(monkeypatch, login_fails):
+    """Two presses scheduled together: only one gets past the check. If that one then fails at
+    login, the other has already been dropped, so nothing is sent; that is accepted, and the
+    cleared stamp lets the next press through straight away."""
+    v, logins = _Horn(), {"n": 0}
+
+    async def login(ws, loc):
+        logins["n"] += 1
+        await asyncio.sleep(0)                         # the second press arrives mid-login
+        if login_fails:
+            raise RuntimeError("login failed")
+        return v
+
+    _fake_client_session(monkeypatch)
+    monkeypatch.setattr(main, "_login_vehicle", login)
+    monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
+
+    async def both():
+        await asyncio.gather(main.run_command("horn"), main.run_command("horn"))
+
+    asyncio.run(both())
+    assert logins["n"] == 1
+    assert v.honks == (0 if login_fails else 1)
+    assert ("horn" in main._last_command) is not login_fails
+
+
+def test_a_slow_failed_login_keeps_a_newer_press_stamp(monkeypatch):
+    """Press A's login outlasts the window, press B goes through meanwhile, then A fails: A must
+    not clear B's stamp, or a repeat of B would be let through inside B's window."""
+    v, clock, release = _Horn(), {"t": 1000.0}, {}
+
+    async def login(ws, loc):
+        if "a" not in release:
+            release["a"] = asyncio.Event()
+            await release["a"].wait()
+            raise RuntimeError("login timed out")
+        return v
+
+    _fake_client_session(monkeypatch)
+    monkeypatch.setattr(main, "_login_vehicle", login)
+    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+
+    async def scenario():
+        a = asyncio.create_task(main.run_command("horn"))
+        await asyncio.sleep(0)                         # A is now waiting in login
+        clock["t"] = 1006.0
+        await main.run_command("horn")                 # B: outside A's window, sent
+        release["a"].set()
+        await a                                        # A fails at login
+        clock["t"] = 1007.0
+        await main.run_command("horn")                 # inside B's window
+
+    asyncio.run(scenario())
+    assert v.honks == 1
+    assert main._last_command["horn"] == 1006.0
+
+
 # --------------------------------------------------------------------------- #
 # charge-limit numbers (set_battery_soc)
 # --------------------------------------------------------------------------- #
