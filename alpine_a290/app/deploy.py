@@ -130,7 +130,7 @@ _HEADING_STYLE = ('.content{font-family:"Zen Dots",system-ui,sans-serif !importa
                   'overflow:visible !important;text-overflow:clip !important;}')
 # Bubble Card separator styling, matched to the bundled bubble dashboard's other separators.
 _BUBBLE_SEP_STYLE = (
-    '.bubble-line{background:#FFFF00 !important;}'
+    '.bubble-line{background:#FFFF00 !important;min-width:24px !important;}'
     '.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;'
     'text-transform:uppercase;letter-spacing:2px;white-space:normal !important;'
     'overflow:visible !important;text-overflow:clip !important;}'
@@ -368,7 +368,7 @@ def _inject_bubble_charging(view):
                      if isinstance(b, dict) and b.get("name") == "Location"), None)
     rest = [b for b in buttons if b is not location]
     btn = {"type": "custom:bubble-card", "card_type": "button", "button_type": "name",
-           "name": "Smart Charging", "icon": "mdi:ev-station",
+           "name": "Smart Charging", "icon": "mdi:ev-station", "scrolling_effect": False,
            "button_action": {"tap_action": {"action": "navigate",
                                              "navigation_path": _CHARGER_HASH}}}
     idx = next((i for i, b in enumerate(rest)

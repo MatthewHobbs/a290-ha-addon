@@ -1170,19 +1170,6 @@ Observed by the r5 session rendering its mirror of the Bubble dashboard through 
 harness; the separators are identical here, so it is expected on a290 too, **not yet observed on
 a290's own gate**. A dashboard fix goes a290 first, r5 mirrors it.
 
-## P2 — UI gate misses text cut short with a fade
-
-**Component:** `ui-tests/check_overflow.py` (`JS_DETECT`) · logged 2026-09-27, from the r5 twin's #116 run
-
-At 360px, r5's run showed "Steering Whee", and in Diagnostics "Last", "Run ", "Refre", cut short
-with a fade and no ellipsis, while `check_overflow` reported 0 issues for those devices. The
-detector keys on `scrollWidth > clientWidth` on the element that owns the text; a fade produced by
-a mask or by a nested element the text overflows into would not trip that. **Mechanism
-unestablished.** The refutation before any fix: reproduce on a290's own gate at 360px, read the
-clipped element's DOM and computed style in the diagnostics sidecar (`UI_TESTS_DIAG=1`), and
-establish which of the two it is. a290 decides first; r5's #116 was landed with the same blind
-spot, since #171 already has it here.
-
 ## P2 — Conformance test: the domain allowlist exempts more than it names
 
 **Component:** `alpine_a290/tests/test_dashboard_conformance.py` · logged 2026-09-27, from the r5 twin's #111 review
