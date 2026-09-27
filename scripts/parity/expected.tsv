@@ -110,7 +110,6 @@ pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUT
 pending	alpine_a290/app/deploy.py	both	py:_WS	2	one comment. Target: converge, either way
 
 pending	ui-tests/completeness_fixtures.py	a290	only	1	ADR 0003 row 6: the isolated proof of the pop-up completeness wait. Target: r5 ports it with rows 1 to 5 (ADR 0003 row 11)
-pending	ui-tests/run.sh	both	hunk:HA_IMAGE=	2	r5 pins the UI gate's stable leg to Home Assistant 2026.9.4; a290 is still on 2026.9.3. Target: a290 bumps too
 pending	alpine_a290/dashboards/front-end-bubble.txt	both	hunk:scrolling_effect: false|new Intl\.DateTimeFormat|entity: sensor\.alpine_a290_last_charge_(start_soc|end_soc|start_energy)	15	ADR 0004: the marquee is off on the pop-up buttons the gate flagged, Last Charge's captured-data buttons are two per row instead of three, and five buttons show a short date. Target: r5 ports ADR 0004
 # ---------------------------------------------------------------- dashboards
 pending	alpine_a290/dashboards/front-end*.txt	r5	hunk:name: Refresh Location	19	the Refresh Location tile, on both r5 dashboards (see deploy.py). Target: owner decision on the tile; the keys go with the #164 port
