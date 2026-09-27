@@ -11,7 +11,8 @@ rendered in several passes, each a combination production can publish (derive_pa
 pass above, then every named pass listed by --list-passes. --pass <name> reseeds an already-seeded
 instance for one of them. With --manifest, either writes the dashboards to check in that pass, the
 card labels that must be visible on each, and the Bubble pop-ups to open on each with the labels
-that must be visible inside them.
+that must be visible inside them and, per card the pop-up renders, the texts it must show before
+the gate scans it (popup_items, ADR 0003).
 
 Usage: seed.py --base http://localhost:8123 --token <access_token> [--dashboards <dir>]
                 [--pass <name>] [--manifest <manifest.json>]
@@ -20,6 +21,7 @@ Usage: seed.py --base http://localhost:8123 --token <access_token> [--dashboards
 import argparse
 import asyncio
 import functools
+import html
 import json
 import os
 import re
@@ -347,12 +349,67 @@ def _reads_state(template, eid):
     return re.search(rf"is_state\(\s*'{quoted}'|states\(\s*'{quoted}'|states\.{quoted}\b", template)
 
 
-def expected_labels(views, states):
+def condition_entities(conditions):
+    """Every entity a conditional card's `conditions` name, at any depth."""
+    out = set()
+    for c in conditions if isinstance(conditions, list) else [conditions]:
+        if isinstance(c, dict):
+            if c.get("entity"):
+                out.add(c["entity"])
+            out |= condition_entities(c.get("conditions", []))
+    return out
+
+
+def condition_holds(conditions, effective, where=""):
+    """Whether Home Assistant would show a conditional card's content given `effective`, the
+    complete seeded state map {entity: (state, attrs)}: a list is `and`; `condition: or`, `and`
+    and `not` nest; `condition: state` (or the flat entity/state form) compares the entity's state
+    with `state` (one or a list) or `state_not`. An entity the seed does not set is an error, not
+    an inactive card: the pass's partial map once called both Charge Status cards inactive."""
+    if isinstance(conditions, dict):
+        conditions = [conditions]
+    for c in conditions or []:
+        if not isinstance(c, dict):
+            raise SystemExit(f"{where}: a condition is not a mapping: {c!r}")
+        kind = c.get("condition", "state")
+        if kind in ("or", "and", "not"):
+            inner = c.get("conditions", [])
+            results = [condition_holds(i, effective, where) for i in inner]
+            if kind == "or" and inner and not any(results):
+                return False
+            if kind == "and" and not all(results):
+                return False
+            if kind == "not" and any(results):
+                return False
+            continue
+        if kind != "state":
+            raise SystemExit(f"{where}: cannot evaluate a {kind!r} condition; extend seed.condition_holds")
+        eid = c.get("entity")
+        if eid not in effective:
+            raise SystemExit(f"{where}: condition names {eid!r}, which the seed does not set")
+        have = effective[eid][0]
+        if "state" in c:
+            want = c["state"]
+            want = [str(w) for w in want] if isinstance(want, list) else [str(want)]
+            if have not in want:
+                return False
+        elif "state_not" in c:
+            want = c["state_not"]
+            want = [str(w) for w in want] if isinstance(want, list) else [str(want)]
+            if have in want:
+                return False
+        else:
+            raise SystemExit(f"{where}: a state condition on {eid!r} names neither state nor state_not")
+    return True
+
+
+def expected_labels(views, states, effective):
     """(label, sensors, pop-up) for the text a pass's `states` must put on the page: the `name`
-    of every conditional card whose conditions they all meet, and the selected branch of every
-    IF_IS_STATE text template that reads one. `pop-up` is the hash of the Bubble pop-up the card
-    sits in, or None on the page itself. A text template that reads one of these sensors' state
-    in any other form cannot be asserted, so it is an error rather than a silent gap."""
+    of every conditional card on those sensors whose conditions hold (condition_holds, over the
+    complete seeded map `effective`), and the selected branch of every IF_IS_STATE text template
+    that reads one. `pop-up` is the hash of the Bubble pop-up the card sits in, or None on the
+    page itself. A text template that reads one of these sensors' state in any other form cannot
+    be asserted, so it is an error rather than a silent gap."""
     found = []
 
     def walk(node, key=None, popup=None):
@@ -360,11 +417,12 @@ def expected_labels(views, states):
             if node.get("card_type") == "pop-up" and node.get("hash"):
                 popup = node["hash"]
             conds = node.get("conditions") if node.get("type") == "conditional" else None
-            if conds and all(isinstance(c, dict) and c.get("entity") in states
-                             and str(c.get("state")) == states[c["entity"]] for c in conds):
-                name = (node.get("card") or {}).get("name")
-                if name:
-                    found.append((name, {c["entity"] for c in conds}, popup))
+            if conds:
+                named = condition_entities(conds)
+                if named and named <= states.keys() and condition_holds(conds, effective, popup or "the page"):
+                    name = (node.get("card") or {}).get("name")
+                    if name:
+                        found.append((name, named, popup))
             for k, v in node.items():
                 if k not in ACTION_KEYS:
                     walk(v, k, popup)
@@ -385,6 +443,260 @@ def expected_labels(views, states):
 
     walk(views)
     return [(label, eids, popup) for label, eids, popup in found if label]
+
+
+# --- The completeness set: what every pop-up's cards must show before the gate scans it (ADR 0003).
+
+# A Jinja text field that is exactly the raw state of one entity, which the collector can read.
+STATES_OF = re.compile(r"^\{\{\s*states\(\s*'([^']+)'\s*\)\s*\}\}$")
+# Where a card holds other cards, each an item of its own; the wrapper's own texts stop here.
+CONTAINER_KEYS = ("cards", "card")
+# What Home Assistant's frontend shows for an on/off state in `en`, by domain and device class
+# (binary_sensor device classes have their own words). A state the table cannot name is an
+# error, not a guess.
+ON_OFF_DOMAINS = {"binary_sensor", "switch", "input_boolean", "light", "fan"}
+BINARY_CLASS_TEXT = {None: {"on": "On", "off": "Off"}, "problem": {"on": "Problem", "off": "OK"}}
+TRACKER_TEXT = {"home": "Home", "not_home": "Away"}
+
+
+def _decimals(state, attrs):
+    """Fraction digits HA's formatNumber keeps: none when the step and the state are integers,
+    else exactly those the seeded string carries (getNumberFormatOptions, getDefaultFormatOptions)."""
+    step = attrs.get("step")
+    if step is not None and float(step).is_integer() and float(state).is_integer():
+        return 0
+    return len(state.split(".", 1)[1]) if "." in state else 0
+
+
+def _format_date_time(iso):
+    """HA's formatDateTime for `en` (September 27, 2026 at 5:12 AM), in the browser's zone: the
+    frontend's time_zone preference defaults to `local`, and the browser runs on this host, so
+    Python's local zone is the same one. Chromium may put a narrow no-break space before AM; the
+    gate compares whitespace loosely, so a plain space is written here."""
+    dt = datetime.fromisoformat(iso).astimezone()
+    return f"{dt:%B} {dt.day}, {dt.year} at {dt.hour % 12 or 12}:{dt:%M} {'PM' if dt.hour >= 12 else 'AM'}"
+
+
+def state_text(eid, state, attrs):
+    """The text Home Assistant's formatEntityState renders for a seeded state, in the gate's `en`
+    locale (frontend computeStateDisplay): a number with a unit (no blank before `%` or `°`, one
+    before any other unit, grouped thousands), a timestamp sensor as an absolute date-time, an
+    on/off word for the on/off domains, and the raw state otherwise. Bubble's state line and
+    button-card's show_state both go through it."""
+    if state in ("unknown", "unavailable"):
+        return state.capitalize()
+    domain = eid.split(".", 1)[0]
+    unit = attrs.get("unit_of_measurement")
+    numeric = bool(unit or attrs.get("state_class")) or domain in ("counter", "input_number", "number")
+    if numeric:
+        try:
+            value = float(state)
+        except ValueError:
+            return f"{state} {unit}" if unit else state
+        text = f"{value:,.{_decimals(state, attrs)}f}"
+        return text + (("" if unit in ("%", "°") else " ") + unit if unit else "")
+    if domain == "sensor" and attrs.get("device_class") == "timestamp":
+        return _format_date_time(state)
+    if domain in ON_OFF_DOMAINS:
+        table = BINARY_CLASS_TEXT.get(attrs.get("device_class") if domain == "binary_sensor" else None)
+        if table is None or state not in table:
+            raise SystemExit(f"{eid} {state!r} (device_class {attrs.get('device_class')!r}): extend "
+                             "seed.BINARY_CLASS_TEXT with the word Home Assistant shows for it")
+        return table[state]
+    if domain == "device_tracker":
+        return TRACKER_TEXT.get(state, state)
+    return state
+
+
+def effective_states(entities, problems, states, posted=None):
+    """{entity: (state, attrs)} as seed_states posts them for this pass: KNOWN and the derived
+    values through state_for, with the pass's problem sensors and toggles applied, and the
+    states actually posted (`posted`) where the caller has them."""
+    out = {}
+    for eid in entities:
+        st, attrs = state_for(eid, problems, states)
+        if posted and eid in posted:
+            st = posted[eid]
+        out[eid] = (st, attrs)
+    return out
+
+
+def card_tag(card_type):
+    """The element a card type renders as: `custom:x` is `<x>`, a core `y` is `<hui-y-card>`."""
+    if not isinstance(card_type, str) or not card_type:
+        raise SystemExit(f"a card has no type: {card_type!r}")
+    return card_type[len("custom:"):] if card_type.startswith("custom:") else f"hui-{card_type.replace('_', '-')}-card"
+
+
+def _pct(eff, eid):
+    """A SoC the Charge Status badges render: the raw state with any % stripped, then `%`."""
+    return str(eff[eid][0]).replace("%", "") + "%"
+
+
+def _charge_status_badges(eff):
+    """The button-card's three JavaScript custom_fields: the label each shows and the SoC as the
+    card renders it (`${v}%` of the raw state). `Charging` replaces `Current SOC` while the
+    charging sensor is on."""
+    charging = eff["binary_sensor.alpine_a290_charging"][0] == "on"
+    return {"custom_fields.min_badge": ["Min SOC", _pct(eff, "number.alpine_a290_minimum_soc")],
+            "custom_fields.max_badge": ["Target SOC", _pct(eff, "number.alpine_a290_charge_target_soc")],
+            "custom_fields.current_badge": ["Charging" if charging else "Current SOC",
+                                            _pct(eff, "sensor.alpine_a290_battery_level")]}
+
+
+def _offpeak_window(eff):
+    """The off-peak badge's `secondary`: `Off-peak HH:MM–HH:MM` from the dispatching sensor's
+    window attributes (current_* over next_*), as timestamp_custom('%H:%M', true) renders them in
+    Home Assistant's own time zone, which the harness leaves at its UTC default."""
+    _, attrs = eff[CHARGER_DEMO["A290_CHARGER_DISPATCHING"]]
+    start = attrs.get("current_start") or attrs.get("next_start")
+    end = attrs.get("current_end") or attrs.get("next_end")
+    if not (start and end):
+        return {"secondary": ["Schedule unavailable"]}
+
+    def hhmm(iso):
+        return datetime.fromisoformat(iso).astimezone(timezone.utc).strftime("%H:%M")
+
+    return {"secondary": [f"Off-peak {hhmm(start)}–{hhmm(end)}"]}
+
+
+# Visible-text fields the collector cannot read (JavaScript `[[[ ]]]` or Jinja beyond IF_IS_STATE
+# and STATES_OF), declared by hand: {(dashboard, pop-up hash, card type, card entity): fn}, fn
+# taking the effective seeded map and returning {field path: [texts the field renders]}, the path
+# dotted from the card (`secondary`, `custom_fields.min_badge`). A card with such a field and no
+# declaration, a declaration no card matches, and two cards matching one are each a manifest-time
+# error, so nothing is scanned on a guess and nothing goes stale quietly.
+DECLARED = {
+    ("alpine-bubble", "#alpine-charge", "custom:button-card", "sensor.alpine_a290_battery_level"): _charge_status_badges,
+    ("alpine-bubble", "#alpine-charging", "custom:mushroom-template-card",
+     CHARGER_DEMO["A290_CHARGER_DISPATCHING"]): _offpeak_window,
+}
+
+
+def _strip_markup(text):
+    """The visible text of an HTML string custom field: tags out, entities decoded, one space."""
+    return " ".join(html.unescape(re.sub(r"<[^>]*>", " ", text)).split())
+
+
+def _shows_state(card):
+    """Whether the card shows its entity's state without a text field naming it: Bubble's state
+    button (unless show_state is off), anything with show_state, and mushroom's entity card,
+    whose secondary_info defaults to the state."""
+    ctype = card.get("type")
+    if ctype == "custom:bubble-card":
+        return bool(card.get("show_state", card.get("button_type") == "state"))
+    if ctype == "custom:mushroom-entity-card":
+        return card.get("secondary_info", "state") == "state"
+    return bool(card.get("show_state"))
+
+
+def popup_items(url_path, popup, effective, declared=DECLARED):
+    """[(card tag, [texts])] for one pop-up, one item per card its `cards:` render in dashboard
+    order, never the pop-up's own name (its header). Each item's texts are every static string
+    under a TEXT_KEYS key, the branch an IF_IS_STATE template selects, the raw state a STATES_OF
+    template reads, the visible text of every plain-string button-card custom field, the text
+    the entity's seeded state renders as where the card shows state (state_text), and whatever a
+    DECLARED entry gives for the fields nothing here can read. A conditional card contributes its
+    inner card only while condition_holds, and never itself: an inactive hui-conditional-card has
+    no box. Stacks are items too (they render), each of their cards another. ACTION_KEYS subtrees
+    are skipped. Returns (items, declarations used)."""
+    items, used = [], set()
+    where = f"{url_path} pop-up {popup.get('hash')}"
+
+    def texts_of(card, path):
+        out = []
+        ctype = card.get("type")
+        key = (url_path, popup.get("hash"), ctype, card.get("entity"))
+        decl = declared.get(key)
+        given = {}
+        if decl:
+            if key in used:
+                raise SystemExit(f"{where}: two cards match the declaration {key}; key them apart")
+            used.add(key)
+            given = decl(effective)
+            if not isinstance(given, dict):
+                raise SystemExit(f"{where}: the declaration {key} must return {{field: [texts]}}")
+        unread, consumed = [], set()
+
+        def walk(node, k=None, at=()):
+            if isinstance(node, dict):
+                for kk, v in node.items():
+                    if kk in ACTION_KEYS or kk in CONTAINER_KEYS or kk == "custom_fields":
+                        continue
+                    walk(v, kk, at + (kk,))
+            elif isinstance(node, list):
+                for v in node:
+                    walk(v, k, at)
+            elif isinstance(node, str) and k in TEXT_KEYS:
+                field = ".".join(at)
+                if field in given:
+                    consumed.add(field)
+                    out.extend(given[field])
+                elif "[[[" in node:
+                    unread.append(field)
+                elif "{{" in node or "{%" in node:
+                    if m := IF_IS_STATE.match(node):
+                        before, eid, st, if_text, else_text, after = m.groups()
+                        if eid not in effective:
+                            raise SystemExit(f"{where}: {field!r} reads {eid!r}, which the seed does not set")
+                        text = before + (if_text if effective[eid][0] == st else else_text) + after
+                        if text.strip():
+                            out.append(text.strip())
+                    elif m := STATES_OF.match(node):
+                        if m.group(1) not in effective:
+                            raise SystemExit(f"{where}: {field!r} reads {m.group(1)!r}, which the seed does not set")
+                        out.append(str(effective[m.group(1)][0]))
+                    else:
+                        unread.append(field)
+                elif node.strip():
+                    out.append(node.strip())
+
+        walk(card)
+        for name, value in (card.get("custom_fields") or {}).items():
+            field = f"custom_fields.{name}"
+            if field in given:
+                consumed.add(field)
+                out.extend(given[field])
+            elif not isinstance(value, str):
+                unread.append(field)
+            elif "[[[" in value or "{{" in value or "{%" in value:
+                unread.append(field)
+            elif text := _strip_markup(value):
+                out.append(text)
+        if "state_content" in card:
+            unread.append("state_content")
+        if unread:
+            raise SystemExit(f"{where}: card {path} ({ctype}) has visible-text fields the collector cannot "
+                             f"read and no DECLARED entry covers: {unread}; declare what they render")
+        if stale := sorted(set(given) - consumed):
+            raise SystemExit(f"{where}: the declaration {key} names fields card {path} does not have: {stale}")
+        if _shows_state(card):
+            eid = card.get("entity")
+            if eid not in effective:
+                raise SystemExit(f"{where}: card {path} ({ctype}) shows the state of {eid!r}, which the seed "
+                                 "does not set")
+            out.append(state_text(eid, *effective[eid]))
+        return out
+
+    def walk_card(card, path):
+        if not isinstance(card, dict):
+            raise SystemExit(f"{where}: {path} is not a card mapping: {card!r}")
+        ctype = card.get("type")
+        if ctype == "conditional":
+            if condition_holds(card.get("conditions", []), effective, f"{where} card {path}"):
+                walk_card(card.get("card"), f"{path}.card")
+            return
+        items.append((card_tag(ctype), texts_of(card, path)))
+        for i, sub in enumerate(card.get("cards") or []):
+            walk_card(sub, f"{path}.cards[{i}]")
+        if isinstance(card.get("card"), dict):
+            walk_card(card["card"], f"{path}.card")
+
+    for i, card in enumerate(popup.get("cards") or []):
+        walk_card(card, f"cards[{i}]")
+    if not items:
+        raise SystemExit(f"{where}: no cards found; the walk missed the pop-up")
+    return items, used
 
 
 def popups_in(views):
@@ -494,26 +806,39 @@ async def verify_pass(session, args, where, posted, states):
         raise SystemExit(f"{where} pass: HA holds states production cannot publish together: {why}")
 
 
-def write_manifest(path, built, name, states, normal):
-    """{dashboard: {"labels": [...], "popups": [{"hash", "name", "labels"}]}} for one pass: the
-    labels that must be visible on the page, and the Bubble pop-ups to open with the labels that
-    must be visible inside each. A named pass re-checks only the dashboards, and opens only the
+def write_manifest(path, built, name, states, normal, posted=None):
+    """{dashboard: {"labels": [...], "popups": [{"hash", "name", "labels", "cards"}]}} for one
+    pass: the labels that must be visible on the page, and the Bubble pop-ups to open, each with
+    the labels that must be visible inside it and the per-card items (popup_items) the gate
+    waits for before scanning it. A named pass re-checks only the dashboards, and opens only the
     pop-ups, that reference a state it changed from the normal pass; the normal pass checks every
-    dashboard and opens every pop-up."""
+    dashboard and opens every pop-up. Every pop-up's items are collected whether or not this
+    pass opens it, so a DECLARED entry that matches no card fails every pass."""
     changed = {eid for eid, st in states.items() if st != normal[eid]}
     changed |= {ts for ts, (src, _, _) in DERIVED_AGE.items() if src in changed}
     where = name or "normal"
+    entities = extract_entities([yaml.safe_dump(v) for v in built.values()])
+    effective = effective_states(entities, problem_sensors(), states, posted)
+    if unknown := sorted({k for k in DECLARED if k[0] not in built}):
+        raise SystemExit(f"DECLARED names dashboards that are not built: {unknown}")
     manifest = {}
     for url_path, views in built.items():
         refs = set(extract_entities([yaml.safe_dump(views)]))
+        every = popups_in(views)
+        items, used = {}, set()
+        for h, _, node in every:
+            items[h], seen = popup_items(url_path, node, effective, DECLARED)
+            used |= seen
+        if stale := sorted(k for k in DECLARED if k[0] == url_path and k not in used):
+            raise SystemExit(f"{where} pass: DECLARED entries match no card in {url_path}: {stale}")
         if name and not refs & changed:
             continue
-        popups = [(h, n, node) for h, n, node in popups_in(views)
+        popups = [(h, n, node) for h, n, node in every
                   if not name or set(extract_entities([yaml.safe_dump(node)])) & changed]
         opened = {h for h, _, _ in popups}
         # A label inside a pop-up this pass does not open is not on the page; the pass that opens
         # it (the pop-up references a changed state, so some pass does) asserts it.
-        pairs = [(label, eids, popup) for label, eids, popup in expected_labels(views, states)
+        pairs = [(label, eids, popup) for label, eids, popup in expected_labels(views, states, effective)
                  if popup is None or popup in opened]
         # The labels are read from the same file a regression would edit: hard-code a switching
         # tile and its expected branch vanishes with it. What survives is the sensor still being
@@ -530,7 +855,8 @@ def write_manifest(path, built, name, states, normal):
         for label, _, popup in pairs:
             labels_in.setdefault(popup, {})[label] = None   # a dict: unique, in order
         manifest[url_path] = {"labels": list(labels_in.get(None, {})),
-                              "popups": [{"hash": h, "name": n, "labels": list(labels_in.get(h, {}))}
+                              "popups": [{"hash": h, "name": n, "labels": list(labels_in.get(h, {})),
+                                          "cards": [[tag, texts] for tag, texts in items[h]]}
                                          for h, n, _ in popups]}
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, indent=1)
@@ -615,13 +941,13 @@ async def main():
             posted = await seed_states(session, args.base, args.token, reseed, problems, states)
             await verify_pass(session, args, where, posted, states)
             if args.manifest:
-                write_manifest(args.manifest, built, args.pass_name, states, by_name[""])
+                write_manifest(args.manifest, built, args.pass_name, states, by_name[""], posted)
             return
         print("Seeding entity states…")
         posted = await seed_states(session, args.base, args.token, entities, problems, states)
         await verify_pass(session, args, where, posted, states)
         if args.manifest:
-            write_manifest(args.manifest, built, "", states, states)
+            write_manifest(args.manifest, built, "", states, states, posted)
 
         ws_url = args.base.replace("http", "ws", 1) + "/api/websocket"
         async with session.ws_connect(ws_url) as ws:
