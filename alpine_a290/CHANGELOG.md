@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.28.8
+
+- **Bubble dashboard: a section heading that wraps keeps its yellow rule.** Since 1.28.6 a long
+  heading wraps onto a second line instead of being cut off, but on narrow phones the wrapped
+  heading pushed the yellow line beside it down to nothing. The line now keeps a minimum width, so
+  "Batt / Range / Mileage", "Update / Test / Errors" and "Charging Schedule" show it again at 360px.
+  Found by the Renault 5 twin measuring its mirror of this dashboard; the fix is the same there.
+  Re-copy or redeploy the Bubble dashboard to pick it up (`redeploy_dashboard: true`, or paste
+  `front-end-bubble.txt` again).
+
 ## 1.28.7
 
 - **An entity the add-on retires no longer stays behind as a permanent orphan when Home Assistant
