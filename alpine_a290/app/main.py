@@ -409,11 +409,12 @@ async def run_command(cmd, payload=""):
 
 
 def detect_plug_suspect(state, plug, mileage, soc, charging):
-    """Connected-but-driven / Disconnected-but-charging detection. Returns 'on'/'off'."""
-    prev = state.get("plug_prev")
-    if plug == 1 and (prev != 1 or "plug_base_ts" not in state):
+    """Connected-but-driven / Disconnected-but-charging detection. `plug` is a PlugState
+    (matches the rest of the poll). Returns 'on'/'off'. State stores a JSON-safe string."""
+    plugged = plug == PlugState.PLUGGED
+    if plugged and (state.get("plug_prev") != "plugged" or "plug_base_ts" not in state):
         state.update(plug_base_mileage=mileage, plug_base_soc=soc, plug_base_ts=now_ts())
-    state["plug_prev"] = plug
+    state["plug_prev"] = "plugged" if plugged else "unplugged"
 
     drove = False
     bts, bkm, bsoc = state.get("plug_base_ts"), state.get("plug_base_mileage"), state.get("plug_base_soc")
@@ -421,7 +422,7 @@ def detect_plug_suspect(state, plug, mileage, soc, charging):
         age = now_ts() - bts
         if PLUG_MIN_AGE <= age <= PLUG_MAX_AGE:
             drove = (mileage - bkm >= PLUG_KM_DELTA) and (bsoc - soc >= PLUG_SOC_DROP)
-    stuck = (plug == 1 and drove) or (plug == 0 and charging)
+    stuck = (plugged and drove) or (plug == PlugState.UNPLUGGED and charging)
     return "on" if stuck else "off"
 
 
@@ -618,8 +619,7 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
     live_lc = update_charge_session(state, battery, capacity_kwh, charging)
     data.update(await resolve_last_charge(vehicle, state, supported_eps, capacity_kwh, live_lc))
     data["charging"] = "on" if charging else "off"
-    plug_code = plug.value if plug is not None else None
-    data["plug_suspect"] = detect_plug_suspect(state, plug_code, mileage,
+    data["plug_suspect"] = detect_plug_suspect(state, plug, mileage,
                                                 battery.batteryLevel, charging)
     await maybe_dump_api(vehicle)
     return data, location_attrs

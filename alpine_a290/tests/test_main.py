@@ -6,7 +6,7 @@ decoding, schedule summaries and unit conversion.
 """
 import catalog
 import main
-from renault_api.kamereon.enums import ChargeState
+from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_mqtt import charge
 
 
@@ -107,8 +107,9 @@ def test_hvac_schedule_fields_active_schedule():
 # plug stuck-detection
 # --------------------------------------------------------------------------- #
 def test_plug_suspect_disconnected_but_charging():
-    # plug reported unplugged (0) while the car is actually charging -> suspect
-    assert main.detect_plug_suspect({}, plug=0, mileage=1000, soc=50, charging=True) == "on"
+    # plug reported unplugged while the car is actually charging -> suspect
+    assert main.detect_plug_suspect({}, plug=PlugState.UNPLUGGED, mileage=1000, soc=50,
+                                     charging=True) == "on"
 
 
 def test_plug_suspect_connected_but_driven(monkeypatch):
@@ -116,20 +117,23 @@ def test_plug_suspect_connected_but_driven(monkeypatch):
     monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
     state = {}
     # first sighting: plugged in -> baseline captured, not yet suspect
-    assert main.detect_plug_suspect(state, plug=1, mileage=1000, soc=50, charging=False) == "off"
+    assert main.detect_plug_suspect(state, plug=PlugState.PLUGGED, mileage=1000, soc=50,
+                                     charging=False) == "off"
     # later: still "plugged" but driven 5 km and 4% SoC lost over 1h -> suspect
     clock["t"] = 1000.0 + 3600
-    assert main.detect_plug_suspect(state, plug=1, mileage=1005, soc=46, charging=False) == "on"
+    assert main.detect_plug_suspect(state, plug=PlugState.PLUGGED, mileage=1005, soc=46,
+                                     charging=False) == "on"
 
 
 def test_plug_suspect_quiet_when_genuinely_plugged(monkeypatch):
     clock = {"t": 1000.0}
     monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
     state = {}
-    main.detect_plug_suspect(state, plug=1, mileage=1000, soc=50, charging=False)
+    main.detect_plug_suspect(state, plug=PlugState.PLUGGED, mileage=1000, soc=50, charging=False)
     clock["t"] = 1000.0 + 3600
     # no movement, no SoC drop -> not suspect
-    assert main.detect_plug_suspect(state, plug=1, mileage=1000, soc=50, charging=False) == "off"
+    assert main.detect_plug_suspect(state, plug=PlugState.PLUGGED, mileage=1000, soc=50,
+                                     charging=False) == "off"
 
 
 # --------------------------------------------------------------------------- #
