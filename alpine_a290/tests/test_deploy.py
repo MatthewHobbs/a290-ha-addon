@@ -5,6 +5,7 @@ failure modes (no dashboard on first install / silently clobbering edits) from o
 """
 import asyncio
 import glob
+import json
 import os
 import subprocess
 import sys
@@ -376,7 +377,7 @@ class _FakeSession:
 def _run_deploy_with(monkeypatch, *, existing, redeploy, style="standard"):
     fake = FakeWS(existing)
 
-    async def fake_fetch(style):
+    async def fake_fetch(style, refresh_location=False):
         return {"title": "Alpine A290", "views": [{"cards": []}]}
 
     monkeypatch.setattr(deploy, "_fetch_dashboard", fake_fetch)
@@ -597,6 +598,50 @@ def test_run_deploy_swallows_connection_errors(monkeypatch):
     monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "standard")
     monkeypatch.setenv("SUPERVISOR_TOKEN", "tok")
     asyncio.run(deploy.run_deploy())   # exception caught + logged, never raised
+
+
+# --------------------------------------------------------------------------- #
+# Refresh Location tile — deployed only when the button itself is published
+# --------------------------------------------------------------------------- #
+_BUNDLED = os.path.join(os.path.dirname(__file__), "..", "dashboards")
+_REFRESH_BTN = "button.alpine_a290_refresh_location"
+
+
+def _cards(node):
+    """Every card (a dict carrying a `type`) anywhere in a dashboard tree."""
+    if isinstance(node, dict):
+        return ([node] if "type" in node else []) + [c for v in node.values() for c in _cards(v)]
+    if isinstance(node, list):
+        return [c for v in node for c in _cards(v)]
+    return []
+
+
+@pytest.mark.parametrize("style", ["standard", "bubble"])
+@pytest.mark.parametrize("publish_location,enable_refresh,kept", [
+    (True,  True,  True),    # opted in -> the tile matches a published button
+    (True,  False, False),   # the shipped default: no button, so no tile to tap into nothing
+    (False, True,  False),   # location off withholds the button too
+])
+def test_fetch_dashboard_keeps_refresh_location_tile_only_when_its_button_exists(
+        monkeypatch, style, publish_location, enable_refresh, kept):
+    """Both bundled dashboards carry a Refresh Location tile whose tap presses
+    button.alpine_a290_refresh_location. The button is withheld unless the user opts in, so a
+    default deploy must not ship a tile that presses an entity which does not exist. Run against
+    the REAL bundled dashboards, and assert that exactly one card goes — not the stack it sits
+    in."""
+    for env, _ in deploy._CHARGER_ENTITIES:
+        monkeypatch.delenv(env, raising=False)
+    monkeypatch.setattr(deploy, "DASHBOARD_DIR", _BUNDLED)
+    bundled = yaml.safe_load(deploy._read_dashboard(style))
+    # The input really does carry the tile - once - or a pass below would prove nothing.
+    tiles = [c for c in _cards(bundled) if _REFRESH_BTN in json.dumps(c)
+             and not any(_REFRESH_BTN in json.dumps(k) for k in _cards(list(c.values())))]
+    assert len(tiles) == 1 and tiles[0]["name"] == "Refresh Location"
+
+    cfg = asyncio.run(deploy._fetch_dashboard(style, refresh_location=publish_location and enable_refresh))
+
+    assert (_REFRESH_BTN in json.dumps(cfg)) is kept
+    assert len(_cards(cfg["views"])) == len(_cards(bundled)) - (0 if kept else 1)
 
 
 def test_deploy_imports_without_the_core():
