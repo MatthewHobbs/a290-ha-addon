@@ -109,7 +109,7 @@ model	alpine_a290/app/deploy.py	both	py:_CHARGE_TARGET_REC	4	"Alpine's recommend
 pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUTTON,_references,_drop_cards_referencing,_deploy_one,run_deploy	37	r5's dashboards carry a Refresh Location tile, pruned when the button is withheld; a290's have no such tile (audit H-D4, a product decision); plus two comments. Target: owner decision on the tile, then one implementation
 pending	alpine_a290/app/deploy.py	both	py:_WS	2	one comment. Target: converge, either way
 
-pending	alpine_a290/Dockerfile	both	hunk:^ARG CORE_REF=	4	a290 runs renault-mqtt v0.19.0 (missed-tombstone fix, core ADR 0002 row 6); r5 is on v0.18.0. Target: r5 bumps (core ADR 0002 row 7)
+pending	ui-tests/run.sh	both	hunk:HA_IMAGE=	2	r5 pins the UI gate's stable leg to Home Assistant 2026.9.4; a290 is still on 2026.9.3. Target: a290 bumps too
 # ---------------------------------------------------------------- dashboards
 pending	alpine_a290/dashboards/front-end-bubble.txt	both	re:^\s+styles: \.bubble-line\{background:#FFFF00 !important;	26	a290 1.28.8 floors the 13 separators' .bubble-line at min-width:24px so a wrapped heading keeps it; r5's lack the floor. Target: r5 ports 1.28.8
 pending	alpine_a290/app/deploy.py	both	py:_BUBBLE_SEP_STYLE	2	the same floor in the deploy-time separator style. Target: r5 ports 1.28.8
@@ -154,7 +154,7 @@ pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_l
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
 pending	ui-tests/check_overflow.py	both	*	54	residue after r5 #105 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow ADR 0001 row 13
 pending	ui-tests/seed.py	both	*	59	residue after r5 #105: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
-pending	ui-tests/README.md	both	*	32	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow ADR 0001 row 13
+pending	ui-tests/README.md	both	*	29	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow ADR 0001 row 13
 
 # ---------------------------------------------------------------- prose and tests, excused wholesale
 # These are the only unguarded entries (count *): drift inside them is not caught. They are
