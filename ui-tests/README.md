@@ -21,7 +21,12 @@ Mushroom tile labels clipping on a phone.
 3. `check_overflow.py` (Playwright) loads each dashboard at every viewport in `devices.json`,
    waits for the cards and the Zen Dots font, then walks the **shadow-DOM-pierced** tree for
    any text element that is clipped (`text-overflow:ellipsis` / `nowrap`+`overflow:hidden`
-   with `scrollWidth > clientWidth`) or any `hui-error-card`. A screenshot is saved per
+   with `scrollWidth > clientWidth`), any box under a line clamp whose text needs more lines
+   than it shows (`-webkit-line-clamp` with `scrollHeight > clientHeight`, which is how Bubble
+   cuts a non-scrolling name or state at two lines), or any `hui-error-card`. A box that clips
+   but owns no text node is measured by its text content: Bubble's scrolling-text marquee keeps
+   a name in a child span that never overflows while the container hides it behind a fade, and
+   the gate reported 0 for those names until ADR 0004. A screenshot is saved per
    device; the run exits non-zero with a report if anything is clipped.
 4. **Bubble pop-ups.** The Bubble dashboard is nothing but pop-ups, and Bubble renders a pop-up
    only while it is open (a closed one is detached from the DOM, measured on 3.4.1), so step 3
