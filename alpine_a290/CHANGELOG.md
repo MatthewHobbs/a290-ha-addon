@@ -16,8 +16,9 @@
   in behaviour, but a more robust input (the Renault 5 twin's approach, now shared): the
   Connected-but-driven / Disconnected-but-charging check compares against the same `PlugState`
   the rest of the poll already uses, instead of a magic 0/1. One side effect on upgrade: the
-  stored baseline resets once, since the persisted state's shape changed, so `binary_sensor
-  .alpine_a290_plug_suspect` may briefly clear and re-arm on the first poll after updating.
+  stored baseline resets once, since the persisted state's shape changed, so
+  `binary_sensor.alpine_a290_plug_suspect` may briefly clear and re-arm on the first poll after
+  updating.
 
 ## 1.28.9
 
