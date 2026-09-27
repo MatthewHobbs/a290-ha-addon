@@ -66,7 +66,6 @@ pending	alpine_a290/run.sh	a290	re:PRECONDITION_TEMPERATURE	1	as config.yaml pre
 model	alpine_a290/run.sh	r5	re:CAR_RENDER	1	r5's render picker
 pending	alpine_a290/Dockerfile	both	hunk:BUILD_VERSION|A290_VERSION	4	comment wording on the version ARG. Target: converge the wording, either way
 pending	alpine_a290/Dockerfile	both	hunk:COPY dashboards|Bundle	4	comment wording on the dashboard COPY. Target: converge the wording, either way
-pending	alpine_a290/Dockerfile	both	hunk:^ARG CORE_REF=	4	a290 runs renault-mqtt v0.18.0 (default_entity_id pins, core ADR 0001 row 4); r5 is still on v0.17.0. Target: r5's CORE_REF bump to v0.18.0 (core ADR 0001 row 5)
 legacy	alpine_a290/app/panel.html	both	re:num\(d\.	12	the panel reads poll_once's data keys, which r5 keeps under legacy names. Goes with ADR 0001 stage B2 (catalog-driven poll_once)
 
 # ---------------------------------------------------------------- catalog.py
@@ -167,15 +166,16 @@ pending	README.md	both	*	*	repository README; 44% shared. Target: same as DOCS.m
 pending	CLAUDE.md	both	*	*	each repo's session instructions; 65% shared. Target: same as DOCS.md
 pending	alpine_a290/README.md	both	*	39	the add-on's store README. Target: same as DOCS.md
 pending	docs/dashboards-on-mobile.md	both	*	15	r5 claims the screenshots auto-refresh, which is false there (audit H-D3), plus rewrapping. Target: fix r5's claim, then rewrap
-# ---------------------------------------------------------------- Supervisor pilot + AppArmor pin (a290 #160, ADR 0002)
-pending	.github/workflows/supervisor.yml	a290	only	1	the Supervisor pilot workflow (ADR 0002). Target: r5 mirrors it (ADR 0002 row 10)
-pending	scripts/supervisor-pilot.sh	a290	only	1	the Supervisor pilot script (ADR 0002). Target: r5 mirrors it (ADR 0002 row 10)
-pending	alpine_a290/apparmor.txt	both	*	10	a290 pins `abi <abi/3.0>,` (runner-proven: denied without it on parser 4.1.0, #160) and its comments cite the pilot. Target: r5 pins the ABI with its pilot (ADR 0002 row 10)
-pending	.github/workflows/ci.yaml	a290	hunk:ShellCheck \(Supervisor pilot\)	2	ShellCheck step for the pilot script. Target: r5 adds it with the pilot
-pending	justfile	both	re:^\s+shellcheck alpine_a290/run\.sh	2	`just lint` also shellchecks the pilot script. Target: r5 adds it with the pilot
-pending	.github/renovate.json	both	hunk:Supervisor pilot	25	Renovate rule and manager for the pilot's digest-pinned images. Target: r5 adds them with the pilot
-# --- pilot dashboard probe (a290 follow-up to #160)
-# The probe lives in the two a290-only pilot files above, which their `only` entries already
-# take whole, and in ADR 0002 row 11 (docs/adr/*, local). A per-line entry here would take
-# nothing and fail as stale. Target: r5 mirrors it with the pilot (ADR 0002 row 10); when
-# r5 gains its pilot, those `only` entries become per-line ones and the probe's go here.
+# ---------------------------------------------------------------- Supervisor pilot + AppArmor pin (a290 #160, r5 #108, ADR 0002)
+local	alpine_a290/apparmor.txt	both	re:^# (from 3\.0 up\. Parsers |profile, which differs from this one only in its name|the pin \(a290 ADR 0002 row 8\)|\((supervisor\.yml|ADR 0002)\) now enforces it in CI)	6	both pin `abi <abi/3.0>,`; only these comment lines differ, r5's citing "the a290 twin's profile" and a290 ADR 0002 row 8 where a290's cite its own ADR 0002 (r5 #108). Deliberately not `*`: a policy line that drifts must fail here, not hide behind a comment count
+local	.github/renovate.json	both	hunk:Supervisor pilot	4	both carry the pilot's Renovate rule and manager; the four differing lines are its descriptions, r5's citing "the a290 twin's ADR 0002" and "the a290 twin's" pilot where a290's cite its own (r5 #108)
+# --- pilot dashboard probe (a290 #165, mirrored by r5 in #108)
+# The probe is in both pilots now. Its only per-line residue is r5's deploy_dashboard default,
+# listed below; the rest of it is identical, and ADR 0002 row 11 is docs/adr/* (local).
+# ---------------------------------------------------------------- Supervisor pilot as mirrored by r5 (#108, 4dd52bf, ADR 0002 row 10)
+local	.github/workflows/supervisor.yml	both	hunk:ADR 0002	10	each repo's header names its own decision record: a290's ADR 0002, r5's "the a290 twin's ADR 0002, mirrored"
+local	scripts/supervisor-pilot.sh	both	re:the a290 twin's ADR 0002|devcontainer \(ADR 0002\)	2	same provenance line in the script's header
+model	scripts/supervisor-pilot.sh	both	re:a290-supervisor|r5-supervisor|local_alpine_a290|local_renault_5|pilot-registry|pilot-build|pilot-no-egress	16	the pilot's container, registry, provenance-label and egress-rule names carry each add-on's own short name
+local	.github/workflows/supervisor.yml	both	hunk:deploy_dashboard	15	r5 defaults deploy_dashboard to none (a290: standard), so its pilot sets standard explicitly and its path-filter comment says so (r5's deliberate choice, confirmed by the r5 session 2026-09-27)
+local	scripts/supervisor-pilot.sh	both	hunk:deploy_dashboard	15	the same default difference in cmd_install (sets deploy_dashboard: standard) and the dashboard-probe comment (r5's deliberate choice, confirmed by the r5 session 2026-09-27)
+local	scripts/supervisor-pilot.sh	both	hunk:Published	4	r5's poll-success log line is "Published in <s>s" where a290's is "Published: ", so each pilot greps its own; the guard follows each repo's main.py and r5 keeps its line (confirmed by the r5 session 2026-09-27)
