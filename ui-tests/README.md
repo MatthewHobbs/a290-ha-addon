@@ -31,7 +31,11 @@ Mushroom tile labels clipping on a phone.
    `bubble-card` that renders it) is open on screen showing its header `name`, scans it with the
    same truncation check, and screenshots it as `<dashboard>__popup_<hash>__<device>.png`
    (`#alpine-charging` keeps its `smart_charging` name, which the drift workflow reads). Findings
-   inside a pop-up are reported with its hash. The listing cannot go quietly empty: `seed.py`
+   inside a pop-up are reported with its hash. **Known limit:** the scan starts once the pop-up's
+   header is on screen and, for a pop-up whose manifest names expected labels, once those are laid
+   out; a pop-up that names none gets no completeness signal before its scan, so a card that paints
+   later than the scan's settle window is not checked. Closing that is
+   [ADR 0003](../docs/adr/0003-wait-for-every-pop-up-card-before-scanning.md). The listing cannot go quietly empty: `seed.py`
    stops on a pop-up without a hash or a name, on two sharing either, on a `navigate` action whose
    target no pop-up defines, and on a Bubble dashboard defining fewer than `MIN_POPUPS`.
 
