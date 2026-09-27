@@ -44,7 +44,7 @@ model	alpine_a290/dashboards/Images/Map Markers/*	r5	only	6	r5's map markers per
 # ---------------------------------------------------------------- one repository only
 local	BACKLOG.md	a290	only	1	a290's own backlog; r5 tracks work in its issues
 local	.orchestrate/*	a290	only	2	a290's review-orchestration helpers; whether r5 wants them is the owner's call (audit H-C7)
-local	docs/adr/*	a290	only	4	a290's architecture decision records (0001 parity, 0002 Supervisor pilot, 0003 pop-up completeness, 0004 marquee clips)
+local	docs/adr/*	a290	only	5	a290's architecture decision records (0001 parity, 0002 Supervisor pilot, 0003 pop-up completeness, 0004 marquee clips, 0005 release waits for the UI gate)
 pending	scripts/parity_check.py	a290	only	1	this check starts in a290. Target: r5 copies it byte-for-byte with its own map and list (ADR 0001 row 2)
 pending	.github/scripts/ha_cadence_watch.py	a290	only	1	a290 watches the HA release cadence (audit H-C7). Target: port to r5 with the workflow below
 pending	.github/workflows/ha-cadence-watch.yaml	a290	only	1	as ha_cadence_watch.py. Target: port to r5
@@ -128,8 +128,9 @@ pending	.github/workflows/ci.yaml	both	hunk:declared minimum HA must	2	comment w
 pending	.github/workflows/ci.yaml	both	hunk:optional test package|ported template package	2	comment follows the bundled-template difference. Target: follows the Templates decision
 pending	.github/workflows/ci.yaml	both	hunk:a VIN in a test fixture|pair of public add-on repos	5	PII-step comment wording. Target: converge, either way
 pending	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant/base	4	the same comment on the build step, in a different place. Target: one place in both
-pending	.github/workflows/ui-tests.yaml	both	hunk:NOT the prose in there	42	the path-filter comment names each repo's own dashboard docs. Target: follows the dashboard-docs reconciliation
-pending	.github/workflows/ui-tests.yaml	both	hunk:Path-filtered so it only runs when	5	a290's header also names deploy.py as a render input. Target: port to r5
+pending	.github/workflows/ui-tests.yaml	both	hunk:NOT the prose in there|Decide whether this touches the render|needs: \[changes\]|Triggers unconditionally \(ADR 0005\)	88	ADR 0005: the trigger-level path filter (both push and pull_request) is gone, replaced by an unconditional trigger and a `changes` job that decides relevance in-workflow, so the check-run always exists. Target: r5 ports ADR 0005
+pending	.github/workflows/release.yaml	both	hunk:Wait for CI \+ UI Tests on this commit|needs: \[prepare, manifest, validated\]	32	ADR 0005: a `validated` job waits for CI and UI Tests to report success on the commit before `tag` creates the git tag + GitHub Release. Target: r5 ports ADR 0005
+pending	.github/workflows/refresh-screenshots.yaml	both	hunk:ADR 0005|has-render	28	ADR 0005: UI Tests now always runs, so a render that was itself skipped (not failed) needs its own guard before this workflow tries to download an artifact that was never produced. Target: r5 ports ADR 0005
 pending	.github/workflows/refresh-screenshots.yaml	both	re:ui-tests/screenshots/	10	screenshot file names carry each repo's dashboard slugs (alpine-standard/alpine-bubble vs renault-5/renault-5-bubble), in the cp lines and the pop-up guard. Target: follows the naming decision (ADR 0001 row 13)
 local	.github/workflows/renault-api-watch.yaml	r5	re:Ported from the A290 twin	1	r5's provenance note pointing at a290
 pending	.github/workflows/renault-api-watch.yaml	both	re:cron:	2	schedule comment wording. Target: converge, either way
