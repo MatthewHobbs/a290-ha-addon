@@ -31,13 +31,30 @@ Mushroom tile labels clipping on a phone.
    `bubble-card` that renders it) is open on screen showing its header `name`, scans it with the
    same truncation check, and screenshots it as `<dashboard>__popup_<hash>__<device>.png`
    (`#alpine-charging` keeps its `smart_charging` name, which the drift workflow reads). Findings
-   inside a pop-up are reported with its hash. **Known limit:** the scan starts once the pop-up's
-   header is on screen and, for a pop-up whose manifest names expected labels, once those are laid
-   out; a pop-up that names none gets no completeness signal before its scan, so a card that paints
-   later than the scan's settle window is not checked. Closing that is
-   [ADR 0003](../docs/adr/0003-wait-for-every-pop-up-card-before-scanning.md). The listing cannot go quietly empty: `seed.py`
-   stops on a pop-up without a hash or a name, on two sharing either, on a `navigate` action whose
-   target no pop-up defines, and on a Bubble dashboard defining fewer than `MIN_POPUPS`.
+   inside a pop-up are reported with its hash. **The scan waits for the whole pop-up first**
+   ([ADR 0003](../docs/adr/0003-wait-for-every-pop-up-card-before-scanning.md)): Bubble renders
+   a pop-up's cards lazily, and nothing is truncated in a card that has not painted, so the
+   manifest carries, per pop-up, one item per card its `cards:` render (a conditional card's
+   inner card only while its conditions hold under the complete seeded state map, never the
+   wrapper; the pop-up's own `name` is its header, not a card) as the element the card renders
+   (`custom:x` is `<x>`, a core `y` is `<hui-y-card>`) and every text it must show: its static
+   text fields, the branch its `IF_IS_STATE` templates select, the state its entity's seeded
+   value renders as where it shows state (`show_state`, Bubble's `button_type: state`), and, for
+   a JavaScript or Jinja field the seed cannot read, what `seed.DECLARED` says it renders (the
+   Charge Status badges and the off-peak window are the two). Such a field with no declaration, a
+   declaration no card matches, a condition on an entity the seed does not set, and a pop-up with
+   no cards each stop `seed.py` naming the dashboard, pop-up, card and field, so nothing is
+   scanned on a guess. `check_overflow.py` then waits, once per pop-up with one timeout, until
+   every item is met by a distinct laid-out element of its tag inside the open pop-up (outside
+   the header) holding every text as a laid-out element's own text, where laid out means a box,
+   `visibility: visible` and opacity above zero through every ancestor, not "in the viewport",
+   since pop-ups scroll; a card that emits its text twice cannot stand in for a second card with
+   the same text. What is still short at the timeout is a `not-rendered` finding naming the text
+   or the card type, and fails that device. `completeness_fixtures.py` is the isolated proof of
+   each case (row 6 of the ADR) against the tree before the wait. The listing cannot go quietly
+   empty: `seed.py` stops on a pop-up without a hash or a name, on two sharing either, on a
+   `navigate` action whose target no pop-up defines, and on a Bubble dashboard defining fewer
+   than `MIN_POPUPS`.
 
    A pop-up that never stays open, or whose scan is torn down, gets one more attempt on that
    device: HA reloads the page once, about five seconds after a context's first load, as its
