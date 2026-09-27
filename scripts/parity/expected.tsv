@@ -167,7 +167,7 @@ pending	CLAUDE.md	both	*	*	each repo's session instructions; 65% shared. Target:
 pending	alpine_a290/README.md	both	*	39	the add-on's store README. Target: same as DOCS.md
 pending	docs/dashboards-on-mobile.md	both	*	15	r5 claims the screenshots auto-refresh, which is false there (audit H-D3), plus rewrapping. Target: fix r5's claim, then rewrap
 # ---------------------------------------------------------------- Supervisor pilot + AppArmor pin (a290 #160, r5 #108, ADR 0002)
-local	alpine_a290/apparmor.txt	both	*	6	both pin `abi <abi/3.0>,`; the six differing lines are comments, r5's citing "the a290 twin's profile" and a290 ADR 0002 row 8 where a290's cite its own ADR 0002 (r5 #108)
+local	alpine_a290/apparmor.txt	both	re:^# (from 3\.0 up\. Parsers |profile, which differs from this one only in its name|the pin \(a290 ADR 0002 row 8\)|\((supervisor\.yml|ADR 0002)\) now enforces it in CI)	6	both pin `abi <abi/3.0>,`; only these comment lines differ, r5's citing "the a290 twin's profile" and a290 ADR 0002 row 8 where a290's cite its own ADR 0002 (r5 #108). Deliberately not `*`: a policy line that drifts must fail here, not hide behind a comment count
 local	.github/renovate.json	both	hunk:Supervisor pilot	4	both carry the pilot's Renovate rule and manager; the four differing lines are its descriptions, r5's citing "the a290 twin's ADR 0002" and "the a290 twin's" pilot where a290's cite its own (r5 #108)
 # --- pilot dashboard probe (a290 #165, mirrored by r5 in #108)
 # The probe is in both pilots now. Its only per-line residue is r5's deploy_dashboard default,
