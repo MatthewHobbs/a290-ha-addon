@@ -68,6 +68,13 @@ JS_DETECT = r"""
       if (clipsX && el.scrollWidth > el.clientWidth + 1) {
         out.push({ type: 'truncated', tag, text: own.slice(0, 160),
                    scrollWidth: el.scrollWidth, clientWidth: el.clientWidth });
+      } else if (cs.webkitLineClamp && cs.webkitLineClamp !== 'none'
+                 && el.scrollHeight > el.clientHeight + 1) {
+        // A line clamp cuts text off vertically (Bubble clamps a non-scrolling name/state to 2
+        // lines), so the width test above never sees it (ADR 0004 row 1 as amended; measured
+        // by the r5 twin: a three-line date in a 2-line box, 54 > 36).
+        out.push({ type: 'truncated', tag, text: own.slice(0, 160), axis: 'y',
+                   scrollWidth: el.scrollHeight, clientWidth: el.clientHeight });
       }
     }
   };
@@ -688,7 +695,8 @@ def run():
             for i in issues[:12]:
                 where = f" in pop-up {i['popup']}" if i.get("popup") else ""
                 if i["type"] == "truncated":
-                    print(f"  - TRUNCATED <{i['tag']}> {i['scrollWidth']}>{i['clientWidth']}px{where}: "
+                    print(f"  - TRUNCATED <{i['tag']}> {i['scrollWidth']}>{i['clientWidth']}px"
+                          f"{' tall' if i.get('axis') == 'y' else ''}{where}: "
                           f"{i['text']!r}")
                 else:
                     print(f"  - {i['type'].upper()} <{i['tag']}>{where}: {i['text']!r}")
