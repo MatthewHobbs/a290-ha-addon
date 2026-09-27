@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.28.9
+
+- **Bubble dashboard: no label is clipped by the scrolling-text marquee any more.** The UI gate
+  could not see a name Bubble hid behind its scrolling-text mask, so labels cut short with a fade
+  ("Steering Whee", "Last Updat...") passed unnoticed. The gate now sees them, and the affected
+  buttons (Last Charge, Diagnostics, Presets' Steering Wheel, the Smart Charging menu button, the
+  Activity timestamps) stop scrolling and wrap their names instead.
+- **Last Charge's nine captured-data buttons are now five rows of two, not three rows of three.**
+  A row of three buttons left too little room for a name once the marquee was switched off; two
+  per row keeps every value legible, in the same order (Started/Ended, Duration/SoC Start, SoC
+  End/SoC Gain, Energy Start/Energy End, Energy Added).
+- **Activity's timestamps, and Last Charge's Started/Ended/Date, show a short date** ("27 Sep
+  05:50") instead of Home Assistant's full date and time, which no longer fits a two-line button.
+  Shown in your Home Assistant's own time zone; month names are in English regardless of your
+  Home Assistant's language.
+  Re-copy or redeploy the Bubble dashboard to pick this up (`redeploy_dashboard: true`, or paste
 ## 1.28.8
 
 - **Bubble dashboard: a section heading that wraps keeps its yellow rule.** Since 1.28.6 a long
