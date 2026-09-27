@@ -109,6 +109,7 @@ model	alpine_a290/app/deploy.py	both	py:_CHARGE_TARGET_REC	4	"Alpine's recommend
 pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUTTON,_references,_drop_cards_referencing,_deploy_one,run_deploy	37	r5's dashboards carry a Refresh Location tile, pruned when the button is withheld; a290's have no such tile (audit H-D4, a product decision); plus two comments. Target: owner decision on the tile, then one implementation
 pending	alpine_a290/app/deploy.py	both	py:_WS	2	one comment. Target: converge, either way
 
+pending	alpine_a290/Dockerfile	both	hunk:^ARG CORE_REF=	4	a290 runs renault-mqtt v0.19.0 (missed-tombstone fix, core ADR 0002 row 6); r5 is on v0.18.0. Target: r5 bumps (core ADR 0002 row 7)
 # ---------------------------------------------------------------- dashboards
 pending	alpine_a290/dashboards/front-end*.txt	r5	hunk:name: Refresh Location	31	the Refresh Location tile, on both r5 dashboards (see deploy.py). Target: owner decision on the tile; the keys go with the #164 port
 pending	alpine_a290/dashboards/front-end.txt	both	re:sensor\.(a290_)?test_	32	a290's test-mode package is namespaced a290_test_*; r5's is bare test_* (audit H-C4). Target: port to r5 with Packages/a290_test.yaml
@@ -145,14 +146,12 @@ pending	scripts/docs_cite_ignore.txt	both	*	3	the comment follows the bundled-te
 
 # --- UI gate coverage: dispatching-off pass and all Bubble pop-ups
 # Listed before the whole-file harness entries below so these lines are taken here, not there.
-pending	ui-tests/seed.py	both	py:<docstring>,<imports>,TOGGLES,MIN_POPUPS,TEMPLATE_DIR,HELPER_STATES,helper_states,state_for,derive_passes,TEXT_KEYS,IF_IS_STATE,ACTION_KEYS,_reads_state,expected_labels,popups_in,write_manifest,main	189	a290 derives a pass per TOGGLES entry (the off-peak badge's "Peak rate"), lists every Bubble pop-up with its labels in the manifest, and seeds the bundled pretty-location template at a real length. Target: r5's harness PR porting this
-pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_labels,POPUP_SHOT_NAMES,_open_popup,_capture_popup,run	266	a290 opens every Bubble pop-up by hash, proves each open by hash and header name, rescans once after HA's service-worker reload, and fails a pop-up skipped on every device. Target: r5's harness PR porting this
-pending	ui-tests/run.sh	both	hunk:demo toggles|reseed the sensors it switches	11	the pass loop's comment and echo also name the toggles and pop-ups. Target: r5's harness PR porting this
-pending	ui-tests/README.md	both	hunk:Bubble pop-ups|Problem-sensor and toggle passes|TOGGLES|popup_	69	'How it works' items 4-5 describe the pop-up loop and the toggle passes. Target: r5's harness PR porting this
+pending	ui-tests/seed.py	both	py:<docstring>,<imports>,TOGGLES,MIN_POPUPS,TEMPLATE_DIR,HELPER_STATES,helper_states,state_for,derive_passes,TEXT_KEYS,IF_IS_STATE,ACTION_KEYS,_reads_state,expected_labels,popups_in,write_manifest,main	35	a290 derives a pass per TOGGLES entry (the off-peak badge's "Peak rate"), lists every Bubble pop-up with its labels in the manifest, and seeds the bundled pretty-location template at a real length. Target: r5's harness PR porting this
+pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_labels,POPUP_SHOT_NAMES,_open_popup,_capture_popup,run	117	a290 opens every Bubble pop-up by hash, proves each open by hash and header name, rescans once after HA's service-worker reload, and fails a pop-up skipped on every device. Target: r5's harness PR porting this
 
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
 pending	ui-tests/check_overflow.py	both	*	54	residue after r5 #105 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow ADR 0001 row 13
-pending	ui-tests/seed.py	both	*	55	residue after r5 #105: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
+pending	ui-tests/seed.py	both	*	59	residue after r5 #105: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
 pending	ui-tests/README.md	both	*	32	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow ADR 0001 row 13
 
 # ---------------------------------------------------------------- prose and tests, excused wholesale
