@@ -367,8 +367,9 @@ def main():
         # Manifest-time errors beyond 7: a declaration no card matches, a condition on an entity
         # the seed does not set, a pop-up with no cards.
         def declared_not_found():
-            saved = seed.DECLARED, seed.MIN_POPUPS
+            saved = seed.DECLARED, seed.STATE_TEXT_OVERRIDE, seed.MIN_POPUPS
             seed.DECLARED = {("fx", HASH, "custom:bubble-card", "sensor.gone"): lambda e: {"name": ["x"]}}
+            seed.STATE_TEXT_OVERRIDE = {}
             seed.MIN_POPUPS = 1
             try:
                 views = [{"cards": [{"type": "custom:bubble-card", "card_type": "pop-up", "hash": HASH,
@@ -377,7 +378,7 @@ def main():
                                           "button_type": "name", "name": "Here"}]}]}]
                 seed.write_manifest(os.path.join(tmp, "m.json"), {"fx": views}, "", {}, {})
             finally:
-                seed.DECLARED, seed.MIN_POPUPS = saved
+                seed.DECLARED, seed.STATE_TEXT_OVERRIDE, seed.MIN_POPUPS = saved
 
         r.manifest_case("declared_card_not_found", declared_not_found, ["DECLARED", "match no card", "sensor.gone"])
         r.manifest_case(

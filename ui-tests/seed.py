@@ -477,6 +477,18 @@ def _format_date_time(iso):
     return f"{dt:%B} {dt.day}, {dt.year} at {dt.hour % 12 or 12}:{dt:%M} {'PM' if dt.hour >= 12 else 'AM'}"
 
 
+_SHORT_DATE_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+
+
+def _short_date(iso):
+    """The short date a button's `styles` override writes into `.bubble-state` (ADR 0004):
+    Intl.DateTimeFormat('en-GB', {timeZone: hass.config.time_zone, day:'numeric', month:'numeric',
+    hour:'2-digit', minute:'2-digit', hourCycle:'h23'}), reassembled as 'D Mon HH:MM'. Uses UTC,
+    matching `_offpeak_window`: hass.config.time_zone is the harness's untouched default."""
+    dt = datetime.fromisoformat(iso).astimezone(timezone.utc)
+    return f"{dt.day} {_SHORT_DATE_MONTHS[dt.month - 1]} {dt.hour:02d}:{dt.minute:02d}"
+
+
 def state_text(eid, state, attrs):
     """The text Home Assistant's formatEntityState renders for a seeded state, in the gate's `en`
     locale (frontend computeStateDisplay): a number with a unit (no blank before `%` or `°`, one
@@ -570,6 +582,34 @@ DECLARED = {
     ("alpine-bubble", "#alpine-charge", "custom:button-card", "sensor.alpine_a290_battery_level"): _charge_status_badges,
     ("alpine-bubble", "#alpine-charging", "custom:mushroom-template-card",
      CHARGER_DEMO["A290_CHARGER_DISPATCHING"]): _offpeak_window,
+}
+
+
+def _make_short_date(eid):
+    """Bound to one entity, for a STATE_TEXT_OVERRIDE entry."""
+    return lambda eff: _short_date(eff[eid][0])
+
+
+# Bubble state buttons whose `styles` JS overwrites `.bubble-state`'s text after render (ADR
+# 0004's short-date templates): keyed by (dashboard, pop-up hash, entity, card name), since Last
+# Charge's Started and Date buttons share an entity and only their name tells them apart. `texts_of`
+# detects the override itself (the styles string targets `.bubble-state` and sets `.textContent`)
+# and requires a matching entry rather than falling back to state_text; a card overriding its state
+# with no entry, and an entry matching no card, are each a manifest-time error, same guarantee as
+# DECLARED.
+STATE_TEXT_OVERRIDE = {
+    ("alpine-bubble", "#alpine-activity", "sensor.alpine_a290_hvac_last_activity", "HVAC"):
+        _make_short_date("sensor.alpine_a290_hvac_last_activity"),
+    ("alpine-bubble", "#alpine-activity", "sensor.alpine_a290_last_updated", "Battery"):
+        _make_short_date("sensor.alpine_a290_last_updated"),
+    ("alpine-bubble", "#alpine-activity", "sensor.alpine_a290_gps_last_activity", "GPS"):
+        _make_short_date("sensor.alpine_a290_gps_last_activity"),
+    ("alpine-bubble", "#alpine-lastcharge", "sensor.alpine_a290_last_charge_start", "Started"):
+        _make_short_date("sensor.alpine_a290_last_charge_start"),
+    ("alpine-bubble", "#alpine-lastcharge", "sensor.alpine_a290_last_charge_end", "Ended"):
+        _make_short_date("sensor.alpine_a290_last_charge_end"),
+    ("alpine-bubble", "#alpine-lastcharge", "sensor.alpine_a290_last_charge_start", "Date"):
+        _make_short_date("sensor.alpine_a290_last_charge_start"),
 }
 
 
@@ -675,7 +715,18 @@ def popup_items(url_path, popup, effective, declared=DECLARED):
             if eid not in effective:
                 raise SystemExit(f"{where}: card {path} ({ctype}) shows the state of {eid!r}, which the seed "
                                  "does not set")
-            out.append(state_text(eid, *effective[eid]))
+            styles = card.get("styles")
+            if isinstance(styles, str) and ".bubble-state')" in styles and ".textContent=" in styles:
+                okey = (url_path, popup.get("hash"), eid, card.get("name"))
+                fn = STATE_TEXT_OVERRIDE.get(okey)
+                if fn is None:
+                    raise SystemExit(f"{where}: card {path} ({ctype}) overrides its state display in "
+                                     f"styles and no STATE_TEXT_OVERRIDE entry covers {okey}; declare "
+                                     "what it renders")
+                out.append(fn(effective))
+                used.add(("state", *okey))
+            else:
+                out.append(state_text(eid, *effective[eid]))
         return out
 
     def walk_card(card, path):
@@ -821,6 +872,8 @@ def write_manifest(path, built, name, states, normal, posted=None):
     effective = effective_states(entities, problem_sensors(), states, posted)
     if unknown := sorted({k for k in DECLARED if k[0] not in built}):
         raise SystemExit(f"DECLARED names dashboards that are not built: {unknown}")
+    if unknown := sorted({k for k in STATE_TEXT_OVERRIDE if k[0] not in built}):
+        raise SystemExit(f"STATE_TEXT_OVERRIDE names dashboards that are not built: {unknown}")
     manifest = {}
     for url_path, views in built.items():
         refs = set(extract_entities([yaml.safe_dump(views)]))
@@ -831,6 +884,8 @@ def write_manifest(path, built, name, states, normal, posted=None):
             used |= seen
         if stale := sorted(k for k in DECLARED if k[0] == url_path and k not in used):
             raise SystemExit(f"{where} pass: DECLARED entries match no card in {url_path}: {stale}")
+        if stale := sorted(k for k in STATE_TEXT_OVERRIDE if k[0] == url_path and ("state", *k) not in used):
+            raise SystemExit(f"{where} pass: STATE_TEXT_OVERRIDE entries match no card in {url_path}: {stale}")
         if name and not refs & changed:
             continue
         popups = [(h, n, node) for h, n, node in every
@@ -935,10 +990,14 @@ async def main():
     async with aiohttp.ClientSession() as session:
         if args.pass_name:
             print(f"Seeding the {where} pass…")
-            # Every problem sensor and derived timestamp, not only those this pass changes: the
-            # previous pass's states are still in HA.
-            reseed = sorted(states) + sorted(ts for ts in DERIVED_AGE if ts in entities)
-            posted = await seed_states(session, args.base, args.token, reseed, problems, states)
+            # Every entity, not only those this pass changes: each pass runs as its own process,
+            # so a plain KNOWN `_ago()` age (an entity no pass ever names, e.g. the Activity
+            # buttons' last-activity sensors) is recomputed fresh here relative to THIS process's
+            # own clock. Posting only the diff left such an entity's absolute value exactly as an
+            # earlier pass's process happened to compute it, drifting a few minutes behind what
+            # this pass's own manifest predicts for it whenever an unrelated sibling reopens its
+            # pop-up — a mismatch this scan cannot tell apart from the button never having painted.
+            posted = await seed_states(session, args.base, args.token, entities, problems, states)
             await verify_pass(session, args, where, posted, states)
             if args.manifest:
                 write_manifest(args.manifest, built, args.pass_name, states, by_name[""], posted)
