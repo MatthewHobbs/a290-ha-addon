@@ -958,6 +958,25 @@
               ha-tile-icon$: .container{background-color:color-mix(in srgb,var(--tile-icon-color) 20%,transparent);}
               .: ha-tile-icon{--tile-icon-size:55px;--mdc-icon-size:28px;}ha-tile-info{--ha-tile-info-primary-font-size:12px;--ha-tile-info-primary-font-weight:400;--ha-tile-info-primary-letter-spacing:0.3px;--ha-tile-info-primary-line-height:1.15;--ha-tile-info-secondary-font-size:11px;--ha-tile-info-secondary-color:#FFFF00;}ha-tile-info span{font-family:system-ui,sans-serif !important;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}ha-tile-info span[slot=secondary]{opacity:0.75;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
         - type: custom:mushroom-entity-card
+          entity: sensor.alpine_a290_gps_last_activity
+          name: Refresh Location
+          icon: mdi:crosshairs-gps
+          secondary_info: state
+          tap_action:
+            action: call-service
+            service: button.press
+            target:
+              entity_id: button.alpine_a290_refresh_location
+          double_tap_action:
+            action: none
+          hold_action:
+            action: none
+          card_mod:
+            style:
+              mushroom-shape-icon$: .shape{--icon-size:55px;--icon-symbol-size:28px;}
+              mushroom-state-info$: .container{--card-secondary-color:#FFFF00;}.primary{font-family:system-ui,sans-serif !important;font-size:12px !important;letter-spacing:0.3px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.15;}.secondary{font-family:system-ui,sans-serif !important;font-size:11px !important;opacity:0.75;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}
+              .: ha-state-icon{color:#FFFF00;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}
+        - type: custom:mushroom-entity-card
           entity: input_button.a290_test_charge_run
           name: Run Test Charge
           icon: mdi:run

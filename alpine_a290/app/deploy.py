@@ -297,10 +297,14 @@ def _charger_popup():
             "shadow_opacity": "0", "cards": cards}
 
 
-async def _fetch_dashboard(style):
+async def _fetch_dashboard(style, refresh_location=False):
     views = yaml.safe_load(_cdnify(_read_dashboard(style)))
     if not isinstance(views, list):
         raise ValueError("dashboard YAML did not parse to a list of views")
+    # Pruned inside each view, never the views list: a view carries a `type` too.
+    if not refresh_location:
+        for v in views:
+            _drop_cards_referencing(v, _REFRESH_LOCATION_BUTTON)
     view = views[0] if views and isinstance(views[0], dict) else None
     if view is not None:
         if style == "bubble":
@@ -310,6 +314,34 @@ async def _fetch_dashboard(style):
             if new_cards:
                 _add_cards(view, new_cards)
     return {"title": "Alpine A290", "views": views}
+
+
+# The bundled dashboards' Refresh Location tile presses this button, which core withholds unless
+# the user opted in (enable_refresh_location) with location publishing on. main passes that verdict
+# in rather than this module importing the core: ui-tests/seed.py imports deploy without it.
+_REFRESH_LOCATION_BUTTON = "button.alpine_a290_refresh_location"
+
+
+def _references(node, entity):
+    if isinstance(node, dict):
+        return any(_references(v, entity) for v in node.values())
+    if isinstance(node, list):
+        return any(_references(v, entity) for v in node)
+    return node == entity
+
+
+def _drop_cards_referencing(node, entity):
+    """Remove every card that references `entity`, innermost first: a stack is only dropped if it
+    still references the entity once its own children have been pruned, so the tile goes and its
+    neighbours stay."""
+    if isinstance(node, dict):
+        for v in node.values():
+            _drop_cards_referencing(v, entity)
+    elif isinstance(node, list):
+        for v in node:
+            _drop_cards_referencing(v, entity)
+        node[:] = [v for v in node
+                   if not (isinstance(v, dict) and "type" in v and _references(v, entity))]
 
 
 def _add_cards(view, new_cards):
@@ -432,9 +464,9 @@ def _deploy_targets(style, url_path):
     return [(style, url_path, "Alpine A290")]
 
 
-async def _deploy_one(api, style, url_path, title, redeploy):
+async def _deploy_one(api, style, url_path, title, redeploy, refresh_location=False):
     """Create-once (or overwrite when redeploy) a single dashboard."""
-    config = await _fetch_dashboard(style)
+    config = await _fetch_dashboard(style, refresh_location)
     existing = {d.get("url_path") for d in (await api.dashboards() or [])}
     if url_path in existing and not redeploy:
         LOG.info("Dashboard '%s' already exists — leaving it (set redeploy_dashboard to "
@@ -448,7 +480,7 @@ async def _deploy_one(api, style, url_path, title, redeploy):
              style, url_path, len(config["views"]))
 
 
-async def run_deploy():
+async def run_deploy(refresh_location=False):
     style = os.environ.get("A290_DEPLOY_DASHBOARD", "none").strip().lower()
     if style in ("", "none"):
         return
@@ -477,6 +509,6 @@ async def run_deploy():
                     await api.create_resource(FONT_URL)
                     LOG.info("Registered Zen Dots font resource")
                 for st, path, title in _deploy_targets(style, url_path):
-                    await _deploy_one(api, st, path, title, redeploy)
+                    await _deploy_one(api, st, path, title, redeploy, refresh_location)
     except Exception as err:  # noqa: BLE001 — deploy must never break the poller
         LOG.warning("Dashboard auto-deploy skipped (%s): %s", type(err).__name__, _redact(err))

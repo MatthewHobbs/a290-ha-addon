@@ -690,7 +690,7 @@ async def main():
     _LATEST["dist_unit"] = dist_unit  # so the status panel can label range/mileage
     client = mqtt.mqtt_connect()
     mqtt.publish_discovery(client, supported, dist_unit)
-    await deploy.run_deploy()
+    await deploy.run_deploy(refresh_location=bool(mqtt.PUBLISH_LOCATION and mqtt.ENABLE_REFRESH_LOCATION))
 
     stop = asyncio.Event()
     for sig in (signal.SIGTERM, signal.SIGINT):
