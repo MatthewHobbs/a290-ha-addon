@@ -764,3 +764,5 @@ async def main():
 
 if __name__ == "__main__":  # pragma: no cover
     asyncio.run(main())
+
+# ADR 0005 skip-path verification: this comment-only change should not trigger a dashboard render.
