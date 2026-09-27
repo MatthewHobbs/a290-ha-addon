@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (2026-09-27). I chose Option A of the RFC, with the Activity dates handled as Option B; the rows below are the plan and are all Open.
 - **Context:** the r5 twin, rendering its mirror of the Bubble dashboard through the all-pop-ups harness (#171's port), found labels cut short with a fade that the gate reported as 0 issues. It measured the mechanism: Bubble Card's scrolling-text marquee. Proposed as [RFC 0012: catch marquee-clipped labels in the UI gate](https://claude.ai/artifact/C3QQ5vbRHDrdGsWuvazmv3), indexed in claude-config; logged in `BACKLOG.md` as "UI gate misses text cut short with a fade".
+- **Amended (2026-09-27):** Option A cannot fit the four rows that hold three buttons; they are re-laid two per row, decided in RFC 0013 (see Amendment below).
 - **North star:** no label on either dashboard is clipped at any phone width, for anyone, including users with reduced motion, and the gate can see a clip wherever Bubble hides one.
 
 <!-- Format: claude-config docs/adr/0000-template.md, referenced at source rather than copied.
@@ -13,9 +14,9 @@ The gate's detector measures a clipping box by its text content when it owns no 
 
 | # | Step | Owner | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| 1 | `check_overflow.py` `JS_DETECT`: a box that clips (`text-overflow: ellipsis`, or `overflow-x: hidden` with nowrap) but owns no text node is measured by its `textContent`. The r5 twin's diff, verbatim | a290 | Open | |
+| 1 | `check_overflow.py` `JS_DETECT`: a box that clips (`text-overflow: ellipsis`, or `overflow-x: hidden` with nowrap) but owns no text node is measured by its `textContent`. The r5 twin's diff, verbatim. **Amended:** also a vertical check, since Bubble clamps a wrapped name to two lines with an ellipsis: a box under a line clamp whose scrollHeight exceeds its clientHeight is a clip; must-fail on a clamped name, must-pass on a fitting one | a290 | Open | |
 | 2 | Must-fail, on a290's own render before any dashboard change: the patched detector on the bundled Bubble dashboard at 360px reports the marquee clips by name (the r5 twin's four named cases and the Last Charge set are the expectation); the stock detector reports 0 on the same pages | a290 | Open | |
-| 3 | The affected Bubble buttons (`#alpine-lastcharge`, `#alpine-diag`, `#alpine-presets`, the main menu's Smart Charging button, and any the must-fail names) get `scrolling_effect: false` and a wrap on the name (`white-space: normal`), in `front-end-bubble.txt` and in any deploy-time card `deploy.py` generates for them | a290 | Open | |
+| 3 | The affected Bubble buttons (`#alpine-lastcharge`, `#alpine-diag`, `#alpine-presets`, the main menu's Smart Charging button, and any the must-fail names) get `scrolling_effect: false` and a wrap on the name (`white-space: normal`), in `front-end-bubble.txt` and in any deploy-time card `deploy.py` generates for them. **Amended:** the four rows that hold three buttons (Last Charge's Started / Ended / Duration, SoC Start / End / Gain, Energy Start / End / Added; Diagnostics' Last Updated / Run Test Charge / Refresh Location) are re-laid two per row in dashboard order (Last Charge's nine become five rows, Diagnostics' three become two), because a three-button row leaves 29 to 40px for a name and a single word does not fit (RFC 0013) | a290 | Open | |
 | 4 | The two `#alpine-activity` date buttons (`hvac_last_activity`, `last_updated`) show a short date, day, month and time, instead of Home Assistant's long locale string, which is 369px of text for a 93 to 120px name area and would wrap to three lines | a290 | Open | |
 | 5 | Full gate green on both legs (stable and the declared minimum) with the patched detector, every pop-up, every device; the number of marquee findings goes from the must-fail's count to 0 by name. Version bump and changelog in user terms | a290 | Open | |
 | 6 | A wrapped button name's height is measured at 360px for the busiest rows (Last Charge's five, Diagnostics' three) and recorded here, so a later redesign can see what this cost | a290 | Open | |
@@ -56,6 +57,19 @@ Copied from RFC 0012, with the chosen options marked. The detector fix was not i
 
 - A Bubble release that changes the marquee's DOM (a different container, text no longer doubled) changes what the detector sees; the pinned render inputs and Renovate's grouped bump are where that surfaces.
 - `scrolling_effect: false` is a per-card Bubble option; a new button added without it scrolls again and is caught by the gate, not by review.
+
+## Amendment (2026-09-27)
+
+The r5 twin measured the first cut (scrolling off on the 24 buttons) live at 360px and 393px: Presets, the Smart Charging button and Activity clear the gate, and two-per-row buttons have 85px of name width, where every name fits; but a row of three buttons leaves 29px (360) or 40px (393) beside the icon, and a single word is 36 to 51px (Started 43, Duration 50, Refresh Location 51). Option A as decided cannot fix those four rows. Proposed as [RFC 0013: three-button rows at 360px in Last Charge and Diagnostics](https://claude.ai/artifact/PmjD9CHbqoiKKiqwjUGGom); I chose A2, two per row, on 2026-09-27. Row 3 carries the change. The options weighed, copied from RFC 0013:
+
+| Option | What | Cost | Risk |
+| --- | --- | --- | --- |
+| **A2: two per row (chosen)** | Re-lay the four three-button rows as two-per-row (Last Charge rows 1 to 3 become five rows; Diagnostics' row becomes two), keeping every button, icon and name. Measured width for two-per-row is 85px, where every current name fits. | Last Charge grows from 5 button rows to 7, Diagnostics from 1 to 2; a taller pop-up the user scrolls. One dashboard edit per repo, proven by the gate. | The one measured layout that fits every name unchanged. Visible change: the three related values (Start / End / Gain) no longer sit side by side. |
+| B2: icons off on those rows | `show_icon: false` on the twelve buttons, giving the name the icon's ~30px back: roughly 60px at 360px. | Same edit count as A2, no extra rows. | Unmeasured: 60px may still not hold Duration (50) with padding, or the date states (58); the icon is part of the design and those rows would look different from the rest. Needs a measurement before it can be chosen. |
+| C2: shorter names | Rename to fit 29px: not achievable; the shortest useful words (Start, End) are already 36 to 43px at this font. | None. | Not viable at 360px; listed to close it. |
+| D2: three per row stays, marquee stays there | Keep the marquee on exactly those twelve buttons and exempt them in the manifest by name. | Nothing in layout. | Those twelve labels stay clipped for reduced-motion users, the case the decision was made to remove; the same compromise RFC 0012's Option C was rejected for, narrowed to twelve cards. |
+
+Also established by that measurement, and carried into row 1: with scrolling off, Bubble clamps a name to two lines with an ellipsis by an inline style, so the detector needs a vertical check (a clamped box whose scrollHeight exceeds its clientHeight) before a green run is evidence; the r5 twin is measuring which element carries it.
 
 ## Verification
 
