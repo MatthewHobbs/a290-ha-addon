@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.28.7
+
+- **An entity the add-on retires no longer stays behind as a permanent orphan when Home Assistant
+  was offline at the time.** The add-on retires an entity (the old `cabin_temperature`,
+  `soc_target` and `soc_min` sensors, an endpoint the car turns out not to support, or the
+  location tracker when `publish_location` is switched off) by clearing its retained discovery
+  config. If Home Assistant was not running at that moment it never saw the clearance, and the
+  entity sat in the registry as *unavailable* for good. The add-on now re-publishes its discovery
+  whenever Home Assistant announces it is online, and sends each retirement in a form Home
+  Assistant acts on even for an entity it has never seen in the current run, so such orphans clear
+  on the next Home Assistant start. Shared core `renault-mqtt` v0.19.0. One path, the location
+  opt-out, is covered by the core's unit tests but not by its end-to-end Home Assistant harness;
+  the other four are.
+
 ## 1.28.6
 
 - **Bubble dashboard: section headings inside pop-ups no longer get cut off.** On phone widths
@@ -8,6 +22,7 @@
   Charging one the add-on adds when a charger is configured, can now wrap onto a second line
   instead. Re-copy or redeploy the Bubble dashboard to pick it up
   (`redeploy_dashboard: true`, or paste `front-end-bubble.txt` again).
+
 ## 1.28.5
 
 - **Entity ids are now pinned by the add-on to the names Home Assistant already assigns.** Every
