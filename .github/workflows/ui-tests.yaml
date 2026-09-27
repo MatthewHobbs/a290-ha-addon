@@ -60,7 +60,6 @@ jobs:
   responsive:
     name: Dashboard responsive render (mobile matrix, ${{ matrix.leg }})
     needs: [changes]
-    if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     # Both ends of the supported range (global rule): the Renovate-tracked stable pin in run.sh,
     # and the declared minimum, read from config.yaml so the test cannot drift from the claim.
@@ -75,18 +74,29 @@ jobs:
       # which never runs the PR's code with the PAT.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
+      # ADR 0005: the `if:` that skips a no-op run lives on these steps, not on the job itself.
+      # A job-level `if:` on a matrix job that evaluates false stops the matrix from ever
+      # expanding, so GitHub creates exactly one check-run under the raw, unexpanded template
+      # name ("...mobile matrix, ${{ matrix.leg }})") instead of the two named ones ("stable" /
+      # "minimum") this repo's required checks (and `release.yaml`'s wait step) name explicitly —
+      # leaving both permanently "Expected" on every PR that doesn't touch a dashboard. Skipping
+      # each step instead still expands the matrix into two real, correctly-named jobs; they just
+      # finish in seconds instead of ~14 minutes.
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        if: needs.changes.outputs.relevant == 'true'
         with:
           # Match the add-on runtime (HA base 3.24 → Python 3.14); the harness imports app/deploy.py.
           python-version: "3.14"
 
       - name: Install deps (aiohttp + PyYAML + Playwright/Chromium + Pillow)
+        if: needs.changes.outputs.relevant == 'true'
         run: |
           python3 -m pip install --quiet aiohttp PyYAML playwright pillow
           python3 -m playwright install --with-deps chromium
 
       - name: Pick the Home Assistant image for this leg
         id: ha
+        if: needs.changes.outputs.relevant == 'true'
         run: |
           # A stable pin behind current stable means this leg is not testing what users run.
           # Renovate proposes the bump; until it merges, say so visibly rather than failing every PR.
@@ -104,16 +114,19 @@ jobs:
             echo "image=ghcr.io/home-assistant/home-assistant:$v" >> "$GITHUB_OUTPUT"
           fi
       - name: Render dashboards across the mobile device matrix
+        if: needs.changes.outputs.relevant == 'true'
         env:
           UI_TESTS_DARK: "1"   # render dark (the truncation gate is colour-agnostic)
           HA_IMAGE: ${{ steps.ha.outputs.image }}   # empty on the stable leg: run.sh keeps its pin
         run: bash ui-tests/run.sh
 
       # The refreshed docs screenshots are committed by the separate "Refresh screenshots"
-      # workflow (refresh-screenshots.yaml), which downloads this artifact. Uploaded always so
-      # a failed render still surfaces the partial shots for debugging.
+      # workflow (refresh-screenshots.yaml), which downloads this artifact. Uploaded whenever a
+      # render was attempted (always(), not just on success) so a failed render still surfaces
+      # its partial shots for debugging; skipped outright on a no-op run, so a non-dashboard PR
+      # doesn't get a spurious "no files found" warning for a directory that was never created.
       - name: Upload device screenshots
-        if: always()
+        if: always() && needs.changes.outputs.relevant == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           # Screenshot drift reads the stable leg's artifact by this exact name.
