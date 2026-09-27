@@ -222,9 +222,41 @@ jobs:
           subject-digest: ${{ steps.digest.outputs.digest }}
           push-to-registry: true
 
+  validated:
+    name: Wait for CI + UI Tests on this commit (ADR 0005)
+    # The image itself is already live by this point (published from the version-bump PR,
+    # before merge — see the header comment), so this gates only the visible "this version is
+    # out" signal (the git tag + GitHub Release below), not image availability. Runs only when
+    # `tag` below would otherwise run: a job this one `needs` treats a SKIPPED job as success for
+    # gating purposes (GitHub's own semantics), so `tag` is never blocked by this being skipped
+    # on a PR or a non-bump push — only by it actually running and failing.
+    needs: [prepare]
+    if: ${{ github.event_name == 'push' && needs.prepare.outputs.is_new == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for UI Tests (both legs; always reports per ADR 0005, applicable or not)
+        uses: lewagon/wait-on-check-action@369769072fe522a3a8a85c03c96af1e5242a1994  # v1.9.1
+        with:
+          ref: ${{ github.sha }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          running-workflow-name: "Wait for CI + UI Tests on this commit (ADR 0005)"
+          check-regexp: '^Dashboard responsive render'
+          wait-interval: 20
+          checks-discovery-timeout: 180
+
+      - name: Wait for CI's required jobs on this commit
+        uses: lewagon/wait-on-check-action@369769072fe522a3a8a85c03c96af1e5242a1994  # v1.9.1
+        with:
+          ref: ${{ github.sha }}
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          running-workflow-name: "Wait for CI + UI Tests on this commit (ADR 0005)"
+          check-regexp: '^(Lint|Tests|Security|Build \(amd64 sanity\)|Docs sync|Parity with r5)$'
+          wait-interval: 20
+          checks-discovery-timeout: 180
+
   tag:
     name: Tag release
-    needs: [prepare, manifest]
+    needs: [prepare, manifest, validated]
     if: ${{ github.event_name == 'push' && needs.prepare.outputs.is_new == 'true' }}
     runs-on: ubuntu-latest
     permissions:
