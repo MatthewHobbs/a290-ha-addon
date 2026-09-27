@@ -1151,7 +1151,7 @@ the manifest generation than a bug fix, and an architecture call, not a one-line
 
 **Decided 2026-09-26: Option B, [ADR 0003](docs/adr/0003-wait-for-every-pop-up-card-before-scanning.md).**
 The manifest will declare every pop-up's static card text and the scan will wait for it. This
-entry closes when that ADR's rows 6 to 8 are Done.
+entry closes in the same PR as that ADR's row 9, which requires rows 6 to 8 Done.
 
 **Mitigation already in place:** `_open_popup` already settles 800ms after confirming the header
 is visible before `_capture_popup` proceeds, and every real gate run today (multiple full legs,

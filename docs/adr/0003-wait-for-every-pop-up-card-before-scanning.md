@@ -37,7 +37,7 @@ What was and was not established that day: every full gate run, on both Home Ass
 
 ## Alternatives
 
-Copied from RFC 0011, with the chosen option marked.
+Copied from RFC 0011, with the chosen option marked. The table is the record of what was weighed, in the RFC's words. **The Decision rows are the contract**, and where they differ from Option B's wording here they supersede it: the RFC proposed reusing `_missing_labels` with a bigger label set, and review showed that a label-only wait cannot hold card identity, multiplicity or textless cards (rounds 5, 7, 8), so the rows specify a per-card manifest and a distinct-root matcher instead. Implementing the sentence below as written would be the false green this ADR exists to close.
 
 | Option | What | Cost | Risk |
 | --- | --- | --- | --- |
