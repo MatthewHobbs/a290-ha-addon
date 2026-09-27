@@ -553,12 +553,14 @@
         cards:
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_preconditioning_temperature
           name: Desired Temp
           styles: .bubble-icon-container{color:${(()=>{const p=parseFloat(state)||0;return p>30?"red":p>20?"orange":"yellow";})()} !important;}
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: binary_sensor.alpine_a290_heated_steering_wheel
           name: Steering Wheel
@@ -568,6 +570,7 @@
         cards:
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: binary_sensor.alpine_a290_heated_seat_passenger
           icon: mdi:car-seat-heater
@@ -575,6 +578,7 @@
           styles: .bubble-icon-container{${state==="on"?"color:red !important;":"color:grey !important;opacity:0.4;"}}
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: binary_sensor.alpine_a290_heated_seat_driver
           icon: mdi:car-seat-heater
@@ -589,12 +593,14 @@
         cards:
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: number.alpine_a290_minimum_soc
           name: Min SOC
           styles: .bubble-icon-container{color:red !important;}
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: number.alpine_a290_charge_target_soc
           name: Max SOC
@@ -713,18 +719,21 @@
         cards:
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_hvac_last_activity
           name: HVAC
           icon: mdi:fan
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_updated
           name: Battery
           icon: mdi:car-battery
       - type: custom:bubble-card
         card_type: button
+        scrolling_effect: false
         button_type: state
         entity: sensor.alpine_a290_gps_last_activity
         name: GPS
@@ -790,6 +799,7 @@
         cards:
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_start
           name: Started
@@ -797,6 +807,7 @@
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:green !important;opacity:1;"}}
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_end
           name: Ended
@@ -804,6 +815,7 @@
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:red !important;opacity:1;"}}
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_duration
           name: Duration
@@ -813,6 +825,7 @@
         cards:
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_start_soc
           name: SoC Start
@@ -820,6 +833,7 @@
           styles: .bubble-icon-container{color:green !important;}
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_end_soc
           name: SoC End
@@ -827,6 +841,7 @@
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:red !important;opacity:1;"}}
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_soc_recovered
           name: SoC Gain
@@ -836,6 +851,7 @@
         cards:
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_start_energy
           name: Energy Start
@@ -843,6 +859,7 @@
           styles: .bubble-icon-container{color:green !important;}
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_end_energy
           name: Energy End
@@ -850,6 +867,7 @@
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:red !important;opacity:1;"}}
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_energy_recovered
           name: Energy Added
@@ -859,6 +877,7 @@
         cards:
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_average_power
           name: Avg.
@@ -866,6 +885,7 @@
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":""}}
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_energy_recovered
           name: Uplift
@@ -875,6 +895,7 @@
         cards:
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_type
           name: Type
@@ -882,6 +903,7 @@
           styles: .bubble-icon-container{${(()=>{const active=hass.states["binary_sensor.alpine_a290_charging"]?.state==="on";if(active)return "color:grey !important;opacity:0.35;";const t=(state||"").toLowerCase().trim();if(t==="home")return "color:green !important;";if(t==="rapid/public")return "color:orange !important;";return "";})()}}
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: state
           entity: sensor.alpine_a290_last_charge_start
           name: Date
@@ -907,6 +929,7 @@
         cards:
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: name
           name: Last Updated
           icon: mdi:refresh
@@ -916,6 +939,7 @@
           styles: .bubble-icon-container{color:green !important;}
         - type: custom:bubble-card
           card_type: button
+          scrolling_effect: false
           button_type: name
           name: Run Test Charge
           icon: mdi:run

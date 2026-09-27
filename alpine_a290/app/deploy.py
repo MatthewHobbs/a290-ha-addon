@@ -368,7 +368,7 @@ def _inject_bubble_charging(view):
                      if isinstance(b, dict) and b.get("name") == "Location"), None)
     rest = [b for b in buttons if b is not location]
     btn = {"type": "custom:bubble-card", "card_type": "button", "button_type": "name",
-           "name": "Smart Charging", "icon": "mdi:ev-station",
+           "name": "Smart Charging", "icon": "mdi:ev-station", "scrolling_effect": False,
            "button_action": {"tap_action": {"action": "navigate",
                                              "navigation_path": _CHARGER_HASH}}}
     idx = next((i for i, b in enumerate(rest)
