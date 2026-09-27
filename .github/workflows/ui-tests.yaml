@@ -1,59 +1,66 @@
 name: UI Tests
 
 # Renders the bundled dashboards in a real Home Assistant across the top mobile device
-# sizes and fails on text truncation / broken cards. Path-filtered so it only runs when a
-# rendering input changes — the dashboards, the deploy-time card injection (app/deploy.py),
-# or the harness itself.
+# sizes and fails on text truncation / broken cards.
+#
+# Triggers unconditionally (ADR 0005) so this workflow — and so the render job's own check-run —
+# always exists on every push and PR, applicable or not: a required PR check tied to a workflow
+# that never starts stays "Expected" forever and blocks the merge button, and the release
+# pipeline (release.yaml) needs a check it can always wait on. The `changes` job below decides
+# relevance in-workflow instead, with the same patterns this trigger used to filter on; a job a
+# GitHub Actions `if:` skips reports its own conclusion (and the workflow run's) as `success`,
+# so a non-dashboard PR still gets a fast green check, not a missing one.
 on:
   push:
     branches: [main]
-    paths:
-      - 'alpine_a290/dashboards/**'
-      # ...but NOT the prose in there. USER-GUIDE.md / INSTALLATION.md are user documentation;
-      # they cannot change what renders, yet a one-line edit to either used to trigger the full
-      # ten-viewport render AND the screenshot auto-refresh, which commits PNGs to the PR branch
-      # — twice rejecting an in-flight merge on #115 and committing a shot that changed 62% in
-      # size for a markdown-only edit. Everything else under dashboards/ (the .txt card configs,
-      # CSS, Fonts, Images, Packages, Templates) genuinely affects the render and still triggers.
-      # Both patterns deliberately: the two .md files sit directly in dashboards/, and whether
-      # `**/` matches zero directories is exactly the kind of assumption that ships a filter
-      # which silently changes nothing. The first line is the one that does the work today; the
-      # second covers any doc added in a subdirectory later.
-      - '!alpine_a290/dashboards/*.md'
-      - '!alpine_a290/dashboards/**/*.md'
-      - 'alpine_a290/app/deploy.py'
-      - 'alpine_a290/app/catalog.py'   # the alarm pass derives its sensors from it
-      - 'alpine_a290/config.yaml'
-      - 'ui-tests/**'
-      - '.github/workflows/ui-tests.yaml'
   pull_request:
-    paths:
-      - 'alpine_a290/dashboards/**'
-      # ...but NOT the prose in there. USER-GUIDE.md / INSTALLATION.md are user documentation;
-      # they cannot change what renders, yet a one-line edit to either used to trigger the full
-      # ten-viewport render AND the screenshot auto-refresh, which commits PNGs to the PR branch
-      # — twice rejecting an in-flight merge on #115 and committing a shot that changed 62% in
-      # size for a markdown-only edit. Everything else under dashboards/ (the .txt card configs,
-      # CSS, Fonts, Images, Packages, Templates) genuinely affects the render and still triggers.
-      # Both patterns deliberately: the two .md files sit directly in dashboards/, and whether
-      # `**/` matches zero directories is exactly the kind of assumption that ships a filter
-      # which silently changes nothing. The first line is the one that does the work today; the
-      # second covers any doc added in a subdirectory later.
-      - '!alpine_a290/dashboards/*.md'
-      - '!alpine_a290/dashboards/**/*.md'
-      - 'alpine_a290/app/deploy.py'
-      - 'alpine_a290/app/catalog.py'   # the alarm pass derives its sensors from it
-      - 'alpine_a290/config.yaml'
-      - 'ui-tests/**'
-      - '.github/workflows/ui-tests.yaml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Decide whether this touches the render
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # Same patterns the trigger-level `paths:` filter used before ADR 0005, moved here so the
+      # workflow itself can always start (see the header comment) while still skipping the
+      # expensive render when nothing relevant changed.
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
+        id: filter
+        with:
+          predicate-quantifier: some-with-excludes
+          filters: |
+            relevant:
+              - 'alpine_a290/dashboards/**'
+              # ...but NOT the prose in there. USER-GUIDE.md / INSTALLATION.md are user
+              # documentation; they cannot change what renders, yet a one-line edit to either
+              # used to trigger the full ten-viewport render AND the screenshot auto-refresh,
+              # which commits PNGs to the PR branch — twice rejecting an in-flight merge on #115
+              # and committing a shot that changed 62% in size for a markdown-only edit.
+              # Everything else under dashboards/ (the .txt card configs, CSS, Fonts, Images,
+              # Packages, Templates) genuinely affects the render and still triggers. Both
+              # patterns deliberately: the two .md files sit directly in dashboards/, and whether
+              # `**/` matches zero directories is exactly the kind of assumption that ships a
+              # filter which silently changes nothing. The first line is the one that does the
+              # work today; the second covers any doc added in a subdirectory later.
+              - '!alpine_a290/dashboards/*.md'
+              - '!alpine_a290/dashboards/**/*.md'
+              - 'alpine_a290/app/deploy.py'
+              - 'alpine_a290/app/catalog.py'   # the alarm pass derives its sensors from it
+              - 'alpine_a290/config.yaml'
+              - 'ui-tests/**'
+              - '.github/workflows/ui-tests.yaml'
+
   responsive:
     name: Dashboard responsive render (mobile matrix, ${{ matrix.leg }})
+    needs: [changes]
+    if: needs.changes.outputs.relevant == 'true'
     runs-on: ubuntu-latest
     # Both ends of the supported range (global rule): the Renovate-tracked stable pin in run.sh,
     # and the declared minimum, read from config.yaml so the test cannot drift from the claim.
