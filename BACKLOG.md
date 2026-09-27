@@ -1159,3 +1159,37 @@ stable and minimum, fixed and unfixed dashboards) rendered all ten pop-ups' actu
 correctly with zero instances of this failure mode — the risk is architectural, not yet observed
 on this repo's real cards. Revisit if a pop-up's content is ever seen partially rendered in a
 committed screenshot.
+
+## P2 — Bubble: a wrapped separator heading loses its yellow line at 360px
+
+**Component:** `alpine_a290/dashboards/front-end-bubble.txt` · logged 2026-09-27, from the r5 twin's #116 run
+
+With the 1.28.6 wrap (#170), a separator heading that wraps onto a second line at 360px squeezes
+out its `.bubble-line` (the yellow rule): no overlap, the row just grows and the line goes.
+Observed by the r5 session rendering its mirror of the Bubble dashboard through the all-pop-ups
+harness; the separators are identical here, so it is expected on a290 too, **not yet observed on
+a290's own gate**. A dashboard fix goes a290 first, r5 mirrors it.
+
+## P2 — UI gate misses text cut short with a fade
+
+**Component:** `ui-tests/check_overflow.py` (`JS_DETECT`) · logged 2026-09-27, from the r5 twin's #116 run
+
+At 360px, r5's run showed "Steering Whee", and in Diagnostics "Last", "Run ", "Refre", cut short
+with a fade and no ellipsis, while `check_overflow` reported 0 issues for those devices. The
+detector keys on `scrollWidth > clientWidth` on the element that owns the text; a fade produced by
+a mask or by a nested element the text overflows into would not trip that. **Mechanism
+unestablished.** The refutation before any fix: reproduce on a290's own gate at 360px, read the
+clipped element's DOM and computed style in the diagnostics sidecar (`UI_TESTS_DIAG=1`), and
+establish which of the two it is. a290 decides first; r5's #116 was landed with the same blind
+spot, since #171 already has it here.
+
+## P2 — Conformance test: the domain allowlist exempts more than it names
+
+**Component:** `alpine_a290/tests/test_dashboard_conformance.py` · logged 2026-09-27, from the r5 twin's #111 review
+
+Two low findings, no effect while `_ALLOWED_DOMAINS` is empty: (1) `_allowed()` is domain-wide,
+so listing a domain also exempts a misspelt or nonexistent id in that domain from the existence
+and wrong-domain checks, and the escape-hatch test asserts exactly that; per-id or per-reason
+scoping would close it. (2) `test_ui_gate_seeds_what_the_add_on_publishes` does not consult
+`_allowed()`, so a seeded id in a listed domain reads "not published": a false fail, never a
+false pass. a290 fixes first, r5 mirrors.
