@@ -130,7 +130,7 @@ _HEADING_STYLE = ('.content{font-family:"Zen Dots",system-ui,sans-serif !importa
                   'overflow:visible !important;text-overflow:clip !important;}')
 # Bubble Card separator styling, matched to the bundled bubble dashboard's other separators.
 _BUBBLE_SEP_STYLE = (
-    '.bubble-line{background:#FFFF00 !important;}'
+    '.bubble-line{background:#FFFF00 !important;min-width:24px !important;}'
     '.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;'
     'text-transform:uppercase;letter-spacing:2px;white-space:normal !important;'
     'overflow:visible !important;text-overflow:clip !important;}'
