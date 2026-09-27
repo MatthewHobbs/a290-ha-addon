@@ -724,6 +724,8 @@
           entity: sensor.alpine_a290_hvac_last_activity
           name: HVAC
           icon: mdi:fan
+          styles: >-
+            ${(()=>{const d=new Date(state);const el=card.querySelector('.bubble-state');if(el&&!isNaN(d)){const q=new Intl.DateTimeFormat('en-GB',{timeZone:hass.config.time_zone,day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(d).reduce((a,x)=>(a[x.type]=x.value,a),{});el.textContent=q.day+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][q.month-1]+' '+q.hour+':'+q.minute;}return '';})()}
         - type: custom:bubble-card
           card_type: button
           scrolling_effect: false
@@ -731,6 +733,8 @@
           entity: sensor.alpine_a290_last_updated
           name: Battery
           icon: mdi:car-battery
+          styles: >-
+            ${(()=>{const d=new Date(state);const el=card.querySelector('.bubble-state');if(el&&!isNaN(d)){const q=new Intl.DateTimeFormat('en-GB',{timeZone:hass.config.time_zone,day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(d).reduce((a,x)=>(a[x.type]=x.value,a),{});el.textContent=q.day+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][q.month-1]+' '+q.hour+':'+q.minute;}return '';})()}
       - type: custom:bubble-card
         card_type: button
         scrolling_effect: false
@@ -738,6 +742,8 @@
         entity: sensor.alpine_a290_gps_last_activity
         name: GPS
         icon: mdi:map-marker
+        styles: >-
+          ${(()=>{const d=new Date(state);const el=card.querySelector('.bubble-state');if(el&&!isNaN(d)){const q=new Intl.DateTimeFormat('en-GB',{timeZone:hass.config.time_zone,day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(d).reduce((a,x)=>(a[x.type]=x.value,a),{});el.textContent=q.day+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][q.month-1]+' '+q.hour+':'+q.minute;}return '';})()}
     - type: custom:bubble-card
       card_type: pop-up
       hash: '#alpine-location'
