@@ -12,9 +12,10 @@ it never overwrites the normal pass's files, which the screenshot-drift workflow
 --expect takes seed.py's manifest for the pass: it picks the dashboards, lists labels that must
 be visible on each, so a pass whose states failed to switch the cards on cannot pass, and lists
 the Bubble pop-ups to open on each. Bubble renders a pop-up only while it is open, so each is
-opened by its hash, proved open by its header name, scanned and screenshotted as
-<dashboard>__popup_<hash>__<device>.png (the Smart Charging one keeps its smart_charging name,
-which the drift workflow reads). Without --expect no pop-up is opened.
+opened by its hash, proved open by its header name, held until every card the manifest lists for
+it is laid out inside it (a card that never paints fails the device by name), scanned and
+screenshotted as <dashboard>__popup_<hash>__<device>.png (the Smart Charging one keeps its
+smart_charging name, which the drift workflow reads). Without --expect no pop-up is opened.
 """
 import argparse
 import json
@@ -209,6 +210,141 @@ JS_SHOWS_TEXT = r"""
   return find(document);
 }
 """
+
+
+# The items still short of the open pop-up's completeness set (ADR 0003 row 3): `items` is the
+# manifest's per-card list [[tag, [texts]], ...], and each is met by a DISTINCT laid-out element of
+# that tag inside the open pop-up (found by hash as JS_POPUP_SHOWS finds it), outside its header,
+# holding for every text a laid-out element whose own text equals it. Laid out is a non-zero box,
+# `visibility: visible` and opacity above zero on the element and EVERY composed ancestor: Bubble
+# keeps closed elements in layout at opacity 0, and an opacity-0 wrapper hides an opacity-1 label
+# (JS_POPUP_SHOWS tests opacity on the pop-up root alone). Not "in viewport": pop-ups scroll, so a
+# card below the fold is rendered and counts. Roots are assigned to items as a maximum matching, so
+# a card that emits its text twice cannot stand in for a second card with the same text, and two
+# cards that repeat a text need two roots. Whitespace is compared loosely (NBSP and narrow NBSP as
+# a space), because Chromium's Intl puts a narrow no-break space before AM/PM and the seed cannot
+# know which ICU the gate's browser carries. Returns [] once nothing is short.
+JS_POPUP_SHORT = r"""
+({ hash, items }) => {
+  const inView = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0
+        && r.top < innerHeight && r.left < innerWidth;
+  };
+  const hashOf = (el) => {
+    let p = el;
+    for (let i = 0; i < 8 && p; i++) {
+      const cfg = p.config || p._config;
+      if (cfg && cfg.hash) return cfg.hash;
+      const n = p.parentNode;
+      p = n && n.host ? n.host : n;
+    }
+    return null;
+  };
+  const up = (el) => { const n = el.parentNode; return n && n.host ? n.host : n; };
+  const laidOut = (el) => {
+    const r = el.getBoundingClientRect();
+    if (!(r.width > 0 && r.height > 0)) return false;
+    if (getComputedStyle(el).visibility !== 'visible') return false;
+    for (let p = el; p && p.nodeType === 1; p = up(p)) {
+      if (!(parseFloat(getComputedStyle(p).opacity) > 0)) return false;
+    }
+    return true;
+  };
+  const norm = (s) => s.replace(/[  ]/g, ' ').trim();
+  const findOpen = (root) => {
+    let nodes; try { nodes = root.querySelectorAll('*'); } catch (e) { return null; }
+    for (const el of nodes) {
+      const c = el.classList;
+      if (c && c.contains('bubble-pop-up') && c.contains('is-popup-opened') && !c.contains('is-closing')
+          && parseFloat(getComputedStyle(el).opacity) > 0 && inView(el) && hashOf(el) === hash) return el;
+      if (el.shadowRoot) { const f = findOpen(el.shadowRoot); if (f) return f; }
+    }
+    return null;
+  };
+  const popup = findOpen(document);
+  if (!popup) return items.map((it) => ({ tag: it[0], texts: it[1], why: 'pop-up not open' }));
+  const wanted = new Set(items.map((it) => it[0]));
+  const roots = [];
+  const collect = (root, inHeader) => {
+    let nodes; try { nodes = root.querySelectorAll('*'); } catch (e) { return; }
+    for (const el of nodes) {
+      const hdr = inHeader || !!(el.closest && el.closest('.bubble-header-container'));
+      if (!hdr && wanted.has(el.localName) && laidOut(el)) roots.push(el);
+      if (el.shadowRoot) collect(el.shadowRoot, hdr);
+    }
+  };
+  collect(popup, false);
+  const textsIn = (rootEl) => {
+    const out = new Set();
+    const walk = (root) => {
+      let nodes; try { nodes = root.querySelectorAll('*'); } catch (e) { return; }
+      for (const el of nodes) {
+        let own = '';
+        for (const n of el.childNodes) if (n.nodeType === 3) own += n.textContent;
+        own = norm(own);
+        if (own && laidOut(el)) out.add(own);
+        if (el.shadowRoot) walk(el.shadowRoot);
+      }
+    };
+    let own = '';
+    for (const n of rootEl.childNodes) if (n.nodeType === 3) own += n.textContent;
+    if (norm(own)) out.add(norm(own));
+    walk(rootEl);
+    if (rootEl.shadowRoot) walk(rootEl.shadowRoot);
+    return out;
+  };
+  const rootTexts = roots.map(textsIn);
+  const missingIn = (it, j) => it[1].filter((t) => !rootTexts[j].has(norm(t)));
+  const cand = items.map((it) => roots.map((r, j) => j)
+      .filter((j) => roots[j].localName === it[0] && missingIn(it, j).length === 0));
+  const owner = new Array(roots.length).fill(-1);
+  const assign = (i, seen) => {
+    for (const j of cand[i]) {
+      if (seen.has(j)) continue;
+      seen.add(j);
+      if (owner[j] < 0 || assign(owner[j], seen)) { owner[j] = i; return true; }
+    }
+    return false;
+  };
+  const short = [];
+  items.forEach((it, i) => {
+    if (assign(i, new Set())) return;
+    const same = roots.map((r, j) => j).filter((j) => roots[j].localName === it[0]);
+    let why;
+    if (same.length === 0) why = `no laid-out <${it[0]}> in the pop-up`;
+    else if (cand[i].length > 0) why = `every <${it[0]}> showing these texts is taken by another card`;
+    else {
+      const best = same.map((j) => missingIn(it, j)).sort((a, b) => a.length - b.length)[0];
+      why = `${same.length} <${it[0]}> laid out, none shows ${JSON.stringify(best)}`;
+    }
+    short.push({ tag: it[0], texts: it[1], why });
+  });
+  return short;
+}
+"""
+JS_POPUP_COMPLETE = f"(arg) => ({JS_POPUP_SHORT})(arg).length === 0"
+
+# One timeout for a pop-up's whole completeness set (ADR 0003 row 4): a healthy pop-up resolves as
+# soon as its cards are laid out, a broken one costs this once per device, never one wait per card.
+POPUP_COMPLETE_MS = 10000
+
+
+def _popup_short(page, popup, timeout_ms=POPUP_COMPLETE_MS):
+    """Wait, once, until every card item the manifest lists for `popup` is laid out inside it
+    (JS_POPUP_SHORT). Findings for whatever is still short at the timeout, one per item, naming
+    the texts or, for a textless card, its type: each already fails the device. Any other error
+    (a torn-down context) propagates to the caller's retry like the rest."""
+    arg = {"hash": popup["hash"], "items": popup["cards"]}
+    try:
+        page.wait_for_function(JS_POPUP_COMPLETE, arg=arg, timeout=timeout_ms, polling=250)
+        return []
+    except PlaywrightTimeout:
+        short = page.evaluate(JS_POPUP_SHORT, arg)
+    return [{"type": "not-rendered", "tag": it["tag"],
+             "text": f"{', '.join(repr(t) for t in it['texts']) or 'a card with no text'} — {it['why']} "
+                     f"(in pop-up {popup['hash']})"}
+            for it in short]
 
 
 def _missing_labels(page, labels, popup=None, timeout_ms=5000):
@@ -513,14 +649,14 @@ def _capture_popup(page, popup, where, dev_name, shot):
                 print(f"    [popup skipped] {where} @ {dev_name}: {popup['hash']} never stayed open twice; "
                       "not overwriting its screenshot")
                 return None
-            # Labels first, THEN scan (Codex on #171 round 4): Bubble's inner cards lazy-render,
-            # and _stable_issues can exit on its fast path (two clean scans, as little as ~1s)
-            # before a slower card finishes painting. Waiting on the expected labels first (up to
-            # 5s each) gives that content its chance to appear before the truncation scan looks at
-            # it. A pop-up with no expected labels (most of the normal pass) gets no such wait
-            # either way -- there is no general "fully rendered" signal beyond the labels a pass
-            # declares -- so this narrows the gap rather than closing it outright.
-            label_issues = _missing_labels(page, popup.get("labels", []), popup["hash"])
+            # Completeness first, THEN scan (Codex on #171 round 4, ADR 0003): Bubble's inner
+            # cards lazy-render, and _stable_issues can exit on its fast path (two clean scans, as
+            # little as ~1s) before a slower card finishes painting; nothing is truncated in a card
+            # that is not there. So wait, once, for every card the manifest lists for this pop-up
+            # to be laid out inside it, then for the pass-driven labels (already among those
+            # cards' texts, so met at once), and only then let the scan look.
+            label_issues = _popup_short(page, popup)
+            label_issues += _missing_labels(page, popup.get("labels", []), popup["hash"])
             issues = _stable_issues(page)
             issues += label_issues
             # Re-confirm open+labelled, the same check _open_popup already passed: a reload
@@ -565,6 +701,12 @@ def run():
             sys.exit(f"{args.expect} names no dashboard: this pass would check nothing")
         args.dashboards = list(expect)
     popups = {dash: expect.get(dash, {}).get("popups", []) for dash in args.dashboards}
+    # A pop-up without its card list has nothing to wait for, and a scan without the wait is the
+    # gap ADR 0003 closes: refuse the manifest rather than scan on a guess.
+    for dash, entries in popups.items():
+        for p in entries:
+            if not p.get("cards"):
+                sys.exit(f"{args.expect}: pop-up {p.get('hash')} on {dash} lists no cards to wait for")
     captured = {(dash, p["hash"]): [0, 0] for dash in args.dashboards for p in popups[dash]}  # [scanned, skipped]
     tokens = json.load(open(args.tokens))
     devices = json.load(open(args.devices))["devices"]

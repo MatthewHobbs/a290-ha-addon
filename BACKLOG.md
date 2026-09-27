@@ -1123,43 +1123,6 @@ fix.
 by this fix. An install that already retained sentinel coordinates keeps showing them until a
 usable fix replaces them, or until the attributes topic is cleared by hand.
 
-## P2 — UI gate: a pop-up with no declared label has no completeness signal before its scan
-
-**Component:** `ui-tests/check_overflow.py` (`_capture_popup`) · logged 2026-09-26, from #171's review
-
-`_stable_issues` can exit on its fast path (two consecutive clean scans, as little as ~1-2s in)
-before Bubble's lazy-rendered inner cards finish painting, so content that appears later is never
-scanned for truncation. #171 rounds 4-5 fixed this for a pop-up that declares expected `labels`
-(waits on them first, proven with an isolated Playwright fixture: a label appearing 3s after open
-was missed under the old order, caught under the new one). **Most normal-pass pop-ups declare no
-labels**, and for those the gap is open: there is no signal, beyond a declared label, that a
-pop-up has finished rendering.
-
-**A general fix was attempted and does not work, so it was not shipped.** Polling the open
-pop-up's descendant-element count until it stops changing (mirroring `_wait_card_mod`'s
-quiet-window pattern) is vacuously satisfied by a pop-up that has rendered *nothing yet*: an
-element count of 0 that hasn't changed in two polls looks identical to one that finished at 0,
-so the wait exits immediately on the very case it exists to catch. Proven with the same isolated
-fixture (a Playwright page, no HA/seed.py involved): content appearing 3s after open was missed
-with the stability wait in place, elapsed 2.34s — it never actually waited.
-
-Codex's own remediation (round 5) is the correct shape: a manifest-derived expected
-rendered-card count or set, checked before the scan, failing if completeness is never reached.
-That requires `seed.py` to declare, per pop-up, what it should contain regardless of which pass
-is running (today `labels` only covers pass-driven state text) — a materially larger change to
-the manifest generation than a bug fix, and an architecture call, not a one-line fix.
-
-**Decided 2026-09-26: Option B, [ADR 0003](docs/adr/0003-wait-for-every-pop-up-card-before-scanning.md).**
-The manifest will declare every pop-up's static card text and the scan will wait for it. This
-entry closes in the same PR as that ADR's row 9, which requires rows 6 to 8 Done.
-
-**Mitigation already in place:** `_open_popup` already settles 800ms after confirming the header
-is visible before `_capture_popup` proceeds, and every real gate run today (multiple full legs,
-stable and minimum, fixed and unfixed dashboards) rendered all ten pop-ups' actual content
-correctly with zero instances of this failure mode — the risk is architectural, not yet observed
-on this repo's real cards. Revisit if a pop-up's content is ever seen partially rendered in a
-committed screenshot.
-
 ## P2 — Bubble: a wrapped separator heading loses its yellow line at 360px
 
 **Component:** `alpine_a290/dashboards/front-end-bubble.txt` · logged 2026-09-27, from the r5 twin's #116 run
