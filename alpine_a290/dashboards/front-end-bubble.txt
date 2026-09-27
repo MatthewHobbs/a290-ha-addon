@@ -115,7 +115,7 @@
         card_type: separator
         name: Batt / Range / Mileage
         icon: mdi:information
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: horizontal-stack
         cards:
         - type: custom:bubble-card
@@ -147,7 +147,7 @@
         card_type: separator
         name: HVAC
         icon: mdi:fan
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: horizontal-stack
         cards:
         - type: custom:bubble-card
@@ -166,7 +166,7 @@
         card_type: separator
         name: Location
         icon: mdi:map-marker
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: custom:mushroom-template-card
         entity: device_tracker.alpine_a290_location
         primary: LOCATION
@@ -548,7 +548,7 @@
         card_type: separator
         name: Heating
         icon: mdi:radiator
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: horizontal-stack
         cards:
         - type: custom:bubble-card
@@ -588,7 +588,7 @@
         card_type: separator
         name: SOC Levels
         icon: mdi:battery-charging-medium
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: horizontal-stack
         cards:
         - type: custom:bubble-card
@@ -609,7 +609,7 @@
         card_type: separator
         name: Charging Schedule
         icon: mdi:calendar-clock
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
     - type: custom:bubble-card
       card_type: pop-up
       hash: '#alpine-commands'
@@ -625,7 +625,7 @@
         card_type: separator
         name: Horn / Lights
         icon: mdi:bugle
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: horizontal-stack
         cards:
         - type: custom:bubble-card
@@ -656,7 +656,7 @@
         card_type: separator
         name: HVAC
         icon: mdi:fan
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: horizontal-stack
         cards:
         - type: custom:bubble-card
@@ -687,7 +687,7 @@
         card_type: separator
         name: Charge Control
         icon: mdi:ev-station
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
       # Ghost tile: the A290's API forbids charge-stop (only charge-start), so this is shown disabled to
       # signal the limitation (parity with the standard dashboard) rather than hidden.
       - type: custom:bubble-card
@@ -714,7 +714,7 @@
         card_type: separator
         name: Last Update
         icon: mdi:calendar-arrow-right
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: horizontal-stack
         cards:
         - type: custom:bubble-card
@@ -759,7 +759,7 @@
         card_type: separator
         name: Location
         icon: mdi:map-marker
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: custom:mushroom-template-card
         entity: device_tracker.alpine_a290_location
         primary: LOCATION
@@ -800,7 +800,7 @@
         card_type: separator
         name: Captured Data
         icon: mdi:clipboard-list
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: horizontal-stack
         cards:
         - type: custom:bubble-card
@@ -937,7 +937,7 @@
         card_type: separator
         name: Update / Test / Errors
         icon: mdi:wrench
-        styles: .bubble-line{background:#FFFF00 !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
+        styles: .bubble-line{background:#FFFF00 !important;min-width:24px !important;}.bubble-name{color:#FFFF00 !important;font-family:"Zen Dots",system-ui,sans-serif;text-transform:uppercase;letter-spacing:2px;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;}.bubble-icon-container{color:#FFFF00 !important;}
       - type: horizontal-stack
         cards:
         - type: custom:bubble-card

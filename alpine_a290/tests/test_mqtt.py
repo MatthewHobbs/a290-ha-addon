@@ -200,7 +200,11 @@ def test_on_connect_resubscribes_and_publishes():
     c = StubClient()
     mqtt._MQTT_CTX["supported"], mqtt._MQTT_CTX["dist_unit"] = set(catalog.OPTIONAL_ENDPOINTS), "km"
     mqtt._on_connect(c, None, None, 0)
-    assert f"{mqtt.CMD_PREFIX}#" in c.subs
+    # The exact list, in order: the core subscribes the command prefix first, then Home Assistant's
+    # birth topic (renault-mqtt v0.19.0), so a restarted HA gets discovery and every retirement
+    # re-published. The topic is a literal on purpose: the core's constant is private, and the
+    # literal is the contract with HA. Fails against v0.18.0, which subscribed only the commands.
+    assert c.subs == [f"{mqtt.CMD_PREFIX}#", "homeassistant/status"]
     assert any("/sensor/alpine_a290/" in t for t in c.pub)
     assert c.pub[mqtt.AVAIL_TOPIC] == "online"
 
