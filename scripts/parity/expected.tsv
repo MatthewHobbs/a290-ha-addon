@@ -167,10 +167,12 @@ pending	README.md	both	*	*	repository README; 44% shared. Target: same as DOCS.m
 pending	CLAUDE.md	both	*	*	each repo's session instructions; 65% shared. Target: same as DOCS.md
 pending	alpine_a290/README.md	both	*	39	the add-on's store README. Target: same as DOCS.md
 pending	docs/dashboards-on-mobile.md	both	*	15	r5 claims the screenshots auto-refresh, which is false there (audit H-D3), plus rewrapping. Target: fix r5's claim, then rewrap
-# ---------------------------------------------------------------- Supervisor pilot + AppArmor pin (a290 #160, ADR 0002)
-pending	alpine_a290/apparmor.txt	both	*	6	a290 pins `abi <abi/3.0>,` (runner-proven: denied without it on parser 4.1.0, #160) and its comments cite the pilot. Target: r5 pins the ABI with its pilot (ADR 0002 row 10)
-pending	.github/renovate.json	both	hunk:Supervisor pilot	4	Renovate rule and manager for the pilot's digest-pinned images. Target: r5 adds them with the pilot
-# --- pilot dashboard probe (a290 follow-up to #160)
+# ---------------------------------------------------------------- Supervisor pilot + AppArmor pin (a290 #160, r5 #108, ADR 0002)
+local	alpine_a290/apparmor.txt	both	*	6	both pin `abi <abi/3.0>,`; the six differing lines are comments, r5's citing "the a290 twin's profile" and a290 ADR 0002 row 8 where a290's cite its own ADR 0002 (r5 #108)
+local	.github/renovate.json	both	hunk:Supervisor pilot	4	both carry the pilot's Renovate rule and manager; the four differing lines are its descriptions, r5's citing "the a290 twin's ADR 0002" and "the a290 twin's" pilot where a290's cite its own (r5 #108)
+# --- pilot dashboard probe (a290 #165, mirrored by r5 in #108)
+# The probe is in both pilots now. Its only per-line residue is r5's deploy_dashboard default,
+# listed below; the rest of it is identical, and ADR 0002 row 11 is docs/adr/* (local).
 # ---------------------------------------------------------------- Supervisor pilot as mirrored by r5 (#108, 4dd52bf, ADR 0002 row 10)
 local	.github/workflows/supervisor.yml	both	hunk:ADR 0002	10	each repo's header names its own decision record: a290's ADR 0002, r5's "the a290 twin's ADR 0002, mirrored"
 local	scripts/supervisor-pilot.sh	both	re:the a290 twin's ADR 0002|devcontainer \(ADR 0002\)	2	same provenance line in the script's header
@@ -178,7 +180,3 @@ model	scripts/supervisor-pilot.sh	both	re:a290-supervisor|r5-supervisor|local_al
 local	.github/workflows/supervisor.yml	both	hunk:deploy_dashboard	15	r5 defaults deploy_dashboard to none (a290: standard), so its pilot sets standard explicitly and its path-filter comment says so (r5's deliberate choice, confirmed by the r5 session 2026-09-27)
 local	scripts/supervisor-pilot.sh	both	hunk:deploy_dashboard	15	the same default difference in cmd_install (sets deploy_dashboard: standard) and the dashboard-probe comment (r5's deliberate choice, confirmed by the r5 session 2026-09-27)
 local	scripts/supervisor-pilot.sh	both	hunk:Published	4	r5's poll-success log line is "Published in <s>s" where a290's is "Published: ", so each pilot greps its own; the guard follows each repo's main.py and r5 keeps its line (confirmed by the r5 session 2026-09-27)
-# The probe lives in the two a290-only pilot files above, which their `only` entries already
-# take whole, and in ADR 0002 row 11 (docs/adr/*, local). A per-line entry here would take
-# nothing and fail as stale. Target: r5 mirrors it with the pilot (ADR 0002 row 10); when
-# r5 gains its pilot, those `only` entries become per-line ones and the probe's go here.
