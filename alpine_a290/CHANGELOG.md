@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.28.11
+
+- **Both bundled dashboards get a Refresh Location tile** (the Renault 5 twin's approach, now
+  shared), on the standard dashboard's Diagnostics grid and the Bubble Diagnostics pop-up.
+  Tapping it presses the Refresh Location button. Ships only when the button itself would exist —
+  `publish_location: true` and `enable_refresh_location: true` — so a default install, which
+  withholds the button, gets no tile that presses nothing. Re-copy or redeploy the dashboard to
+  pick this up (`redeploy_dashboard: true`, or paste `front-end.txt`/`front-end-bubble.txt`
+  again).
+
 ## 1.28.10
 
 - **Plug-suspect detection now reads the decoded plug state, not the raw API code.** No change

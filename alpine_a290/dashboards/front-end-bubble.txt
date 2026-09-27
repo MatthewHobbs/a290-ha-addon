@@ -963,6 +963,21 @@
               target:
                 entity_id: input_button.a290_test_charge_run
           styles: .bubble-icon-container{${(()=>{const test=hass.states["input_boolean.a290_test_mode"]?.state==="on";const active=hass.states["binary_sensor.alpine_a290_charging"]?.state==="on";if(test)return "color:red !important;animation:pulse 1s linear infinite;";if(active)return "color:grey !important;opacity:0.35;";return "color:green !important;";})()}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
+      - type: horizontal-stack
+        cards:
+        - type: custom:bubble-card
+          card_type: button
+          scrolling_effect: false
+          button_type: name
+          name: Refresh Location
+          icon: mdi:crosshairs-gps
+          button_action:
+            tap_action:
+              action: call-service
+              service: button.press
+              target:
+                entity_id: button.alpine_a290_refresh_location
+          styles: .bubble-icon-container{color:#FFFF00 !important;}
     - type: custom:bubble-card
       card_type: horizontal-buttons-stack
       highlight_current_view: true
