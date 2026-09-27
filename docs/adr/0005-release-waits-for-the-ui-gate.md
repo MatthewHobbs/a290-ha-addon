@@ -1,7 +1,7 @@
 # ADR 0005 — Release publishing waits for the UI gate
 
 - **Status:** Accepted (2026-09-27). I chose Option B of the RFC on the day it was raised.
-- **Context:** on `v1.28.11`, the release/tag/image-publish pipeline (`release.yaml`) tagged and published within 2 minutes of the merge while the same push's UI-gate render (`ui-tests.yaml`) was still running for another 11 minutes on that commit. Separately, the UI gate is not a required PR check at all. Proposed as [RFC: release publishing must wait for the UI gate](https://claude.ai/artifact/F5katxNE46yugU8HH5GDv7); indexed in claude-config pending a number, since a290 has no RFC index of its own yet.
+- **Context:** on `v1.28.11`, the release/tag/image-publish pipeline (`release.yaml`) tagged and published within 2 minutes of the merge while the same push's UI-gate render (`ui-tests.yaml`) was still running for another 11 minutes on that commit. Separately, the UI gate is not a required PR check at all. Proposed as [RFC 0015: release publishing must wait for the UI gate](https://claude.ai/artifact/F5katxNE46yugU8HH5GDv7), indexed in claude-config's `docs/rfc/README.md` since a290 has no RFC index of its own yet.
 - **North star:** a release cannot publish, and a PR cannot merge, ahead of a UI-gate verdict on that exact commit — whether or not the UI gate was even relevant to what changed.
 
 <!-- Format: claude-config docs/adr/0000-template.md, referenced at source rather than copied.
@@ -51,6 +51,6 @@ Not yet run — rows 1-5 are Open. Row 5 names the two real-PR tests (dashboard-
 
 ## References
 
-- RFC: release publishing must wait for the UI gate — https://claude.ai/artifact/F5katxNE46yugU8HH5GDv7
+- RFC 0015: release publishing must wait for the UI gate — https://claude.ai/artifact/F5katxNE46yugU8HH5GDv7
 - `release.yaml`'s `release-gate` job (the precedent this ADR reuses)
 - #115 (the incident that produced `ui-tests.yaml`'s original path filter)
