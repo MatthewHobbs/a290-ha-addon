@@ -16,6 +16,8 @@
   Shown in your Home Assistant's own time zone; month names are in English regardless of your
   Home Assistant's language.
   Re-copy or redeploy the Bubble dashboard to pick this up (`redeploy_dashboard: true`, or paste
+  `front-end-bubble.txt` again).
+
 ## 1.28.8
 
 - **Bubble dashboard: a section heading that wraps keeps its yellow rule.** Since 1.28.6 a long
