@@ -1174,6 +1174,11 @@ a290's own gate**. A dashboard fix goes a290 first, r5 mirrors it.
 
 **Component:** `ui-tests/check_overflow.py` (`JS_DETECT`) · logged 2026-09-27, from the r5 twin's #116 run
 
+**Decided 2026-09-27: RFC 0012 Option A with the Activity dates as Option B, [ADR 0004](docs/adr/0004-wrap-bubble-button-names-instead-of-scrolling.md).**
+Mechanism established by the r5 session (Bubble's scrolling-text marquee: `.scrolling-container`
+clips behind a mask and owns no text node, so `JS_DETECT` skips it); its one-line detector fix
+found 148 real clips on r5's full gate. This entry closes with that ADR's row 7.
+
 At 360px, r5's run showed "Steering Whee", and in Diagnostics "Last", "Run ", "Refre", cut short
 with a fade and no ellipsis, while `check_overflow` reported 0 issues for those devices. The
 detector keys on `scrollWidth > clientWidth` on the element that owns the text; a fade produced by
