@@ -813,6 +813,8 @@
           name: Ended
           icon: mdi:clock-end
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:red !important;opacity:1;"}}
+      - type: horizontal-stack
+        cards:
         - type: custom:bubble-card
           card_type: button
           scrolling_effect: false
@@ -821,8 +823,6 @@
           name: Duration
           icon: mdi:timer
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":""}}
-      - type: horizontal-stack
-        cards:
         - type: custom:bubble-card
           card_type: button
           scrolling_effect: false
@@ -831,6 +831,8 @@
           name: SoC Start
           icon: mdi:battery-20
           styles: .bubble-icon-container{color:green !important;}
+      - type: horizontal-stack
+        cards:
         - type: custom:bubble-card
           card_type: button
           scrolling_effect: false
@@ -865,6 +867,8 @@
           name: Energy End
           icon: mdi:flash
           styles: .bubble-icon-container{${hass.states["binary_sensor.alpine_a290_charging"]?.state==="on"?"color:grey !important;opacity:0.35;":"color:red !important;opacity:1;"}}
+      - type: horizontal-stack
+        cards:
         - type: custom:bubble-card
           card_type: button
           scrolling_effect: false
