@@ -764,3 +764,5 @@ async def main():
 
 if __name__ == "__main__":  # pragma: no cover
     asyncio.run(main())
+
+# ADR 0005 row 3 verification: confirms refresh-screenshots.yaml skips cleanly when the render itself was skipped.
