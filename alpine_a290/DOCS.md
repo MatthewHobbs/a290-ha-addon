@@ -182,6 +182,33 @@ Leave `account_id` blank and the app auto-discovers your My Alpine/Kamereon
 account on login. Only set it if you have multiple accounts and need to pin a
 specific one.
 
+### If a redeployed dashboard shows "Entity not found"
+
+Home Assistant picks an entity's `entity_id` the first time it registers it, and keeps
+that id from then on — the add-on's MQTT discovery payload only *suggests* one (its
+`object_id` field is not authoritative), and on recent HA releases the id HA actually
+picks also factors in the **device's area** and whether the device has ever been
+**renamed**. If the "Alpine A290" device sits in an area (e.g. "Garage") or has been
+renamed before its entities first register, they get that area's name as a prefix instead
+— `sensor.garage_alpine_a290_battery_level` rather than
+`sensor.alpine_a290_battery_level`. The bundled dashboards reference the plain names, so a
+prefixed install shows those tiles as **Entity not found**, and a `redeploy_dashboard` then
+overwrites any hand edits that worked around it.
+
+This is Home Assistant's own entity-registry behaviour, not something the add-on's
+discovery payload can override. If you hit it:
+
+1. **Settings → Devices & services → Entities**, search for the missing tile's name.
+2. If there are two entries and one is greyed out or marked *unavailable*, delete that one
+   first — it's left over from an earlier install and is holding the plain name.
+3. Open the live one → the cog icon → change **Entity ID** to drop the area prefix →
+   **Update**.
+4. Set `redeploy_dashboard: true` on the add-on's Configuration page and restart the
+   add-on once, then set it back to `false`.
+
+To avoid it happening in the first place: don't assign the "Alpine A290" device to an area,
+and don't rename it, before its entities have registered for the first time.
+
 ## Status panel
 
 The app adds a **read-only "Alpine A290" panel to the Home Assistant sidebar**. It shows
