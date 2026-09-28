@@ -182,6 +182,14 @@ Leave `account_id` blank and the app auto-discovers your My Alpine/Kamereon
 account on login. Only set it if you have multiple accounts and need to pin a
 specific one.
 
+### If a redeployed dashboard shows "Entity not found"
+
+Since 1.28.5 every entity is published with a pinned id (`default_entity_id`), so this
+cannot happen to a new install or a new entity — but an entity registered before then, or
+before the "Alpine A290" device's area was set, keeps the id it already has. See **Entity
+ids with an area prefix** under [Entities](#entities) for why, and for the fix (including
+the near-instant route: delete the device and restart).
+
 ## Status panel
 
 The app adds a **read-only "Alpine A290" panel to the Home Assistant sidebar**. It shows
