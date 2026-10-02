@@ -89,6 +89,7 @@ jobs:
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
           python3 scripts/docs_sync_check.py --self-test
+          python3 scripts/prepare_release.py --self-test
           python3 scripts/docs_sync_check.py "$BASE_SHA"
 
   docs-cite-check:

@@ -219,12 +219,24 @@ purpose.
 
 ## Release / versioning
 
-Any user-facing change bumps **`alpine_a290/config.yaml` `version`** and adds a
-**`alpine_a290/CHANGELOG.md`** entry (Supervisor keys the update on the version). When
-mirroring to `r5-ha-addon`, bump **`renault_5/config.yaml`** `version` and its
-**`renault_5/CHANGELOG.md`**; r5 has no version literal in code (`main.py` reads `R5_VERSION`,
-which its release workflow sets from `config.yaml` via the Dockerfile's `BUILD_VERSION`).
-Feature branches are **squash-merged** to `main` and deleted once merged.
+**Releases are batched and cut on request** ([ADR 0006](docs/adr/0006-release-on-request.md)).
+A user-facing change adds its entry under `## Unreleased` in **`alpine_a290/CHANGELOG.md`** and
+**leaves `alpine_a290/config.yaml` `version` alone**: the Supervisor keys updates on that
+version and `release.yaml` publishes an image for any PR that moves it, so moving it is
+releasing. The docs-sync check fails a PR that moves the version without being exactly a
+release, and no label waives that.
+
+Only when the owner asks for a release: `just release <version>` (read the entries it prints,
+then choose the number: a new feature is a minor, otherwise a patch), commit the two files it
+changes as their own PR titled `chore(release): <version>`, and let the existing gates run.
+Merging that PR publishes the image and tags `v<version>`. Never put a version bump in a
+feature PR "to get it out".
+
+When mirroring to `r5-ha-addon`, the entry goes under `## Unreleased` in
+**`renault_5/CHANGELOG.md`** and r5 is released separately, never ahead of this repo; r5 has no
+version literal in code (`main.py` reads `R5_VERSION`, which its release workflow sets from
+`config.yaml` via the Dockerfile's `BUILD_VERSION`). Feature branches are **squash-merged** to
+`main` and deleted once merged.
 
 ## Gotchas
 

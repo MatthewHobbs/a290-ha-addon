@@ -9,7 +9,19 @@
 # Local CI gate - the same commands remote CI runs, for the checks it covers.
 # `parity` itself is not in here: it needs the r5 twin (a sibling checkout or a clone), so
 # only its self-test is. The Parity job in ci.yaml runs the full comparison.
-ci: lint pii ha-min parity-self-test test
+ci: lint pii ha-min parity-self-test docs-sync-self-test test
+
+# Proves the release guard and the release script can fail, and that the script writes exactly
+# what the guard accepts. The Docs sync job in ci.yaml runs the same two commands.
+docs-sync-self-test:
+    python3 scripts/docs_sync_check.py --self-test
+    python3 scripts/prepare_release.py --self-test
+
+# Cut a release: turn `## Unreleased` into `## <version>` and move config.yaml's version to match,
+# and nothing else (ADR 0006). Commit the result as its own PR, titled `chore(release): <version>`;
+# merging it publishes the image and the tag. `just release <version> --dry-run` only prints.
+release version *flags:
+    python3 scripts/prepare_release.py {{version}} {{flags}}
 
 # Proves the parity check can fail on each kind of drift; needs nothing outside this repo.
 parity-self-test:
