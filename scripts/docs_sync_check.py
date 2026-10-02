@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """docs-sync-check: enforce the documentation rules instead of trusting them.
 
-CLAUDE.md says a user-facing change bumps `config.yaml` version and adds a CHANGELOG entry,
-and that the options table and entity lists in the docs describe what the code publishes.
+CLAUDE.md says a user-facing change adds a CHANGELOG entry under `## Unreleased` and leaves
+`config.yaml` `version` alone (a release is a separate, requested PR; ADR 0006), and that the
+options table and entity lists in the docs describe what the code publishes.
 Those were checklist items, not checks, so they drifted: `stale_hours` was documented as
 "mark data stale after this many hours without a successful poll" long after the option had
 stopped meaning that, and it was only caught by reading the docs during an unrelated fix.
@@ -10,11 +11,17 @@ stopped meaning that, and it was only caught by reading the docs during an unrel
 This fails a PR that changes a documented surface WITHOUT touching its documentation. It is a
 GATE, not a generator — it never edits docs; it tells you which doc you owe.
 
-Deliberately narrow. Three triggers, each chosen because it has (near) zero false positives:
+Deliberately narrow. Four triggers, each chosen because it has (near) zero false positives:
 
   1. the set of add-on OPTIONS changed          -> DOCS.md must be updated
   2. the set of published ENTITIES changed      -> DOCS.md or a dashboards/*.md must be updated
   3. config.yaml `version` changed              -> CHANGELOG.md must carry that exact version
+  4. config.yaml `version` changed              -> the PR must be exactly a release: only
+     config.yaml and CHANGELOG.md change, the version line is the only config line that moves,
+     the version goes up, and `## Unreleased` is renamed to the new version with nothing else
+     touched. `scripts/prepare_release.py` (`just release`) makes exactly that edit. Merging
+     publishes an image, so a version that moves inside an ordinary PR cuts a release nobody
+     asked for. No label waives this one.
 
 Plus one invariant checked on every PR, bump or not: CHANGELOG history is append-above only.
 Every `## <version>` heading at the merge base must still be there, once, in the same order, and
@@ -31,8 +38,8 @@ changing code that publishes nothing new. That is the point — a required check
 needs waiving trains people to wave it through.
 
 Escape hatch: the exact lowercase `docs-sync-ok` PR label, for a genuinely doc-neutral change.
-It waives checks 1-3 only. It never waives CHANGELOG history: no doc-neutral change needs to
-delete, rename, reorder or bury a release.
+It waives checks 1-3 only. It never waives CHANGELOG history or the release shape: no
+doc-neutral change needs to delete, rename, reorder or bury a release, or to move the version.
 
 Usage: docs_sync_check.py [base-ref]        (default: origin/main)
        docs_sync_check.py --self-test
@@ -193,6 +200,69 @@ def changelog_history_problems(base_text, head_text, path):
     return problems, warnings
 
 
+# Horizontal whitespace only: under re.M a trailing `\s*` would swallow the newlines after the
+# heading and the rename would quietly drop the blank line below it.
+_UNRELEASED = re.compile(r"^##[ \t]+Unreleased[ \t]*$", re.M)
+_VERSION_LINE = re.compile(r'^(version:[ \t]*)"?[^"\s]+"?([ \t]*)$', re.M)
+
+
+def version_key(version):
+    """Numeric sort key, so 1.10.0 is above 1.9.0. Non-numeric text is not a version."""
+    parts = re.findall(r"\d+", version or "")
+    if not parts:
+        raise ValueError(f"'{version}' is not a version number")
+    return tuple(int(x) for x in parts)
+
+
+def release_changelog(text, version):
+    """The CHANGELOG a release of `version` must leave: `## Unreleased` renamed, every other byte
+    kept. None when there is nothing to release: no such heading, more than one, or an empty
+    section. The guard and `prepare_release.py` both call this, so what the script writes is by
+    construction what the guard accepts."""
+    found = list(_UNRELEASED.finditer(text or ""))
+    if len(found) != 1:
+        return None
+    rest = text[found[0].end():]
+    following = re.search(r"^##\s", rest, re.M)
+    body = rest[:following.start()] if following else rest
+    if not body.strip():
+        return None
+    return text[:found[0].start()] + f"## {version}" + text[found[0].end():]
+
+
+def release_config(text, version):
+    """config.yaml with only its `version:` line moved to `version`, or None without one."""
+    new, n = _VERSION_LINE.subn(lambda m: f'{m.group(1)}"{version}"{m.group(2)}', text or "", count=1)
+    return new if n else None
+
+
+def release_problems(changed, config, changelog, v_before, v_after, cfg_before, cfg_after,
+                     log_before, log_after):
+    """Reasons a PR that moves `version` is not exactly a release; [] when it is one. Silent when
+    the version did not move: an ordinary PR is not this check's business."""
+    if v_before == v_after or not v_after:
+        return []
+    out = []
+    extra = sorted(set(changed) - {config, changelog})
+    if extra:
+        out.append(f"version went {v_before} -> {v_after} but the PR also changes "
+                   f"{', '.join(extra)} — a release PR changes only {config} and {changelog}.")
+    try:
+        if v_before and version_key(v_after) <= version_key(v_before):
+            out.append(f"version went {v_before} -> {v_after}, which is not an increase.")
+    except ValueError as e:
+        out.append(str(e))
+    if release_config(cfg_before, v_after) != cfg_after:
+        out.append(f"{config} changed beyond its `version:` line — a release moves nothing else.")
+    if release_changelog(log_before, v_after) is None:
+        out.append(f"{changelog} has no `## Unreleased` section with entries to release — "
+                   f"ordinary PRs add their entry there and leave the version alone.")
+    elif release_changelog(log_before, v_after) != log_after:
+        out.append(f"{changelog} must differ from the base only by renaming `## Unreleased` "
+                   f"to `## {v_after}`.")
+    return out
+
+
 def self_test():
     base = "# Changelog\n\n## 1.2.0\n\n- two\n\n## 1.1.0\n\n- one\n"
     wip = "## Unreleased\n\n- wip\n\n## 1.2.0\n\n- two\n\n## 1.1.0\n\n- one\n"
@@ -246,7 +316,53 @@ def self_test():
         if got != want:
             print(f"docs-sync self-test FAILED: {name}: want {want}, got {got}", file=sys.stderr)
             return 1
-    print(f"docs-sync self-test: {len(cases) + 1 + len(trees)} cases ok")
+    # Release shape. Every case is built from one valid release and then broken one way, so a
+    # check that returned [] for everything would fail all but the first and last.
+    cfg = 'name: x\nversion: "1.2.0"\noptions:\n  a: 1\n'
+    log = "# Changelog\n\n## Unreleased\n\n- wip\n\n## 1.2.0\n\n- two\n"
+    c, g = "x/config.yaml", "x/CHANGELOG.md"
+    good = (release_config(cfg, "1.2.1"), release_changelog(log, "1.2.1"))
+    releases = [
+        # (name, changed, v_before, v_after, cfg_after, log_after, log_before, problems, needle)
+        ("a real release", [c, g], "1.2.0", "1.2.1", good[0], good[1], log, 0, ""),
+        ("version did not move", ["x/app/main.py"], "1.2.0", "1.2.0", cfg, log, log, 0, ""),
+        ("1.10.0 is above 1.9.0", [c, g], "1.9.0", "1.10.0", release_config(cfg, "1.10.0"),
+         release_changelog(log, "1.10.0"), log, 0, ""),
+        ("version bumped inside a feature PR", [c, g, "x/app/main.py"], "1.2.0", "1.2.1", good[0],
+         good[1], log, 1, "also changes x/app/main.py"),
+        ("version goes down", [c, g], "1.2.0", "1.1.0", release_config(cfg, "1.1.0"),
+         release_changelog(log, "1.1.0"), log, 1, "not an increase"),
+        ("same number, different spelling", [c, g], "1.2.0", "1.02.0", release_config(cfg, "1.02.0"),
+         release_changelog(log, "1.02.0"), log, 1, "not an increase"),
+        ("another config line moved", [c, g], "1.2.0", "1.2.1", good[0].replace("a: 1", "a: 2"), good[1],
+         log, 1, "beyond its `version:` line"),
+        ("nothing under Unreleased", [c, g], "1.2.0", "1.2.1", good[0], "## 1.2.1\n\n- two\n",
+         "# Changelog\n\n## 1.2.0\n\n- two\n", 1, "no `## Unreleased` section"),
+        ("empty Unreleased", [c, g], "1.2.0", "1.2.1", good[0], "## 1.2.1\n\n## 1.2.0\n\n- two\n",
+         "## Unreleased\n\n## 1.2.0\n\n- two\n", 1, "no `## Unreleased` section"),
+        ("entry text changed while renaming", [c, g], "1.2.0", "1.2.1", good[0],
+         good[1].replace("- wip", "- wip, edited"), log, 1, "only by renaming"),
+        ("renamed to a different version", [c, g], "1.2.0", "1.2.1", good[0],
+         release_changelog(log, "1.2.2"), log, 1, "only by renaming"),
+    ]
+    for name, changed, vb, va, cfg_a, log_a, log_b, n, needle in releases:
+        got = release_problems(changed, c, g, vb, va, cfg, cfg_a, log_b, log_a)
+        if len(got) != n or needle not in " | ".join(got):
+            print(f"docs-sync self-test FAILED: release shape: {name}: want {n} problems naming "
+                  f"'{needle}', got {got}", file=sys.stderr)
+            return 1
+    if release_changelog(log, "1.2.1") != "# Changelog\n\n## 1.2.1\n\n- wip\n\n## 1.2.0\n\n- two\n":
+        print("docs-sync self-test FAILED: the rename is not byte-for-byte the heading swap", file=sys.stderr)
+        return 1
+    if release_config(cfg, "1.2.1") != 'name: x\nversion: "1.2.1"\noptions:\n  a: 1\n':
+        print("docs-sync self-test FAILED: the version rewrite touched more than the version", file=sys.stderr)
+        return 1
+    for name, text in (("two Unreleased headings", "## Unreleased\n\n- a\n\n## Unreleased\n\n- b\n"),
+                       ("no Unreleased heading", "## 1.2.0\n\n- two\n")):
+        if release_changelog(text, "1.2.1") is not None:
+            print(f"docs-sync self-test FAILED: release_changelog accepted {name}", file=sys.stderr)
+            return 1
+    print(f"docs-sync self-test: {len(cases) + 1 + len(trees) + len(releases) + 4} cases ok")
     return 0
 
 
@@ -330,6 +446,12 @@ def main():
         fail_infra(f"cannot read {base_log} at {fork} or {changelog} at HEAD although the tree lists it.")
     label = changelog if base_log in (None, changelog) else f"{changelog} (was {base_log})"
     history, warnings = changelog_history_problems(base_text, head_text, label)
+    # 5. A version that moves must be exactly a release. Read at the merge base like check 4, so
+    # a branch behind main does not read main's later releases as its own edits. Not waivable.
+    cfg_fork = git_show(fork, config)
+    history += release_problems(changed, config, changelog, version_of(cfg_fork),
+                                version_of(git_show("HEAD", config)), cfg_fork,
+                                git_show("HEAD", config), base_text, head_text)
     if waived:
         print("docs-sync: checks 1-3 waived — 'docs-sync-ok' label present; CHANGELOG history "
               "is still checked.")
@@ -353,8 +475,9 @@ def main():
         print("\nUpdate the documentation named above, or add the 'docs-sync-ok' label if this "
               "change genuinely has no documentation impact.")
     if history:
-        print("\nRestore the CHANGELOG history named above; the 'docs-sync-ok' label does not "
-              "waive it.")
+        print("\nRestore the CHANGELOG history, or reshape the release, as named above; the "
+              "'docs-sync-ok' label does not waive either. To cut a release, run "
+              "`just release <version>` and open that as its own PR.")
     return 1
 
 
