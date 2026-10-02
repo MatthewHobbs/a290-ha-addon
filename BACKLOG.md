@@ -799,11 +799,11 @@ add-on should publish location at all when core `renault` already provides a cor
 > deleted (`a5e1ae-refresh-location-and-hvac-settings`, `a5e1ae-refresh-location`,
 > `a5e1ae-hvac-settings`), each checked for dependents first.
 >
-> **Not finished: no release carries them.** Latest upstream is v0.5.13 (27 Aug). Until 0.5.14
-> ships, `PESSIMISTIC_ENDPOINTS` and the v1.23.1 breaker stay. A weekly watcher now reports a new
-> release (a290 #131) rather than relying on someone remembering to look. Note the breaker guards
-> a Renault **server** 502, which no library release fixes — confirm on the car before removing
-> it.
+> **Released in renault-api v0.5.14 (2026-10-01); taken in the add-on's next release (under `Unreleased`).** Both changes
+> confirmed in the v0.5.14 `models.py` diff against v0.5.13. `PESSIMISTIC_ENDPOINTS` and the
+> v1.23.1 breaker stay: the breaker guards a Renault **server** 502, which no library release
+> fixes — confirm on the car before removing it. The weekly watcher (a290 #131) reports new
+> releases rather than relying on someone remembering to look.
 **Component:** upstream `renault-api`
 **Logged:** 2026-09-05
 

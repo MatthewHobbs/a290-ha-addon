@@ -529,12 +529,13 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
         data.update(_charge_schedule_fields(p))
     except Exception as err:  # noqa: BLE001
         LOG.warning("ev/settings unavailable: %s", err)
-    # supports_endpoint("hvac-settings") returns TRUE on this model while the server answers
-    # errorCode 502000 to every actual call, so advertised support is not a usable gate - v1.23.0
-    # shipped one and the warning carried on every five minutes regardless. What the endpoint
-    # DOES is the only reliable signal, so trip a breaker after a few consecutive failures: log
-    # once, stop calling, and let a restart retry. Reset on any success, so a server-side fix is
-    # picked up without intervention.
+    # renault-api <= 0.5.13 declared hvac-settings for this model while the server answers
+    # errorCode 502000 to every actual call, so advertised support was not a usable gate - v1.23.0
+    # shipped one and the warning carried on every five minutes regardless. 0.5.14 withdraws it
+    # from the table, but the failure is the server's, so what the endpoint DOES is still the
+    # only reliable signal: trip a breaker after a few consecutive failures, log once, stop
+    # calling, and let a restart retry. Reset on any success, so a server-side fix is picked up
+    # without intervention.
     if _hvac_due(supported_eps):
         tripped = bool(_BREAKERS.get("hvac-settings"))
         try:

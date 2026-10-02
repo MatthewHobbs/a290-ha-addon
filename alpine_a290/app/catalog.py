@@ -157,9 +157,9 @@ RETIRED_SENSORS = ["a290_cabin_temperature", "a290_soc_target", "a290_soc_min"]
 # heated-seat mapping); it adds noise to the entity list. Users who want it can re-enable it.
 DEFAULT_DISABLED_SENSORS = {"a290_drive_side"}
 
-# Sensors whose endpoint can keep failing while the car still advertises it. A5E1AE
-# advertises hvac-settings as supported and the server answers errorCode 502000 to every
-# call, so the v1.23.1 breaker trips and stops writing these two keys. Without this they
+# Sensors whose endpoint can keep failing while the car still advertises it. renault-api
+# <= 0.5.13 advertised hvac-settings for A5E1AE while the server answers errorCode 502000 to
+# every call, so the v1.23.1 breaker trips and stops writing these two keys. Without this they
 # render as EMPTY STRINGS - indistinguishable from 'the car reported nothing', which is
 # what the backlog asked to fix on 2026-09-05 and what three releases of breaker work left
 # behind. Declaring them here makes their MQTT availability follow whether the key was

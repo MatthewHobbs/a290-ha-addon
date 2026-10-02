@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased
+
+- **Updated to renault-api 0.5.14**, the first release carrying the two A290 (`A5E1AE`)
+  endpoint-table corrections contributed upstream
+  ([#2254](https://github.com/hacf-fr/renault-api/pull/2254),
+  [#2255](https://github.com/hacf-fr/renault-api/pull/2255)). `actions/refresh-location` is now
+  declared for the car, so the `Endpoint actions/refresh-location for model A5E1AE is not
+  documented` warning at startup goes away, and `hvac-settings` is no longer advertised, so the
+  library stops offering an endpoint the server answers `502000` to. The add-on's own guards for
+  both stay: Renault's server, not the library, is what fails, and one verified car is not every
+  account or region. Also in this release upstream: the sign-in token is treated as expired 60
+  seconds early to tolerate clock skew, and an `err.func.wired.unauthorized` reply now raises
+  `UnauthorizedException` instead of the generic response error. No settings change and no
+  entity change.
+- **Updated PyJWT to 2.15.1** (from 2.13.0), clearing twelve advisories published since the last
+  release. PyJWT is a transitive dependency, used only by renault-api to read the expiry of the
+  sign-in token it has just received from Renault, without checking its signature; the add-on
+  never verifies tokens, fetches a JWKS or uses HMAC keys, which is where most of the advisories
+  sit. So this is hygiene rather than a fix for an exploitable path here. A stricter parser now
+  rejects a token whose signature segment is not valid Base64URL; tokens Renault issues are
+  unaffected. No settings change and no entity change.
+
 ## 1.28.11
 
 - **Both bundled dashboards get a Refresh Location tile** (the Renault 5 twin's approach, now
