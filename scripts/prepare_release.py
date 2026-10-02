@@ -44,6 +44,9 @@ def plan(config_text, log_text, version):
     """(new config, new changelog, [reasons to refuse]). The files are only written when the list
     is empty."""
     refusals, current = [], version_of(config_text)
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        # The only spelling docs_sync_check.py and the image publisher both read.
+        return None, None, [f"'{version}' is not a plain X.Y.Z version number."]
     try:
         if current and version_key(version) <= version_key(current):
             refusals.append(f"{version} is not above the current version {current}.")
@@ -69,7 +72,9 @@ def self_test():
         ("a valid release", cfg, log, "1.3.0", None),
         ("not above the current version", cfg, log, "1.2.0", "not above the current version"),
         ("below the current version", cfg, log, "1.1.0", "not above the current version"),
-        ("not a version", cfg, log, "soon", "not a version number"),
+        ("not a version", cfg, log, "soon", "not a plain X.Y.Z"),
+        ("a release candidate", cfg, log, "1.3.0-rc1", "not a plain X.Y.Z"),
+        ("a version with a space", cfg, log, "1.3.0 beta", "not a plain X.Y.Z"),
         ("nothing unreleased", cfg, "## 1.2.0\n\n- two\n", "1.3.0", "nothing to release"),
         ("empty unreleased", cfg, "## Unreleased\n\n## 1.2.0\n\n- two\n", "1.3.0", "nothing to release"),
         ("config without a version", "name: x\n", log, "1.3.0", "no `version:` line"),
@@ -85,16 +90,81 @@ def self_test():
     if 'version: "1.3.0"' not in new_cfg or "## 1.3.0\n\n- wip" not in new_log or "## Unreleased" in new_log:
         print("prepare-release self-test FAILED: output is not the rename it claims", file=sys.stderr)
         return 1
-    with tempfile.TemporaryDirectory() as d:  # the files really are written, to the add-on found by discovery
-        root = pathlib.Path(d)
-        (root / "a").mkdir()
-        (root / "a/config.yaml").write_text(cfg)
-        (root / "a/CHANGELOG.md").write_text(log)
-        if addon_dirs(["a/config.yaml", "a/CHANGELOG.md"]) != ["a"]:
-            print("prepare-release self-test FAILED: add-on directory not discovered", file=sys.stderr)
-            return 1
-    print(f"prepare-release self-test: {len(cases) + 2} cases ok")
+    failed = end_to_end(cfg, log)
+    if failed:
+        print(f"prepare-release self-test FAILED: end to end: {failed}", file=sys.stderr)
+        return 1
+    print(f"prepare-release self-test: {len(cases) + 1} cases ok, end-to-end write path ok")
     return 0
+
+
+def end_to_end(cfg, log):
+    """Run this script for real in a throwaway git repo: it writes the files, the guard accepts
+    what it wrote, and every refusal leaves the files untouched. Without this the write calls
+    could be deleted and the self-test would still pass. Returns an error string, or None."""
+    here = pathlib.Path(__file__).resolve().parent
+
+    def run(cwd, script, *args):
+        return subprocess.run([sys.executable, str(here / script), *args], cwd=cwd,
+                              capture_output=True, text=True, env={**os.environ, "LABELS": ""})
+
+    def git(cwd, *args):
+        subprocess.run(["git", "-c", "commit.gpgsign=false", "-c", "user.name=t",
+                        "-c", "user.email=t@example.invalid", *args], cwd=cwd, check=True,
+                       capture_output=True)
+
+    def repo(d, config, changelog):
+        root = pathlib.Path(d)
+        git(d, "init", "-q", "-b", "main")
+        (root / "a").mkdir()
+        for name, text in (("config.yaml", config), ("CHANGELOG.md", changelog)):
+            with open(root / "a" / name, "w", newline="") as f:
+                f.write(text)
+        git(d, "add", "-A")
+        git(d, "commit", "-q", "-m", "base")
+        return root
+
+    def read(path):
+        with open(path, newline="") as f:
+            return f.read()
+
+    crlf_cfg, crlf_log = cfg.replace("\n", "\r\n"), log.replace("\n", "\r\n")
+    for label, config, changelog in (("LF", cfg, log), ("CRLF", crlf_cfg, crlf_log)):
+        with tempfile.TemporaryDirectory() as d:
+            root = repo(d, config, changelog)
+            if run(d, "prepare_release.py", "1.3.0", "--dry-run").returncode != 0 or \
+                    read(root / "a/config.yaml") != config:
+                return f"{label}: --dry-run failed or wrote something"
+            got = run(d, "prepare_release.py", "1.3.0")
+            if got.returncode != 0:
+                return f"{label}: release refused: {got.stderr.strip()[:200]}"
+            want_cfg, want_log = release_config(config, "1.3.0"), release_changelog(changelog, "1.3.0")
+            if read(root / "a/config.yaml") != want_cfg or read(root / "a/CHANGELOG.md") != want_log:
+                return f"{label}: the files written are not the release edit"
+            git(d, "add", "-A")
+            git(d, "commit", "-q", "-m", "chore(release): 1.3.0")
+            guard = run(d, "docs_sync_check.py", "HEAD~1")
+            if guard.returncode != 0:
+                return f"{label}: the guard rejected what the script wrote: {(guard.stdout + guard.stderr).strip()[:200]}"
+
+    refusals = [  # (name, config, changelog, args, dirty the tree first)
+        ("a version that does not go up", cfg, log, ("1.2.0",), False),
+        ("a version that is not X.Y.Z", cfg, log, ("1.3.0-rc1",), False),
+        ("nothing under Unreleased", cfg, "## 1.2.0\n\n- two\n", ("1.3.0",), False),
+        ("uncommitted changes in the files", cfg, log, ("1.3.0",), True),
+    ]
+    for name, config, changelog, args, dirty in refusals:
+        with tempfile.TemporaryDirectory() as d:
+            root = repo(d, config, changelog)
+            if dirty:
+                with open(root / "a/CHANGELOG.md", "a") as f:
+                    f.write("- uncommitted\n")
+            before = (read(root / "a/config.yaml"), read(root / "a/CHANGELOG.md"))
+            got = run(d, "prepare_release.py", *args)
+            after = (read(root / "a/config.yaml"), read(root / "a/CHANGELOG.md"))
+            if got.returncode != 1 or before != after:
+                return f"{name}: want a refusal (exit 1) that writes nothing, got exit {got.returncode}"
+    return None
 
 
 def main(argv):
@@ -123,7 +193,10 @@ def main(argv):
         print(f"refusing: {cfg_path} / {log_path} have uncommitted changes:\n{dirty}", file=sys.stderr)
         return 1
 
-    config_text, log_text = cfg_path.read_text(), log_path.read_text()
+    with open(cfg_path, newline="") as f:   # newline="" keeps CRLF as it is
+        config_text = f.read()
+    with open(log_path, newline="") as f:
+        log_text = f.read()
     new_config, new_log, refusals = plan(config_text, log_text, version)
     if refusals:
         for r in refusals:
@@ -135,8 +208,10 @@ def main(argv):
     if dry:
         print("--dry-run: nothing written.")
         return 0
-    cfg_path.write_text(new_config)
-    log_path.write_text(new_log)
+    with open(cfg_path, "w", newline="") as f:
+        f.write(new_config)
+    with open(log_path, "w", newline="") as f:
+        f.write(new_log)
     print(f"Wrote {cfg_path} and {log_path}. Commit them as the whole of the release PR "
           f"(`chore(release): {version}`); docs_sync_check.py accepts nothing else.")
     return 0

@@ -136,10 +136,29 @@ def entity_ids(catalog_text):
 
 
 def version_of(config_text):
+    """The add-on version, only in the one plain spelling the rest of the pipeline reads:
+    a top-level `version: "X.Y.Z"` (quotes optional) with nothing after it. A comment, a YAML tag
+    or a quoted key is valid YAML that a line regex cannot see, so those are refused by
+    `version_problem` rather than read as "no version"; reading None there let a bump pass."""
     if config_text is None:
         return None
-    m = re.search(r'^version:\s*"?([^"\s]+)"?\s*$', config_text, re.M)
+    m = re.search(r'^version:[ \t]*"?(\d+\.\d+\.\d+)"?[ \t]*(?=\r?$)', config_text, re.M)
     return m.group(1) if m else None
+
+
+def version_problem(config_text, path):
+    """None when config.yaml spells its version in the one plain way `version_of` reads, else why
+    not. A config that cannot be read must be loud: the check that runs on it would otherwise see
+    no version, and so no change."""
+    if config_text is None:
+        return None
+    keyish = re.findall(r"""^["']?version["']?[ \t]*:""", config_text, re.M)
+    if len(keyish) != 1 or version_of(config_text) is None:
+        return (f"{path} must have exactly one top-level `version: \"X.Y.Z\"` line with nothing "
+                f"after it (no comment, tag or quoted key): the release check and the image "
+                f"publisher both read that line, and a spelling only one of them understands lets "
+                f"a version move unnoticed.")
+    return None
 
 
 _VERSION_HEADING = re.compile(r"^##\s+(v?\d+(?:\.\d+)+\S*)\s*$")
@@ -200,10 +219,10 @@ def changelog_history_problems(base_text, head_text, path):
     return problems, warnings
 
 
-# Horizontal whitespace only: under re.M a trailing `\s*` would swallow the newlines after the
-# heading and the rename would quietly drop the blank line below it.
-_UNRELEASED = re.compile(r"^##[ \t]+Unreleased[ \t]*$", re.M)
-_VERSION_LINE = re.compile(r'^(version:[ \t]*)"?[^"\s]+"?([ \t]*)$', re.M)
+# Horizontal whitespace only, and the line end is a lookahead: under re.M a trailing `\s*` would
+# swallow the newlines after the heading, and a consumed `\r` would turn CRLF into LF.
+_UNRELEASED = re.compile(r"^##[ \t]+Unreleased[ \t]*(?=\r?$)", re.M)
+_VERSION_LINE = re.compile(r'^(version:[ \t]*)"?\d+\.\d+\.\d+"?([ \t]*)(?=\r?$)', re.M)
 
 
 def version_key(version):
@@ -261,6 +280,73 @@ def release_problems(changed, config, changelog, v_before, v_after, cfg_before, 
         out.append(f"{changelog} must differ from the base only by renaming `## Unreleased` "
                    f"to `## {v_after}`.")
     return out
+
+
+def _git(cwd, *args):
+    r = subprocess.run(["git", "-c", "commit.gpgsign=false", "-c", "user.name=t",
+                        "-c", "user.email=t@example.invalid", *args], cwd=cwd, capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)}: {r.stderr.strip()}")
+    return r.stdout
+
+
+def end_to_end():
+    """Run the real script on real branches of a throwaway repo. The function-level cases above
+    cannot see main() lose its call to the release check; these can, because the exit code is
+    what CI acts on. Returns an error string, or None."""
+    import tempfile
+    from pathlib import Path
+    cfg = 'name: x\nversion: "1.2.0"\noptions:\n  a: 1\n'
+    log = "# Changelog\n\n## Unreleased\n\n- wip\n\n## 1.2.0\n\n- two\n"
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _git(d, "init", "-q", "-b", "main")
+        (root / "a/app").mkdir(parents=True)
+        (root / "a/config.yaml").write_text(cfg)
+        (root / "a/CHANGELOG.md").write_text(log)
+        (root / "a/app/main.py").write_text("x = 1\n")
+        _git(d, "add", "-A")
+        _git(d, "commit", "-q", "-m", "base")
+
+        def bump(text):
+            return lambda: (root / "a/config.yaml").write_text(text)
+
+        def code():
+            (root / "a/app/main.py").write_text("x = 2\n")
+
+        def release(spelling='version: "1.2.1"'):
+            def do():
+                (root / "a/config.yaml").write_text(cfg.replace('version: "1.2.0"', spelling))
+                (root / "a/CHANGELOG.md").write_text(release_changelog(log, "1.2.1"))
+            return do
+
+        def both(*fns):
+            return lambda: [f() for f in fns]
+
+        cases = [  # (name, edits, wanted exit code)
+            ("a real release", release(), 0),
+            ("an ordinary PR", both(code, lambda: (root / "a/CHANGELOG.md").write_text(
+                log.replace("- wip", "- wip\n- more"))), 0),
+            ("a feature PR that moves the version", both(release(), code), 1),
+            ("a version moved with a trailing comment", both(release('version: "1.2.1"  # release'), code), 1),
+            ("a version moved under a quoted key", both(release('"version": "1.2.1"'), code), 1),
+            ("a version moved under a YAML tag", both(release("version: !!str 1.2.1"), code), 1),
+            ("a version that is not X.Y.Z", both(release('version: "1.2.1-rc1"'), code), 1),
+            ("a version moved without a changelog rename", both(bump(cfg.replace("1.2.0", "1.2.1")), code), 1),
+        ]
+        for name, edits, want in cases:
+            _git(d, "switch", "-q", "-c", "case", "main")
+            edits()
+            _git(d, "add", "-A")
+            _git(d, "commit", "-q", "-m", name)
+            got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
+                                 capture_output=True, text=True, env={**os.environ, "LABELS": ""})
+            _git(d, "switch", "-q", "main")
+            _git(d, "branch", "-q", "-D", "case")
+            if got.returncode != want:
+                return (f"{name}: want exit {want}, got {got.returncode}: "
+                        f"{(got.stdout + got.stderr).strip()[:300]}")
+    return None
 
 
 def self_test():
@@ -362,7 +448,27 @@ def self_test():
         if release_changelog(text, "1.2.1") is not None:
             print(f"docs-sync self-test FAILED: release_changelog accepted {name}", file=sys.stderr)
             return 1
-    print(f"docs-sync self-test: {len(cases) + 1 + len(trees) + len(releases) + 4} cases ok")
+    crlf = "## Unreleased\r\n\r\n- wip\r\n\r\n## 1.2.0\r\n\r\n- two\r\n"
+    if release_changelog(crlf, "1.2.1") != crlf.replace("Unreleased", "1.2.1"):
+        print("docs-sync self-test FAILED: the rename does not preserve CRLF", file=sys.stderr)
+        return 1
+    if release_config('version: "1.2.0"\r\nname: x\r\n', "1.2.1") != 'version: "1.2.1"\r\nname: x\r\n':
+        print("docs-sync self-test FAILED: the version rewrite does not preserve CRLF", file=sys.stderr)
+        return 1
+    for spelling in ('version: "1.2.1"  # r', '"version": "1.2.1"', "version: !!str 1.2.1",
+                     'version: "1.2.1-rc1"', 'version: "1.2.1 beta"', 'version: "1.2.1"\nversion: "1.2.2"', "name: x"):
+        if version_problem(spelling, "c.yaml") is None:
+            print(f"docs-sync self-test FAILED: version_problem accepted {spelling!r}", file=sys.stderr)
+            return 1
+    if version_problem('name: x\nversion: "1.2.1"\n', "c.yaml") or version_problem(None, "c.yaml"):
+        print("docs-sync self-test FAILED: version_problem refused a plain version", file=sys.stderr)
+        return 1
+    failed = end_to_end()
+    if failed:
+        print(f"docs-sync self-test FAILED: end to end: {failed}", file=sys.stderr)
+        return 1
+    print(f"docs-sync self-test: {len(cases) + 1 + len(trees) + len(releases) + 10} cases ok, "
+          f"8 end-to-end scenarios ok")
     return 0
 
 
@@ -448,10 +554,13 @@ def main():
     history, warnings = changelog_history_problems(base_text, head_text, label)
     # 5. A version that moves must be exactly a release. Read at the merge base like check 4, so
     # a branch behind main does not read main's later releases as its own edits. Not waivable.
+    cfg_head = git_show("HEAD", config)
+    unreadable = version_problem(cfg_head, config)
+    if unreadable:
+        history.append(unreadable)
     cfg_fork = git_show(fork, config)
     history += release_problems(changed, config, changelog, version_of(cfg_fork),
-                                version_of(git_show("HEAD", config)), cfg_fork,
-                                git_show("HEAD", config), base_text, head_text)
+                                version_of(cfg_head), cfg_fork, cfg_head, base_text, head_text)
     if waived:
         print("docs-sync: checks 1-3 waived — 'docs-sync-ok' label present; CHANGELOG history "
               "is still checked.")
