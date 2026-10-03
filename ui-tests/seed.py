@@ -483,10 +483,15 @@ _SHORT_DATE_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "S
 def _short_date(iso):
     """The short date a button's `styles` override writes into `.bubble-state` (ADR 0004):
     Intl.DateTimeFormat('en-GB', {timeZone: hass.config.time_zone, day:'numeric', month:'numeric',
-    hour:'2-digit', minute:'2-digit', hourCycle:'h23'}), reassembled as 'D Mon HH:MM'. Uses UTC,
-    matching `_offpeak_window`: hass.config.time_zone is the harness's untouched default."""
+    hour:'2-digit', minute:'2-digit', hourCycle:'h23'}), reassembled as 'DD Mon HH:MM'. Uses UTC,
+    matching `_offpeak_window`: hass.config.time_zone is the harness's untouched default.
+
+    The day is PADDED: en-GB with a numeric day and month renders 2 October as "02 Oct", not
+    "2 Oct". This wrote `{dt.day}` until 2026-10-03, so the gate failed on days 1-9 of every month
+    and passed on the other twenty, which is how it passed on 27 Sep and failed on 3 Oct. `--self-test`
+    checks this against the shipped dashboard JS in a real browser, whatever today's date is."""
     dt = datetime.fromisoformat(iso).astimezone(timezone.utc)
-    return f"{dt.day} {_SHORT_DATE_MONTHS[dt.month - 1]} {dt.hour:02d}:{dt.minute:02d}"
+    return f"{dt.day:02d} {_SHORT_DATE_MONTHS[dt.month - 1]} {dt.hour:02d}:{dt.minute:02d}"
 
 
 def state_text(eid, state, attrs):
@@ -941,8 +946,49 @@ def inject_smart_charging(url_path, views):
         deploy._add_cards(views[0], cards)
 
 
+def self_test():
+    """`_short_date` against the dashboard's own formatting JS, run in a real Chromium, for dates
+    chosen to include single-digit days, the first and last day of a month and a year boundary.
+    The live run only ever sees today's date, so a mistake that shows on some days of the month
+    passes silently on the rest. The JS is read out of front-end-bubble.txt, not retyped here, so
+    this tests what ships; if it cannot be found or the dashboard's copies differ, it fails."""
+    import re
+
+    from playwright.sync_api import sync_playwright
+
+    text = open(os.path.join(DASH_DIR_DEFAULT, DASHBOARDS["alpine-bubble"])).read()
+    found = set(re.findall(r"const q=(new Intl\.DateTimeFormat\(.+?\));el\.textContent=(.+?);\}return", text))
+    if len(found) != 1:
+        print(f"seed self-test FAILED: expected one distinct date-formatting snippet in "
+              f"{DASHBOARDS['alpine-bubble']}, found {len(found)}", file=sys.stderr)
+        return 1
+    intl, expr = found.pop()
+    js = ("(iso) => { const d = new Date(iso); const q = "
+          + intl.replace("hass.config.time_zone", "'UTC'") + "; return " + expr + "; }")
+    dates = ["2026-10-02T18:05:00+00:00", "2026-10-09T00:00:00+00:00", "2026-10-10T23:59:00+00:00",
+             "2026-01-01T00:00:00+00:00", "2026-09-27T08:52:00+00:00", "2026-03-05T07:05:00+00:00",
+             "2026-12-31T23:59:00+00:00", "2027-01-01T00:00:00+00:00"]
+    bad = []
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page()
+        for iso in dates:
+            rendered, expected = page.evaluate(js, iso), _short_date(iso)
+            if rendered != expected:
+                bad.append((iso, rendered, expected))
+        browser.close()
+    for iso, rendered, expected in bad:
+        print(f"seed self-test FAILED: {iso}: the dashboard renders {rendered!r}, the gate expects "
+              f"{expected!r}", file=sys.stderr)
+    if not bad:
+        print(f"seed self-test: {len(dates)} dates render as the gate expects")
+    return 1 if bad else 0
+
+
 async def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--self-test", action="store_true",
+                    help="check the gate's short-date model against the shipped dashboard JS in a real browser")
     ap.add_argument("--base", default="http://localhost:8123")
     ap.add_argument("--token")
     ap.add_argument("--dashboards", default=DASH_DIR_DEFAULT)
@@ -1033,4 +1079,6 @@ async def main():
 
 
 if __name__ == "__main__":
+    if "--self-test" in sys.argv[1:]:
+        sys.exit(self_test())      # Playwright's sync API cannot run inside an event loop
     asyncio.run(main())
