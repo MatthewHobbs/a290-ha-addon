@@ -9,8 +9,10 @@
   recognised by what it is, so the sensor turns on and the sign-in is dropped at once, so the next
   poll signs in again. Poll Failing is unchanged. This gap is not new and was not caused by the
   renault-api 0.5.14 update (0.5.13 produced the same text); 0.5.14 only gives the reply a class
-  of its own, which is what makes recognising it by type possible. No settings change and no
-  entity change.
+  of its own, which is what makes recognising it by type possible. Renault's reply can also mean
+  a permissions problem and not an expired sign-in; then the sensor is on for a cause signing in
+  again will not cure, and the add-on signs in again on each poll while it lasts (about every 30
+  minutes once its retry delay has backed off). No settings change and no entity change.
 
 ## 1.28.12
 

@@ -734,11 +734,11 @@ async def main():
             # the exact rule data_stale used to carry here (no success within stale_hours), so
             # the connectivity alarm users already have is preserved, not dropped.
             fresh = freshness_fields(state, None, stale_secs, last_ok)
-            # Prefer the exception type (an HTTP 401/403, or Kamereon's own unauthorized reply, are
-            # unambiguous); fall back to the message text for gigya/library errors that aren't
-            # raised as one of those. The text match cannot catch Kamereon's reply: str() of it is
-            # "('err.func.wired.unauthorized', 'Not authorized')", none of the words below, so it
-            # was an ordinary failure. UnauthorizedException needs renault-api >= 0.5.14.
+            # Prefer the exception type (an HTTP 401/403, or Kamereon's unauthorized reply); fall
+            # back to the message text for gigya/library errors that aren't raised as one of those.
+            # The text match cannot catch Kamereon's reply: str() of it is "('err.func.wired.
+            # unauthorized', 'Not authorized')", none of the words below. Upstream says it can also
+            # mean a permissions problem, and it drops the session every poll while it lasts.
             auth = isinstance(err, UnauthorizedException) or \
                 (isinstance(err, aiohttp.ClientResponseError) and err.status in (401, 403)) or \
                 any(s in str(err).lower() for s in ("login", "password", "credential", "401", "403"))
