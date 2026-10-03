@@ -16,6 +16,15 @@ name: Release
 #     `v<version>` git tag + GitHub Release. Provenance is thus always attested from main.
 # A PR that does not bump the version publishes nothing; the gate passes as a no-op.
 # Fork PRs cannot push to GHCR, so a version bump must come from a branch in this repo.
+#
+# "Bump" is decided by comparing the version the pinned info helper reads on the comparison base
+# (the PR's base commit, or the commit before this push) with the one it reads here, AND the tag
+# `v<version>` being absent (scripts/release_decision.py, ADR 0006 row 8). Tag-absent alone is not
+# enough: after a release merges and its post-merge gate fails, the tag never exists, and every
+# later ordinary PR would republish its own unmerged build over the live `<image>:<version>`. A
+# failed `git ls-remote` is an error that blocks the run, never "no such tag". To finish a
+# release whose gate failed, re-run the failed push run (same commit, same comparison) within
+# GitHub's re-run window; later, re-cut it as the next version.
 
 on:
   push:
@@ -40,6 +49,8 @@ jobs:
       description: ${{ steps.normalize.outputs.description }}
       url: ${{ steps.normalize.outputs.url }}
       is_new: ${{ steps.newcheck.outputs.is_new }}
+      version_changed: ${{ steps.newcheck.outputs.version_changed }}
+      publish: ${{ steps.newcheck.outputs.publish }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -73,19 +84,43 @@ jobs:
             echo "url=${INFO_URL}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Is this version already released?
+      - name: Check out the comparison base
+        # The commit this change is measured against: the PR's base, or what main was before this
+        # push. A second checkout, so the SAME helper that reads the version here reads it there.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event_name == 'push' && github.event.before || github.sha }}
+          path: base
+          persist-credentials: false
+
+      - name: Get the base add-on information
+        id: base_info
+        uses: home-assistant/actions/helpers/info@58bff37c8947f690ace498be413a9b78d6f30f93  # master
+        with:
+          path: "./base/alpine_a290"
+
+      - name: Is this a new version, and did this change move it?
         id: newcheck
         env:
-          VERSION: ${{ steps.normalize.outputs.version }}
+          HEAD_VERSION: ${{ steps.normalize.outputs.version }}
+          BASE_INFO_VERSION: ${{ steps.base_info.outputs.version }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          tag="v${VERSION}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
-            echo "is_new=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::${tag} already exists — image/tag publish will be skipped (no version bump)."
-          else
-            echo "is_new=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::${tag} is new — image will be published and tagged on push to main."
+          tag="v${HEAD_VERSION}"
+          # Only exit 0 (found) and exit 2 (absent) are answers; anything else, such as a network
+          # failure (128), is passed through and refused by the script rather than read as "absent".
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1
+          TAG_RC=$?
+          set -e
+          export TAG_RC
+          export BASE_VERSION="${BASE_INFO_VERSION//\"/}"
+          if ! out="$(python3 scripts/release_decision.py)"; then
+            echo "$out"
+            exit 1
           fi
+          echo "$out" | tee -a "$GITHUB_OUTPUT"
 
       - name: Prepare build matrix
         id: matrix
@@ -140,7 +175,7 @@ jobs:
           # Push a new version's image on BOTH the merge (push to main) and the same-repo PR that
           # bumps it — the PR push is what makes `<image>:<version>` exist before merge, closing
           # the phantom-version window. Fork PRs can't write to GHCR, so they build only.
-          push: ${{ needs.prepare.outputs.is_new == 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+          push: ${{ needs.prepare.outputs.publish == 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
           version: ${{ needs.prepare.outputs.version }}
 
   manifest:
@@ -148,7 +183,7 @@ jobs:
     needs: [prepare, build]
     # Publish the multi-arch index on the merge AND on the same-repo version-bump PR (so the
     # image exists before merge). The attestation + tag steps below stay main-only.
-    if: ${{ needs.prepare.outputs.is_new == 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    if: ${{ needs.prepare.outputs.publish == 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -231,7 +266,7 @@ jobs:
     # gating purposes (GitHub's own semantics), so `tag` is never blocked by this being skipped
     # on a PR or a non-bump push — only by it actually running and failing.
     needs: [prepare]
-    if: ${{ github.event_name == 'push' && needs.prepare.outputs.is_new == 'true' }}
+    if: ${{ github.event_name == 'push' && needs.prepare.outputs.publish == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Wait for UI Tests (both legs; always reports per ADR 0005, applicable or not)
@@ -257,7 +292,7 @@ jobs:
   tag:
     name: Tag release
     needs: [prepare, manifest, validated]
-    if: ${{ github.event_name == 'push' && needs.prepare.outputs.is_new == 'true' }}
+    if: ${{ github.event_name == 'push' && needs.prepare.outputs.publish == 'true' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write   # create the git tag + GitHub Release
@@ -294,7 +329,7 @@ jobs:
     steps:
       - name: Confirm the image exists before merge
         env:
-          IS_NEW: ${{ needs.prepare.outputs.is_new }}
+          PUBLISH: ${{ needs.prepare.outputs.publish }}
           SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
           IMAGE_REF: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}:${{ needs.prepare.outputs.version }}
           PREPARE_RESULT: ${{ needs.prepare.result }}
@@ -303,7 +338,7 @@ jobs:
         run: |
           set -euo pipefail
           # Fail CLOSED. This job uses always(), so it also runs when prepare/build failed — in
-          # which case IS_NEW is empty and must NOT be read as a safe "no bump". If we can't
+          # which case PUBLISH is empty and must NOT be read as a safe "no bump". If we can't
           # determine or trust the release state, block the merge rather than wave it through.
           if [[ "$PREPARE_RESULT" != "success" ]]; then
             echo "::error::prepare did not succeed ($PREPARE_RESULT) — cannot determine whether this is a version bump; blocking merge."
@@ -313,8 +348,8 @@ jobs:
             echo "::error::the image build did not succeed ($BUILD_RESULT); blocking merge."
             exit 1
           fi
-          if [[ "$IS_NEW" != "true" ]]; then
-            echo "No version bump — config.yaml version is already released; nothing to publish. Merge is safe."
+          if [[ "$PUBLISH" != "true" ]]; then
+            echo "Nothing to publish — this change does not move the version to an unreleased one. Merge is safe."
             exit 0
           fi
           if [[ "$SAME_REPO" != "true" ]]; then
