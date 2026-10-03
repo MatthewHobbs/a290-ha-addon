@@ -33,6 +33,7 @@ from catalog import (
     SOC_ENDPOINT,
 )
 from renault_api.kamereon.enums import ChargeState, PlugState
+from renault_api.kamereon.exceptions import UnauthorizedException
 from renault_api.renault_client import RenaultClient
 from renault_mqtt import config, mqtt
 from renault_mqtt.charge import CHARGES_ENDPOINT, _epoch, resolve_last_charge, update_charge_session
@@ -733,9 +734,13 @@ async def main():
             # the exact rule data_stale used to carry here (no success within stale_hours), so
             # the connectivity alarm users already have is preserved, not dropped.
             fresh = freshness_fields(state, None, stale_secs, last_ok)
-            # Prefer the exception type (an HTTP 401/403 is unambiguous); fall back to the
-            # message text for gigya/library errors that aren't raised as ClientResponseError.
-            auth = (isinstance(err, aiohttp.ClientResponseError) and err.status in (401, 403)) or \
+            # Prefer the exception type (an HTTP 401/403, or Kamereon's unauthorized reply); fall
+            # back to the message text for gigya/library errors that aren't raised as one of those.
+            # The text match cannot catch Kamereon's reply: str() of it is "('err.func.wired.
+            # unauthorized', 'Not authorized')", none of the words below. Upstream says it can also
+            # mean a permissions problem, and it drops the session every poll while it lasts.
+            auth = isinstance(err, UnauthorizedException) or \
+                (isinstance(err, aiohttp.ClientResponseError) and err.status in (401, 403)) or \
                 any(s in str(err).lower() for s in ("login", "password", "credential", "401", "403"))
             if auth or fails % 3 == 0:
                 await vsession.invalidate()
