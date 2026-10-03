@@ -91,6 +91,7 @@ jobs:
           python3 -m pip install --quiet PyYAML==6.0.3
           python3 scripts/docs_sync_check.py --self-test
           python3 scripts/prepare_release.py --self-test
+          python3 scripts/release_decision.py --self-test
           python3 scripts/docs_sync_check.py "$BASE_SHA"
 
   docs-cite-check:
