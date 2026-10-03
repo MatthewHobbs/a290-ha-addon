@@ -51,7 +51,7 @@ ruff.toml / repository.yaml / README.md / LICENSE
 ## Dependencies
 
 `alpine_a290/app/requirements.txt` — all pinned, keep them pinned:
-`renault-api==0.5.13`, `paho-mqtt==2.1.0`, `PyYAML==6.0.3`. Pinned in BOTH
+`renault-api==0.5.14`, `paho-mqtt==2.1.0`, `PyYAML==6.0.3`. Pinned in BOTH
 `requirements.in` (the source) and `requirements.txt` (hash-locked) — bump both, or the next
 regeneration silently reverts the one you missed.
 
@@ -66,15 +66,14 @@ Intelligent)** — confirmed on a real A290 (car stayed "Waiting to Charge"; no 
 clear). The button is still published; docs steer Octopus users to Bump Charge / the physical
 timer. The add-on probes `supports_endpoint()` at startup and only publishes what's available.
 
-**The pinned 0.5.13 still carries two wrong entries for `A5E1AE`**, which is why the add-on
-carries its own guards rather than trusting the table: `actions/refresh-location` is absent (it
-works on the car — verified, response in 12s; DOCS.md and README.md still say it may be
-refused (403) on purpose, because one verified car is not every account or region), and
-`hvac-settings` is declared while the server answers `502000` to every call, which is what the
-v1.23.1 circuit breaker exists for. Both are filed upstream as
+**0.5.14 corrected two `A5E1AE` entries that 0.5.13 got wrong** (upstream
 [#2254](https://github.com/hacf-fr/renault-api/pull/2254) and
-[#2255](https://github.com/hacf-fr/renault-api/pull/2255); they will not appear in a release
-before 0.5.14, so do not expect a bump to remove those guards until then.
+[#2255](https://github.com/hacf-fr/renault-api/pull/2255)): `actions/refresh-location` is now
+declared (it works on the car — verified, response in 12s), and `hvac-settings` is now `None`.
+The add-on's guards stay regardless: DOCS.md and README.md still say refresh-location may be
+refused (403) on purpose, because one verified car is not every account or region, and the
+v1.23.1 circuit breaker guards the *server's* `502000`, which no library release fixes — confirm
+on the car before removing it.
 
 ## Local checks — run the FULL suite before pushing
 
