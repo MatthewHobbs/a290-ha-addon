@@ -22,6 +22,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
+echo "==> Self-test: the gate's short-date model against the shipped dashboard JS in a real browser"
+"$PY" "$HERE/seed.py" --self-test
+
 echo "==> Vendor custom cards into the HA www/ (same-origin, no CORS issues)"
 mkdir -p "$CONFIG/www/cards"
 # Pinned to fixed releases (not @latest / @master) so the rendered layout is reproducible; a
