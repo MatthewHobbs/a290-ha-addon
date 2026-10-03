@@ -146,6 +146,29 @@ def version_of(config_text):
     return m.group(1) if m else None
 
 
+def tree_modes(ref):
+    """{path: git mode} for every file at `ref`. `git show` on a symlink returns the link TEXT, so
+    a symlinked config.yaml reads as whatever its target path happens to say, while the image
+    publisher follows the link and reads the target file."""
+    r = _run(["git", "ls-tree", "-r", "-z", ref])
+    if r.returncode != 0:
+        fail_infra(f"cannot read the tree at {ref}: {r.stderr.strip()}")
+    out = {}
+    for entry in filter(None, r.stdout.split("\0")):
+        meta, _, path = entry.partition("\t")
+        out[path] = meta.split()[0]
+    return out
+
+
+def mode_problem(modes, config):
+    """None when config.yaml is a plain file (mode 100644), else why not."""
+    mode = modes.get(config)
+    if mode is None or mode == "100644":
+        return None
+    return (f"{config} has git mode {mode}, not a regular file (100644): a symlink makes git show "
+            f"the link text while the image publisher reads the file it points to.")
+
+
 def alt_config_problem(tree, addon):
     """The Home Assistant info helper that publishes the image reads `config.json`, then
     `config.yml`, then `config.yaml`, and stops at the first it finds. A PR that adds either of
@@ -167,6 +190,24 @@ def _yaml():
     return yaml
 
 
+def _has_merge_key(yaml, node):
+    """True when any mapping in the composed document has a key tagged as a YAML merge key."""
+    stack, seen = [node], set()
+    while stack:
+        n = stack.pop()
+        if n is None or id(n) in seen:
+            continue
+        seen.add(id(n))
+        if isinstance(n, yaml.MappingNode):
+            for key, value in n.value:
+                if key.tag == "tag:yaml.org,2002:merge":
+                    return True
+                stack += [key, value]
+        elif isinstance(n, yaml.SequenceNode):
+            stack += list(n.value)
+    return False
+
+
 def version_problem(config_text, path):
     """None when config.yaml spells its version in the one plain way `version_of` reads, else why
     not. A config that cannot be read must be loud: the check that runs on it would otherwise see
@@ -182,15 +223,17 @@ def version_problem(config_text, path):
     # The line regex above and a YAML parser can still disagree: a decoy `version:` line inside a
     # multi-line quoted scalar, an explicit `? version` key, a stray trailing quote. The image
     # publisher reads the file as YAML too (with yq, not PyYAML), so a parser's answer has to match.
-    # Merge keys are refused outright: PyYAML lets the explicit key win, yq's default lets a later
-    # `<<` overwrite it, so the two can read different versions from one file.
-    if re.search(r"<<[ \t]*:", config_text):
-        return (f"{path} uses a YAML merge key (`<<:`), which parsers disagree about; the add-on "
-                f"config does not need one, and it could hide which version is published.")
+    # Merge keys are refused, found in the parsed structure and not by their spelling: `<<:`,
+    # `? <<`, `!!merge m:` and `!<tag:yaml.org,2002:merge> m:` are all the same key to a parser.
+    # PyYAML lets the explicit key win and yq lets a later merge overwrite it (reproduced on yq
+    # 4.53.6), so one file can carry two different versions.
     yaml = _yaml()
     try:
+        if _has_merge_key(yaml, yaml.compose(config_text)):
+            return (f"{path} uses a YAML merge key, which parsers disagree about; the add-on "
+                    f"config does not need one, and it could hide which version is published.")
         parsed = yaml.safe_load(config_text)
-    except (yaml.YAMLError, RecursionError, MemoryError) as e:
+    except (yaml.YAMLError, RecursionError) as e:
         return f"{path} is not valid YAML: {str(e).splitlines()[0][:120] if str(e) else type(e).__name__}"
     read = parsed.get("version") if isinstance(parsed, dict) else None
     if read != version_of(config_text):
@@ -396,6 +439,15 @@ def _end_to_end():
         def both(*fns):
             return lambda: [f() for f in fns]
 
+        def symlinked():
+            # The link's own text reads as a valid version line; the file it points to holds the
+            # config that is actually published, at a different version.
+            target = 'version: "1.2.0"'
+            (root / "a/config.yaml").unlink()
+            os.symlink(target, root / "a/config.yaml")
+            (root / "a" / target).write_text(cfg.replace("1.2.0", "9.9.9"))
+            code()
+
         # A decoy `version:` line inside a multi-line quoted scalar, with the real key spelled
         # `? version`: the line regex reads 1.2.0 on both sides, a YAML parser reads 1.2.1.
         decoy = ('name: x\ndescription: "a\nversion: 1.2.0"\n? version\n: "1.2.1"\noptions:\n  a: 1\n')
@@ -425,6 +477,13 @@ def _end_to_end():
                 'version: "9.9.9"\n')), 1, "exists beside"),
             ("a merge key beside the version", both(release('version: "1.2.1"\n<<: {version: "9.9.9"}'), code), 1,
              "merge key"),
+            ("an explicit merge key", both(release('version: "1.2.1"\n? <<\n: {version: "9.9.9"}'), code), 1,
+             "merge key"),
+            ("a !!merge tagged key", both(release('version: "1.2.1"\n!!merge m: {version: "9.9.9"}'), code), 1,
+             "merge key"),
+            ("a long-form merge tag", both(release('version: "1.2.1"\n!<tag:yaml.org,2002:merge> m: {a: 1}'), code), 1,
+             "merge key"),
+            ("a symlinked config.yaml", symlinked, 1, "not a regular file"),
         ]
         for name, edits, want, needle in cases:
             _git(d, "switch", "-q", "-c", "case", "main")
@@ -589,10 +648,18 @@ def self_test():
                      'version: "1.2.1-rc1"', 'version: "1.2.1 beta"', 'version: "1.2.1"\nversion: "1.2.2"', "name: x",
                      'version: 1.2.1"', 'name: x\ndescription: "a\nversion: 1.2.0"\n? version\n: "1.2.1"\n',
                      'version: "\u0662.\u0660.\u0660"', 'version: "1.2.1"\n<<: {version: "9.9.9"}\n',
-                     'version: "1.2.1"\nx: ' + "[" * 20000):
+                     'version: "1.2.1"\nx: ' + "[" * 20000,
+                     'version: "1.2.1"\n? <<\n: {version: "9.9.9"}\n',
+                     'version: "1.2.1"\n!!merge m: {version: "9.9.9"}\n',
+                     'version: "1.2.1"\n!<tag:yaml.org,2002:merge> m: {a: 1}\n'):
         if version_problem(spelling, "c.yaml") is None:
             print(f"docs-sync self-test FAILED: version_problem accepted {spelling!r}", file=sys.stderr)
             return 1
+    if mode_problem({"a/config.yaml": "100644"}, "a/config.yaml") or \
+            not mode_problem({"a/config.yaml": "120000"}, "a/config.yaml") or \
+            not mode_problem({"a/config.yaml": "100755"}, "a/config.yaml"):
+        print("docs-sync self-test FAILED: mode_problem is wrong", file=sys.stderr)
+        return 1
     if alt_config_problem({"a/config.yaml"}, "a") or not alt_config_problem({"a/config.yaml", "a/config.json"}, "a"):
         print("docs-sync self-test FAILED: alt_config_problem is wrong", file=sys.stderr)
         return 1
@@ -694,6 +761,9 @@ def main():
     alt = alt_config_problem(set(tree), addon)
     if alt:
         history.append(alt)
+    not_regular = mode_problem(tree_modes("HEAD"), config)
+    if not_regular:
+        history.append(not_regular)
     cfg_head = git_show("HEAD", config)
     if config in tree and cfg_head is None:
         fail_infra(f"cannot read {config} at HEAD although the tree lists it.")
