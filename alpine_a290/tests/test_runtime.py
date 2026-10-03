@@ -10,6 +10,7 @@ from pathlib import Path
 import main
 import pytest
 from renault_api.kamereon.enums import ChargeState, PlugState
+from renault_api.kamereon.exceptions import InvalidInputException, UnauthorizedException
 from renault_mqtt import charge, config, debug, mqtt
 
 
@@ -990,6 +991,53 @@ def test_main_handles_failing_poll(monkeypatch):
     published = [json.loads(p) for t, p in fc.pubs if t == mqtt.STATE_TOPIC]
     assert published and all(d["api_auth_failure"] == "on" for d in published)
     assert main._LATEST["data"]["api_auth_failure"] == "on"     # the status panel agrees
+
+
+def _one_failed_poll(monkeypatch, err):
+    """main() through a single poll that raises `err`: the state documents it published, and how
+    many times the Renault session was thrown away (invalidate) on that one failure."""
+    async def poll(vs, state, cap, sup, du):
+        raise err
+
+    monkeypatch.setattr(main, "save_state", lambda s: None)
+    monkeypatch.setattr(main, "load_state", dict)
+    fc = _wire_main(monkeypatch, poll)
+    seen = {"invalidated": 0}
+
+    class CountingVS:
+        def __init__(self, locale):
+            self.locale = locale
+
+        async def invalidate(self):
+            seen["invalidated"] += 1
+
+        async def close(self):
+            pass
+
+    monkeypatch.setattr(main, "VehicleSession", CountingVS)
+    asyncio.run(main.main())
+    return [json.loads(p) for t, p in fc.pubs if t == mqtt.STATE_TOPIC], seen["invalidated"]
+
+
+def test_kamereon_unauthorized_is_an_auth_failure(monkeypatch):
+    # str() of this exception is "('err.func.wired.unauthorized', 'Not authorized')": none of the
+    # words the keyword match looks for, so it was classified as an ordinary failure. That gap
+    # predates renault-api 0.5.14 (0.5.13 raised the same text under a generic class); 0.5.14 only
+    # gives the reply a class of its own, which is what lets it be recognised by type.
+    err = UnauthorizedException("err.func.wired.unauthorized", "Not authorized")
+    published, invalidated = _one_failed_poll(monkeypatch, err)
+    assert published and all(d["api_auth_failure"] == "on" for d in published)
+    assert main._LATEST["data"]["api_auth_failure"] == "on"
+    assert invalidated == 1        # a rejected token is dropped at once, not on every third failure
+
+
+def test_other_kamereon_errors_are_not_auth_failures(monkeypatch):
+    # The type check must not widen into "any Kamereon error": a bad request is not a credentials
+    # problem, the sensor stays off, and the session survives the first failure.
+    err = InvalidInputException("err.func.wired.invalid-body-format", "bad body")
+    published, invalidated = _one_failed_poll(monkeypatch, err)
+    assert published and all(d["api_auth_failure"] == "off" for d in published)
+    assert invalidated == 0
 
 
 def test_main_redacts_secret_in_error_snapshot(monkeypatch):
