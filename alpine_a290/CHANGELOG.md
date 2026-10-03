@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.28.12
 
 - **Updated to renault-api 0.5.14**, the first release carrying the two A290 (`A5E1AE`)
   endpoint-table corrections contributed upstream
