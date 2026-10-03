@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.28.13
 
 - **API Auth Failure now turns on when Renault's API answers "unauthorized" to the battery
   request.** That reply (`err.func.wired.unauthorized`) reads
