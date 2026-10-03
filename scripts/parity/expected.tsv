@@ -174,6 +174,7 @@ local	.github/renovate.json	both	hunk:Supervisor pilot	4	both carry the pilot's 
 # listed below; the rest of it is identical, and ADR 0002 row 11 is docs/adr/* (local).
 # ---------------------------------------------------------------- Supervisor pilot as mirrored by r5 (#108, 4dd52bf, ADR 0002 row 10)
 local	.github/workflows/supervisor.yml	both	hunk:ADR 0002	10	each repo's header names its own decision record: a290's ADR 0002, r5's "the a290 twin's ADR 0002, mirrored"
+pending	scripts/supervisor-pilot.sh	both	re:^REGISTRY_IMAGE=	2	a290 is on the newer docker.io/library/registry:3 digest (distribution v3.1.2); r5 is still on the previous one. Target: r5 takes the same digest after a290's merges (r5 never ahead)
 local	scripts/supervisor-pilot.sh	both	re:the a290 twin's ADR 0002|devcontainer \(ADR 0002\)	2	same provenance line in the script's header
 model	scripts/supervisor-pilot.sh	both	re:a290-supervisor|r5-supervisor|local_alpine_a290|local_renault_5|pilot-registry|pilot-build|pilot-no-egress	16	the pilot's container, registry, provenance-label and egress-rule names carry each add-on's own short name
 local	.github/workflows/supervisor.yml	both	hunk:deploy_dashboard	15	r5 defaults deploy_dashboard to none (a290: standard), so its pilot sets standard explicitly and its path-filter comment says so (r5's deliberate choice, confirmed by the r5 session 2026-09-27)
