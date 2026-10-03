@@ -23,7 +23,8 @@ name: Release
 # enough: after a release merges and its post-merge gate fails, the tag never exists, and every
 # later ordinary PR would republish its own unmerged build over the live `<image>:<version>`. A
 # failed `git ls-remote` is an error that blocks the run, never "no such tag". To finish a
-# release whose gate failed, re-run the failed push run: same commit, same comparison.
+# release whose gate failed, re-run the failed push run (same commit, same comparison) within
+# GitHub's re-run window; later, re-cut it as the next version.
 
 on:
   push:
@@ -103,6 +104,8 @@ jobs:
         env:
           HEAD_VERSION: ${{ steps.normalize.outputs.version }}
           BASE_INFO_VERSION: ${{ steps.base_info.outputs.version }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           tag="v${HEAD_VERSION}"
           # Only exit 0 (found) and exit 2 (absent) are answers; anything else, such as a network

@@ -8,10 +8,13 @@ build over the live `<image>:<version>`; and a failed `git ls-remote` (a network
 read as "no such tag" with the same result. Publishing now needs both: the tag is absent AND the
 version differs between the comparison base and this commit.
 
+A PR whose base branch is not the default branch never publishes: it would be compared against
+that branch, not against what users get from main.
+
 Inputs (environment): HEAD_VERSION and BASE_VERSION, each read by the pinned Home Assistant info
 helper on its own checkout (so the reader is the publisher's, not a copy), and TAG_RC, the exit
 code of `git ls-remote --exit-code --tags origin refs/tags/v<version>`: 0 found, 2 absent,
-anything else a failure.
+anything else a failure. PR_BASE_REF and DEFAULT_BRANCH, to tell a PR into main from any other.
 Output: `is_new`, `version_changed` and `publish` as `key=value` lines for $GITHUB_OUTPUT.
 Exit 0 = decided, 1 = refused (and blocks the run: unsure is not "publish" and not "skip").
 
@@ -26,7 +29,7 @@ class Refused(Exception):
     pass
 
 
-def decide(head_version, base_version, tag_rc):
+def decide(head_version, base_version, tag_rc, off_main=False):
     """{"is_new", "version_changed", "publish"} as booleans, or raises Refused."""
     for name, value in (("HEAD_VERSION", head_version), ("BASE_VERSION", base_version)):
         if not value or value == "null":
@@ -41,7 +44,13 @@ def decide(head_version, base_version, tag_rc):
                       f"cannot tell whether v{head_version} is already released. Refusing to "
                       f"read a failure as 'no such tag'.")
     changed = head_version != base_version
-    return {"is_new": is_new, "version_changed": changed, "publish": is_new and changed}
+    return {"is_new": is_new, "version_changed": changed,
+            "publish": is_new and changed and not off_main}
+
+
+def off_main(pr_base_ref, default_branch):
+    """True for a PR whose base is some branch other than the default one. A push has no PR base."""
+    return bool(pr_base_ref) and pr_base_ref != default_branch
 
 
 def self_test():
@@ -58,6 +67,19 @@ def self_test():
         ("the base version could not be read", "1.2.1", "", 2, None),
         ("the helper printed null", "null", "1.2.0", 2, None),
     ]
+    off_main_cases = [  # (name, base ref, default branch, expected off_main)
+        ("a push", "", "main", False),
+        ("a PR into main", "main", "main", False),
+        ("a PR into another branch", "feature", "main", True),
+    ]
+    for name, ref, default, want in off_main_cases:
+        if off_main(ref, default) != want:
+            print(f"release-decision self-test FAILED: {name}: want off_main={want}", file=sys.stderr)
+            return 1
+    if decide("1.2.1", "1.2.0", 2, off_main=True)["publish"] or not decide("1.2.1", "1.2.0", 2)["publish"]:
+        print("release-decision self-test FAILED: a PR off the default branch must not publish",
+              file=sys.stderr)
+        return 1
     for name, head, base, rc, want in cases:
         try:
             got = decide(head, base, rc)["publish"]
@@ -71,7 +93,7 @@ def self_test():
         print("release-decision self-test FAILED: the row-8 case no longer separates the rules",
               file=sys.stderr)
         return 1
-    print(f"release-decision self-test: {len(cases) + 1} cases ok")
+    print(f"release-decision self-test: {len(cases) + len(off_main_cases) + 2} cases ok")
     return 0
 
 
@@ -80,7 +102,8 @@ def main():
         return self_test()
     try:
         out = decide(os.environ.get("HEAD_VERSION", ""), os.environ.get("BASE_VERSION", ""),
-                     int(os.environ.get("TAG_RC", "-1")))
+                     int(os.environ.get("TAG_RC", "-1")),
+                     off_main(os.environ.get("PR_BASE_REF", ""), os.environ.get("DEFAULT_BRANCH", "")))
     except (Refused, ValueError) as e:
         print(f"::error::release-decision: {e}")
         return 1
