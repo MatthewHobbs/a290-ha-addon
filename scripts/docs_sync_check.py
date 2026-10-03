@@ -146,11 +146,23 @@ def version_of(config_text):
     return m.group(1) if m else None
 
 
+def alt_config_problem(tree, addon):
+    """The Home Assistant info helper that publishes the image reads `config.json`, then
+    `config.yml`, then `config.yaml`, and stops at the first it finds. A PR that adds either of
+    the first two puts a version where this check never looks."""
+    found = [f"{addon}/{n}" for n in ("config.json", "config.yml") if f"{addon}/{n}" in tree]
+    if found:
+        return (f"{', '.join(found)} exists beside {addon}/config.yaml: the image publisher reads "
+                f"config.json, then config.yml, then config.yaml and stops at the first, so this "
+                f"check would be reading the wrong file. The add-on keeps one config, config.yaml.")
+    return None
+
+
 def _yaml():
     try:
         import yaml
     except ImportError:
-        fail_infra("PyYAML is required to read config.yaml the way the image publisher does "
+        fail_infra("PyYAML is required to cross-check config.yaml against a YAML parser "
                    "(python3 -m pip install PyYAML).")
     return yaml
 
@@ -169,12 +181,17 @@ def version_problem(config_text, path):
                 f"a version move unnoticed.")
     # The line regex above and a YAML parser can still disagree: a decoy `version:` line inside a
     # multi-line quoted scalar, an explicit `? version` key, a stray trailing quote. The image
-    # publisher reads the file as YAML, so the parser's answer is the one that has to match.
+    # publisher reads the file as YAML too (with yq, not PyYAML), so a parser's answer has to match.
+    # Merge keys are refused outright: PyYAML lets the explicit key win, yq's default lets a later
+    # `<<` overwrite it, so the two can read different versions from one file.
+    if re.search(r"<<[ \t]*:", config_text):
+        return (f"{path} uses a YAML merge key (`<<:`), which parsers disagree about; the add-on "
+                f"config does not need one, and it could hide which version is published.")
     yaml = _yaml()
     try:
         parsed = yaml.safe_load(config_text)
-    except yaml.YAMLError as e:
-        return f"{path} is not valid YAML: {str(e).splitlines()[0][:120]}"
+    except (yaml.YAMLError, RecursionError, MemoryError) as e:
+        return f"{path} is not valid YAML: {str(e).splitlines()[0][:120] if str(e) else type(e).__name__}"
     read = parsed.get("version") if isinstance(parsed, dict) else None
     if read != version_of(config_text):
         return (f"{path}: a YAML parser reads version {read!r} but this check reads "
@@ -402,6 +419,12 @@ def _end_to_end():
             ("a decoy version line and an explicit key", both(bump(decoy), code), 1, "YAML parser reads"),
             ("a version moved without a changelog rename", bump(cfg.replace("1.2.0", "1.2.1")), 1,
              "only by renaming"),
+            ("a version published through config.json", both(code, lambda: (root / "a/config.json").write_text(
+                '{"version": "9.9.9"}')), 1, "exists beside"),
+            ("a version published through config.yml", both(code, lambda: (root / "a/config.yml").write_text(
+                'version: "9.9.9"\n')), 1, "exists beside"),
+            ("a merge key beside the version", both(release('version: "1.2.1"\n<<: {version: "9.9.9"}'), code), 1,
+             "merge key"),
         ]
         for name, edits, want, needle in cases:
             _git(d, "switch", "-q", "-c", "case", "main")
@@ -430,6 +453,29 @@ def _end_to_end():
         if got.returncode != 2 or "cannot read" not in got.stdout + got.stderr:
             return (f"an unreadable config: want exit 2 naming 'cannot read', got {got.returncode}: "
                     f"{(got.stdout + got.stderr).strip()[:300]}")
+        # The same for the CHANGELOG at HEAD, and for the config at the merge base (head's own blob
+        # is intact there, so only the merge-base refusal can produce this exit).
+        for name, edits, path, rev, needle in (
+                ("an unreadable changelog", lambda: (root / "a/CHANGELOG.md").write_text(
+                    log.replace("- wip", "- wip, edited")), "a/CHANGELOG.md", "HEAD", "cannot read"),
+                ("an unreadable base config", lambda: (root / "a/config.yaml").write_text(
+                    cfg.replace("a: 1", "a: 2")), "a/config.yaml", "main", "although its tree lists it")):
+            _git(d, "switch", "-q", "-c", "u2", "main")
+            edits()
+            _git(d, "add", "-A")
+            _git(d, "commit", "-q", "-m", name)
+            blob = _git(d, "rev-parse", f"{rev}:{path}").strip()
+            loose = root / ".git/objects" / blob[:2] / blob[2:]
+            saved = loose.read_bytes()
+            loose.unlink()
+            got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
+                                 capture_output=True, text=True, env={**_clean_env(), "LABELS": ""})
+            loose.write_bytes(saved)
+            _git(d, "switch", "-q", "main")
+            _git(d, "branch", "-q", "-D", "u2")
+            if got.returncode != 2 or needle not in got.stdout + got.stderr:
+                return (f"{name}: want exit 2 naming '{needle}', got {got.returncode}: "
+                        f"{(got.stdout + got.stderr).strip()[:300]}")
     return None
 
 
@@ -542,10 +588,14 @@ def self_test():
     for spelling in ('version: "1.2.1"  # r', '"version": "1.2.1"', "version: !!str 1.2.1",
                      'version: "1.2.1-rc1"', 'version: "1.2.1 beta"', 'version: "1.2.1"\nversion: "1.2.2"', "name: x",
                      'version: 1.2.1"', 'name: x\ndescription: "a\nversion: 1.2.0"\n? version\n: "1.2.1"\n',
-                     'version: "\u0662.\u0660.\u0660"'):
+                     'version: "\u0662.\u0660.\u0660"', 'version: "1.2.1"\n<<: {version: "9.9.9"}\n',
+                     'version: "1.2.1"\nx: ' + "[" * 20000):
         if version_problem(spelling, "c.yaml") is None:
             print(f"docs-sync self-test FAILED: version_problem accepted {spelling!r}", file=sys.stderr)
             return 1
+    if alt_config_problem({"a/config.yaml"}, "a") or not alt_config_problem({"a/config.yaml", "a/config.json"}, "a"):
+        print("docs-sync self-test FAILED: alt_config_problem is wrong", file=sys.stderr)
+        return 1
     if version_problem('name: x\nversion: "1.2.1"\n', "c.yaml") or version_problem(None, "c.yaml"):
         print("docs-sync self-test FAILED: version_problem refused a plain version", file=sys.stderr)
         return 1
@@ -641,6 +691,9 @@ def main():
     history, warnings = changelog_history_problems(base_text, head_text, label)
     # 5. A version that moves must be exactly a release. Read at the merge base like check 4, so
     # a branch behind main does not read main's later releases as its own edits. Not waivable.
+    alt = alt_config_problem(set(tree), addon)
+    if alt:
+        history.append(alt)
     cfg_head = git_show("HEAD", config)
     if config in tree and cfg_head is None:
         fail_infra(f"cannot read {config} at HEAD although the tree lists it.")
