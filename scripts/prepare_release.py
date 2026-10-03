@@ -22,6 +22,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from docs_sync_check import (  # noqa: E402
     _UNRELEASED,
+    _clean_env,
     addon_dirs,
     changelog_entries,
     release_changelog,
@@ -44,7 +45,7 @@ def plan(config_text, log_text, version):
     """(new config, new changelog, [reasons to refuse]). The files are only written when the list
     is empty."""
     refusals, current = [], version_of(config_text)
-    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
         # The only spelling docs_sync_check.py and the image publisher both read.
         return None, None, [f"'{version}' is not a plain X.Y.Z version number."]
     try:
@@ -106,12 +107,12 @@ def end_to_end(cfg, log):
 
     def run(cwd, script, *args):
         return subprocess.run([sys.executable, str(here / script), *args], cwd=cwd,
-                              capture_output=True, text=True, env={**os.environ, "LABELS": ""})
+                              capture_output=True, text=True, env={**_clean_env(), "LABELS": ""})
 
     def git(cwd, *args):
         subprocess.run(["git", "-c", "commit.gpgsign=false", "-c", "user.name=t",
                         "-c", "user.email=t@example.invalid", *args], cwd=cwd, check=True,
-                       capture_output=True)
+                       capture_output=True, env=_clean_env())
 
     def repo(d, config, changelog):
         root = pathlib.Path(d)
@@ -147,13 +148,14 @@ def end_to_end(cfg, log):
             if guard.returncode != 0:
                 return f"{label}: the guard rejected what the script wrote: {(guard.stdout + guard.stderr).strip()[:200]}"
 
-    refusals = [  # (name, config, changelog, args, dirty the tree first)
-        ("a version that does not go up", cfg, log, ("1.2.0",), False),
-        ("a version that is not X.Y.Z", cfg, log, ("1.3.0-rc1",), False),
-        ("nothing under Unreleased", cfg, "## 1.2.0\n\n- two\n", ("1.3.0",), False),
-        ("uncommitted changes in the files", cfg, log, ("1.3.0",), True),
+    refusals = [  # (name, config, changelog, args, dirty the tree first, text the refusal must say)
+        ("a version that does not go up", cfg, log, ("1.2.0",), False, "not above"),
+        ("a version that is not X.Y.Z", cfg, log, ("1.3.0-rc1",), False, "plain X.Y.Z"),
+        ("a version in non-ASCII digits", cfg, log, ("\u0662.\u0660.\u0660",), False, "plain X.Y.Z"),
+        ("nothing under Unreleased", cfg, "## 1.2.0\n\n- two\n", ("1.3.0",), False, "nothing to release"),
+        ("uncommitted changes in the files", cfg, log, ("1.3.0",), True, "uncommitted"),
     ]
-    for name, config, changelog, args, dirty in refusals:
+    for name, config, changelog, args, dirty, why in refusals:
         with tempfile.TemporaryDirectory() as d:
             root = repo(d, config, changelog)
             if dirty:
@@ -162,8 +164,9 @@ def end_to_end(cfg, log):
             before = (read(root / "a/config.yaml"), read(root / "a/CHANGELOG.md"))
             got = run(d, "prepare_release.py", *args)
             after = (read(root / "a/config.yaml"), read(root / "a/CHANGELOG.md"))
-            if got.returncode != 1 or before != after:
-                return f"{name}: want a refusal (exit 1) that writes nothing, got exit {got.returncode}"
+            if got.returncode != 1 or before != after or why not in got.stderr or "Traceback" in got.stderr:
+                return (f"{name}: want a refusal (exit 1) saying '{why}' that writes nothing, "
+                        f"got exit {got.returncode}: {got.stderr.strip()[:200]}")
     return None
 
 

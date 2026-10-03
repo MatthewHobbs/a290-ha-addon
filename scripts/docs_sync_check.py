@@ -142,8 +142,17 @@ def version_of(config_text):
     `version_problem` rather than read as "no version"; reading None there let a bump pass."""
     if config_text is None:
         return None
-    m = re.search(r'^version:[ \t]*"?(\d+\.\d+\.\d+)"?[ \t]*(?=\r?$)', config_text, re.M)
+    m = re.search(r'^version:[ \t]*"?([0-9]+\.[0-9]+\.[0-9]+)"?[ \t]*(?=\r?$)', config_text, re.M)
     return m.group(1) if m else None
+
+
+def _yaml():
+    try:
+        import yaml
+    except ImportError:
+        fail_infra("PyYAML is required to read config.yaml the way the image publisher does "
+                   "(python3 -m pip install PyYAML).")
+    return yaml
 
 
 def version_problem(config_text, path):
@@ -158,6 +167,18 @@ def version_problem(config_text, path):
                 f"after it (no comment, tag or quoted key): the release check and the image "
                 f"publisher both read that line, and a spelling only one of them understands lets "
                 f"a version move unnoticed.")
+    # The line regex above and a YAML parser can still disagree: a decoy `version:` line inside a
+    # multi-line quoted scalar, an explicit `? version` key, a stray trailing quote. The image
+    # publisher reads the file as YAML, so the parser's answer is the one that has to match.
+    yaml = _yaml()
+    try:
+        parsed = yaml.safe_load(config_text)
+    except yaml.YAMLError as e:
+        return f"{path} is not valid YAML: {str(e).splitlines()[0][:120]}"
+    read = parsed.get("version") if isinstance(parsed, dict) else None
+    if read != version_of(config_text):
+        return (f"{path}: a YAML parser reads version {read!r} but this check reads "
+                f"{version_of(config_text)!r} — the file must spell its version so both agree.")
     return None
 
 
@@ -222,12 +243,12 @@ def changelog_history_problems(base_text, head_text, path):
 # Horizontal whitespace only, and the line end is a lookahead: under re.M a trailing `\s*` would
 # swallow the newlines after the heading, and a consumed `\r` would turn CRLF into LF.
 _UNRELEASED = re.compile(r"^##[ \t]+Unreleased[ \t]*(?=\r?$)", re.M)
-_VERSION_LINE = re.compile(r'^(version:[ \t]*)"?\d+\.\d+\.\d+"?([ \t]*)(?=\r?$)', re.M)
+_VERSION_LINE = re.compile(r'^(version:[ \t]*)"?[0-9]+\.[0-9]+\.[0-9]+"?([ \t]*)(?=\r?$)', re.M)
 
 
 def version_key(version):
     """Numeric sort key, so 1.10.0 is above 1.9.0. Non-numeric text is not a version."""
-    parts = re.findall(r"\d+", version or "")
+    parts = re.findall(r"[0-9]+", version or "")
     if not parts:
         raise ValueError(f"'{version}' is not a version number")
     return tuple(int(x) for x in parts)
@@ -282,15 +303,50 @@ def release_problems(changed, config, changelog, v_before, v_after, cfg_before, 
     return out
 
 
+def _clean_env():
+    """The environment for a throwaway repo's git and child processes, without GIT_*: a hook that
+    runs this self-test exports GIT_DIR and GIT_INDEX_FILE, and git would then commit the test's
+    files into the REAL repository instead of the temporary one."""
+    return {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+
 def _git(cwd, *args):
     r = subprocess.run(["git", "-c", "commit.gpgsign=false", "-c", "user.name=t",
-                        "-c", "user.email=t@example.invalid", *args], cwd=cwd, capture_output=True, text=True)
+                        "-c", "user.email=t@example.invalid", *args], cwd=cwd, capture_output=True, text=True,
+                       env=_clean_env())
     if r.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)}: {r.stderr.strip()}")
     return r.stdout
 
 
 def end_to_end():
+    """Run `_end_to_end` with GIT_DIR and GIT_INDEX_FILE pointing at a decoy repository, as a git
+    hook would leave them, and fail if the decoy changed: without `_clean_env` the throwaway
+    repo's commits land in whatever repository the hook was running for."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        _git(d, "init", "-q", "-b", "main")
+        _git(d, "commit", "-q", "--allow-empty", "-m", "decoy")
+        before = _git(d, "rev-list", "--all", "--count")
+        saved = {k: os.environ.get(k) for k in ("GIT_DIR", "GIT_INDEX_FILE")}
+        os.environ["GIT_DIR"] = os.path.join(d, ".git")
+        os.environ["GIT_INDEX_FILE"] = os.path.join(d, ".git", "index")
+        try:
+            failed = _end_to_end()
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        if failed:
+            return failed
+        if _git(d, "rev-list", "--all", "--count") != before:
+            return "the scenarios wrote into the repository named by GIT_DIR instead of their own"
+    return None
+
+
+def _end_to_end():
     """Run the real script on real branches of a throwaway repo. The function-level cases above
     cannot see main() lose its call to the release check; these can, because the exit code is
     what CI acts on. Returns an error string, or None."""
@@ -323,29 +379,57 @@ def end_to_end():
         def both(*fns):
             return lambda: [f() for f in fns]
 
-        cases = [  # (name, edits, wanted exit code)
-            ("a real release", release(), 0),
+        # A decoy `version:` line inside a multi-line quoted scalar, with the real key spelled
+        # `? version`: the line regex reads 1.2.0 on both sides, a YAML parser reads 1.2.1.
+        decoy = ('name: x\ndescription: "a\nversion: 1.2.0"\n? version\n: "1.2.1"\noptions:\n  a: 1\n')
+        # (name, edits, wanted exit code, text the output must contain). The text is what stops a
+        # crash, which also exits 1, from passing as a refusal.
+        cases = [
+            ("a real release", release(), 0, ""),
             ("an ordinary PR", both(code, lambda: (root / "a/CHANGELOG.md").write_text(
-                log.replace("- wip", "- wip\n- more"))), 0),
-            ("a feature PR that moves the version", both(release(), code), 1),
-            ("a version moved with a trailing comment", both(release('version: "1.2.1"  # release'), code), 1),
-            ("a version moved under a quoted key", both(release('"version": "1.2.1"'), code), 1),
-            ("a version moved under a YAML tag", both(release("version: !!str 1.2.1"), code), 1),
-            ("a version that is not X.Y.Z", both(release('version: "1.2.1-rc1"'), code), 1),
-            ("a version moved without a changelog rename", both(bump(cfg.replace("1.2.0", "1.2.1")), code), 1),
+                log.replace("- wip", "- wip\n- more"))), 0, ""),
+            ("a feature PR that moves the version", both(release(), code), 1, "also changes"),
+            ("a version moved with a trailing comment", both(release('version: "1.2.1"  # release'), code), 1,
+             "exactly one top-level"),
+            ("a version moved under a quoted key", both(release('"version": "1.2.1"'), code), 1,
+             "exactly one top-level"),
+            ("a version moved under a YAML tag", both(release("version: !!str 1.2.1"), code), 1,
+             "exactly one top-level"),
+            ("a version that is not X.Y.Z", both(release('version: "1.2.1-rc1"'), code), 1,
+             "exactly one top-level"),
+            ("a stray trailing quote on the version", both(release('version: 1.2.1"'), code), 1,
+             "YAML parser reads"),
+            ("a decoy version line and an explicit key", both(bump(decoy), code), 1, "YAML parser reads"),
+            ("a version moved without a changelog rename", bump(cfg.replace("1.2.0", "1.2.1")), 1,
+             "only by renaming"),
         ]
-        for name, edits, want in cases:
+        for name, edits, want, needle in cases:
             _git(d, "switch", "-q", "-c", "case", "main")
             edits()
             _git(d, "add", "-A")
             _git(d, "commit", "-q", "-m", name)
             got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
-                                 capture_output=True, text=True, env={**os.environ, "LABELS": ""})
+                                 capture_output=True, text=True, env={**_clean_env(), "LABELS": ""})
             _git(d, "switch", "-q", "main")
             _git(d, "branch", "-q", "-D", "case")
-            if got.returncode != want:
-                return (f"{name}: want exit {want}, got {got.returncode}: "
-                        f"{(got.stdout + got.stderr).strip()[:300]}")
+            out = got.stdout + got.stderr
+            if got.returncode != want or needle not in out or "Traceback" in out:
+                return (f"{name}: want exit {want} naming '{needle}', got {got.returncode}: "
+                        f"{out.strip()[:300]}")
+        # A config the tree lists but git cannot read must stop the check (exit 2), never read as
+        # "no config, so no version change": that passed a bump to 9.9.9 with an extra file.
+        _git(d, "switch", "-q", "-c", "unreadable", "main")
+        (root / "a/config.yaml").write_text(cfg.replace("1.2.0", "9.9.9"))
+        code()
+        _git(d, "add", "-A")
+        _git(d, "commit", "-q", "-m", "unreadable config")
+        blob = _git(d, "rev-parse", "HEAD:a/config.yaml").strip()
+        (root / ".git/objects" / blob[:2] / blob[2:]).unlink()
+        got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
+                             capture_output=True, text=True, env={**_clean_env(), "LABELS": ""})
+        if got.returncode != 2 or "cannot read" not in got.stdout + got.stderr:
+            return (f"an unreadable config: want exit 2 naming 'cannot read', got {got.returncode}: "
+                    f"{(got.stdout + got.stderr).strip()[:300]}")
     return None
 
 
@@ -456,7 +540,9 @@ def self_test():
         print("docs-sync self-test FAILED: the version rewrite does not preserve CRLF", file=sys.stderr)
         return 1
     for spelling in ('version: "1.2.1"  # r', '"version": "1.2.1"', "version: !!str 1.2.1",
-                     'version: "1.2.1-rc1"', 'version: "1.2.1 beta"', 'version: "1.2.1"\nversion: "1.2.2"', "name: x"):
+                     'version: "1.2.1-rc1"', 'version: "1.2.1 beta"', 'version: "1.2.1"\nversion: "1.2.2"', "name: x",
+                     'version: 1.2.1"', 'name: x\ndescription: "a\nversion: 1.2.0"\n? version\n: "1.2.1"\n',
+                     'version: "\u0662.\u0660.\u0660"'):
         if version_problem(spelling, "c.yaml") is None:
             print(f"docs-sync self-test FAILED: version_problem accepted {spelling!r}", file=sys.stderr)
             return 1
@@ -468,7 +554,7 @@ def self_test():
         print(f"docs-sync self-test FAILED: end to end: {failed}", file=sys.stderr)
         return 1
     print(f"docs-sync self-test: {len(cases) + 1 + len(trees) + len(releases) + 10} cases ok, "
-          f"8 end-to-end scenarios ok")
+          f"end-to-end scenarios ok")
     return 0
 
 
@@ -540,8 +626,9 @@ def main():
     if fork.returncode != 0:
         fail_infra(f"no merge base between {base} and HEAD: {fork.stderr.strip()}")
     fork = fork.stdout.strip()
+    fork_tree = ls_tree(fork)
     try:
-        base_log = base_changelog(ls_tree(fork))
+        base_log = base_changelog(fork_tree)
     except ValueError as e:
         fail_infra(str(e))
     # None must mean "the tree has no CHANGELOG", never "git could not read one": the first
@@ -555,10 +642,14 @@ def main():
     # 5. A version that moves must be exactly a release. Read at the merge base like check 4, so
     # a branch behind main does not read main's later releases as its own edits. Not waivable.
     cfg_head = git_show("HEAD", config)
+    if config in tree and cfg_head is None:
+        fail_infra(f"cannot read {config} at HEAD although the tree lists it.")
     unreadable = version_problem(cfg_head, config)
     if unreadable:
         history.append(unreadable)
     cfg_fork = git_show(fork, config)
+    if config in fork_tree and cfg_fork is None:
+        fail_infra(f"cannot read {config} at {fork} although its tree lists it.")
     history += release_problems(changed, config, changelog, version_of(cfg_fork),
                                 version_of(cfg_head), cfg_fork, cfg_head, base_text, head_text)
     if waived:
