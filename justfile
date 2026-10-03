@@ -16,6 +16,7 @@ ci: lint pii ha-min parity-self-test docs-sync-self-test test
 docs-sync-self-test:
     python3 scripts/docs_sync_check.py --self-test
     python3 scripts/prepare_release.py --self-test
+    python3 scripts/release_decision.py --self-test
 
 # Cut a release: turn `## Unreleased` into `## <version>` and move config.yaml's version to match,
 # and nothing else (ADR 0006). Commit the result as its own PR, titled `chore(release): <version>`;
