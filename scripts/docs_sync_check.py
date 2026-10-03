@@ -169,15 +169,23 @@ def mode_problem(modes, config):
             f"the link text while the image publisher reads the file it points to.")
 
 
+_SUPERVISOR_FILE = re.compile(r"(^|/)(config|build)\.(ya?ml|json)$")
+
+
 def alt_config_problem(tree, addon):
-    """The Home Assistant info helper that publishes the image reads `config.json`, then
-    `config.yml`, then `config.yaml`, and stops at the first it finds. A PR that adds either of
-    the first two puts a version where this check never looks."""
-    found = [f"{addon}/{n}" for n in ("config.json", "config.yml") if f"{addon}/{n}" in tree]
+    """The Supervisor lists as an add-on every `config.yaml|yml|json` anywhere in the repository
+    clone (it skips only dot-directories and `rootfs`), and the image publisher reads
+    `config.json`, then `config.yml`, then `config.yaml`, and stops at the first it finds. It also
+    reads `build.*` for the architectures. Any such file other than `<addon>/config.yaml` is
+    another add-on, or another reading of this one, in a place this check never looks. Refused
+    everywhere, not only beside the real config: nothing here needs one."""
+    keep = f"{addon}/config.yaml"
+    found = sorted(p for p in tree if _SUPERVISOR_FILE.search(p) and p != keep)
     if found:
-        return (f"{', '.join(found)} exists beside {addon}/config.yaml: the image publisher reads "
-                f"config.json, then config.yml, then config.yaml and stops at the first, so this "
-                f"check would be reading the wrong file. The add-on keeps one config, config.yaml.")
+        return (f"{', '.join(found)}: the Supervisor treats every config.yaml/yml/json in the "
+                f"repository as an add-on and reads build.* for the architectures, and the image "
+                f"publisher reads config.json, then config.yml, then config.yaml. The repository "
+                f"keeps exactly one, {keep}.")
     return None
 
 
@@ -439,6 +447,10 @@ def _end_to_end():
         def both(*fns):
             return lambda: [f() for f in fns]
 
+        def _write(path, text):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+
         def symlinked():
             # The link's own text reads as a valid version line; the file it points to holds the
             # config that is actually published, at a different version.
@@ -472,9 +484,9 @@ def _end_to_end():
             ("a version moved without a changelog rename", bump(cfg.replace("1.2.0", "1.2.1")), 1,
              "only by renaming"),
             ("a version published through config.json", both(code, lambda: (root / "a/config.json").write_text(
-                '{"version": "9.9.9"}')), 1, "exists beside"),
+                '{"version": "9.9.9"}')), 1, "treats every config"),
             ("a version published through config.yml", both(code, lambda: (root / "a/config.yml").write_text(
-                'version: "9.9.9"\n')), 1, "exists beside"),
+                'version: "9.9.9"\n')), 1, "treats every config"),
             ("a merge key beside the version", both(release('version: "1.2.1"\n<<: {version: "9.9.9"}'), code), 1,
              "merge key"),
             ("an explicit merge key", both(release('version: "1.2.1"\n? <<\n: {version: "9.9.9"}'), code), 1,
@@ -484,6 +496,16 @@ def _end_to_end():
             ("a long-form merge tag", both(release('version: "1.2.1"\n!<tag:yaml.org,2002:merge> m: {a: 1}'), code), 1,
              "merge key"),
             ("a symlinked config.yaml", symlinked, 1, "not a regular file"),
+            ("a hidden extra file whose name spells two allowed paths",
+             both(release(), lambda: _write(root / "a/config.yaml a/CHANGELOG.md", "x\n")), 1, "also changes"),
+            ("a hidden extra file named with a Unicode space",
+             both(release(), lambda: _write(root / "\u2003", "x\n")), 1, "also changes"),
+            ("a nested config.json", both(code, lambda: _write(root / "docs/examples/config.json",
+                                                                '{"version": "9.9.9"}')), 1, "treats every config"),
+            ("a nested config.yml", both(code, lambda: _write(root / "tests/fixtures/config.yml",
+                                                               'version: "9.9.9"\n')), 1, "treats every config"),
+            ("a build.yaml", both(code, lambda: _write(root / "a/build.yaml", "build_from: {}\n")), 1,
+             "treats every config"),
         ]
         for name, edits, want, needle in cases:
             _git(d, "switch", "-q", "-c", "case", "main")
@@ -498,6 +520,20 @@ def _end_to_end():
             if got.returncode != want or needle not in out or "Traceback" in out:
                 return (f"{name}: want exit {want} naming '{needle}', got {got.returncode}: "
                         f"{out.strip()[:300]}")
+        # The waiver label clears checks 1-3 only. A feature PR that moves the version must still
+        # fail with it set, or "no label waives the release shape" is an unpinned claim.
+        _git(d, "switch", "-q", "-c", "waived", "main")
+        release()()
+        code()
+        _git(d, "add", "-A")
+        _git(d, "commit", "-q", "-m", "waived feature PR")
+        got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
+                             capture_output=True, text=True, env={**_clean_env(), "LABELS": "docs-sync-ok"})
+        _git(d, "switch", "-q", "main")
+        _git(d, "branch", "-q", "-D", "waived")
+        if got.returncode != 1 or "also changes" not in got.stdout + got.stderr:
+            return (f"the waiver label: want exit 1 naming 'also changes', got {got.returncode}: "
+                    f"{(got.stdout + got.stderr).strip()[:300]}")
         # A config the tree lists but git cannot read must stop the check (exit 2), never read as
         # "no config, so no version change": that passed a bump to 9.9.9 with an extra file.
         _git(d, "switch", "-q", "-c", "unreadable", "main")
@@ -637,6 +673,9 @@ def self_test():
         if release_changelog(text, "1.2.1") is not None:
             print(f"docs-sync self-test FAILED: release_changelog accepted {name}", file=sys.stderr)
             return 1
+    if release_changelog("## Unreleased\n\n- a\n", "1.0.0") != "## 1.0.0\n\n- a\n":
+        print("docs-sync self-test FAILED: Unreleased as the last section was not renamed", file=sys.stderr)
+        return 1
     crlf = "## Unreleased\r\n\r\n- wip\r\n\r\n## 1.2.0\r\n\r\n- two\r\n"
     if release_changelog(crlf, "1.2.1") != crlf.replace("Unreleased", "1.2.1"):
         print("docs-sync self-test FAILED: the rename does not preserve CRLF", file=sys.stderr)
@@ -651,7 +690,9 @@ def self_test():
                      'version: "1.2.1"\nx: ' + "[" * 20000,
                      'version: "1.2.1"\n? <<\n: {version: "9.9.9"}\n',
                      'version: "1.2.1"\n!!merge m: {version: "9.9.9"}\n',
-                     'version: "1.2.1"\n!<tag:yaml.org,2002:merge> m: {a: 1}\n'):
+                     'version: "1.2.1"\n!<tag:yaml.org,2002:merge> m: {a: 1}\n',
+                     'version: "1.2.1"\nx:\n  y:\n    <<: {a: 1}\n',
+                     'version: "1.2.1"\nx:\n  - <<: {a: 1}\n'):
         if version_problem(spelling, "c.yaml") is None:
             print(f"docs-sync self-test FAILED: version_problem accepted {spelling!r}", file=sys.stderr)
             return 1
@@ -660,7 +701,12 @@ def self_test():
             not mode_problem({"a/config.yaml": "100755"}, "a/config.yaml"):
         print("docs-sync self-test FAILED: mode_problem is wrong", file=sys.stderr)
         return 1
-    if alt_config_problem({"a/config.yaml"}, "a") or not alt_config_problem({"a/config.yaml", "a/config.json"}, "a"):
+    for stray in ("a/config.json", "a/config.yml", "docs/config.yaml", "x/y/build.json", "build.yaml"):
+        if not alt_config_problem({"a/config.yaml", stray}, "a"):
+            print(f"docs-sync self-test FAILED: alt_config_problem accepted {stray}", file=sys.stderr)
+            return 1
+    if alt_config_problem({"a/config.yaml", "a/app/main.py", "a/CHANGELOG.md", "repository.yaml"}, "a") or \
+            not alt_config_problem({"a/config.yaml", "a/config.json"}, "a"):
         print("docs-sync self-test FAILED: alt_config_problem is wrong", file=sys.stderr)
         return 1
     if version_problem('name: x\nversion: "1.2.1"\n', "c.yaml") or version_problem(None, "c.yaml"):
@@ -686,10 +732,12 @@ def main():
     if _run(["git", "rev-parse", "--verify", f"{base}^{{commit}}"]).returncode != 0:
         fail_infra(f"base ref '{base}' is not available — is the checkout fetch-depth: 0?")
 
-    diff = _run(["git", "-c", "core.quotePath=false", "diff", "--name-only", f"{base}...HEAD"])
+    diff = _run(["git", "diff", "--name-only", "-z", f"{base}...HEAD"])
     if diff.returncode != 0:
         fail_infra(f"cannot diff {base}...HEAD: {diff.stderr.strip()}")
-    changed = set(diff.stdout.split())
+    # NUL-separated: splitting on whitespace turned `a/config.yaml a/CHANGELOG.md` (one path) into
+    # the two allowed ones, and dropped a file named with a Unicode space altogether.
+    changed = {p for p in diff.stdout.split("\0") if p}
 
     tree = ls_tree("HEAD")
     addons = addon_dirs(tree)
