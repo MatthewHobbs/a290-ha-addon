@@ -804,6 +804,11 @@ add-on should publish location at all when core `renault` already provides a cor
 > v1.23.1 breaker stay: the breaker guards a Renault **server** 502, which no library release
 > fixes — confirm on the car before removing it. The weekly watcher (a290 #131) reports new
 > releases rather than relying on someone remembering to look.
+>
+> **Left stale on purpose:** the comment above `DATA_GATED_SENSORS` in
+> `catalog.py` ("A5E1AE advertises hvac-settings as supported ...") describes 0.5.13. It is not
+> edited here because `catalog.py` is in the UI render's path filter and that gate is red on
+> `main` (#201). Correct it in the next change that touches `catalog.py` for a real reason.
 **Component:** upstream `renault-api`
 **Logged:** 2026-09-05
 
