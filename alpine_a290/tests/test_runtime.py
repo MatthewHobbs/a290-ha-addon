@@ -200,6 +200,34 @@ def test_poll_once_charges_failure_is_non_fatal(monkeypatch):
     assert "last_charge_end" not in data
 
 
+class BatteryUnauthorizedVehicle(FakeVehicle):
+    async def get_battery_status(self):
+        raise UnauthorizedException("err.func.wired.unauthorized", "Not authorized")
+
+
+class CockpitUnauthorizedVehicle(FakeVehicle):
+    async def get_cockpit(self):
+        raise UnauthorizedException("err.func.wired.unauthorized", "Not authorized")
+
+
+def test_unauthorized_on_the_battery_request_escapes_poll_once():
+    # The battery request is the one poll_once does not guard, so Kamereon's unauthorized reply on
+    # it reaches the main loop's classifier (the two tests above). This pins that half of the path.
+    with pytest.raises(UnauthorizedException):
+        asyncio.run(main.poll_once(FakeVSession(BatteryUnauthorizedVehicle()), {}, 52.0, set(), "km"))
+
+
+def test_unauthorized_on_an_optional_request_is_swallowed_by_poll_once():
+    # Every optional request catches its own errors, so the same reply on one of them is logged and
+    # the poll carries on: it never reaches the classifier, and the sensor is not turned on. The
+    # changelog says exactly this; a mistaken claim that the sensor covers every endpoint was
+    # caught in review.
+    data, _ = asyncio.run(
+        main.poll_once(FakeVSession(CockpitUnauthorizedVehicle()), {}, 52.0, set(), "km"))
+    assert data["battery_level"] == 60
+    assert "mileage" not in data
+
+
 class FlakyVehicle(FakeVehicle):
     async def get_cockpit(self):
         raise RuntimeError("cockpit down")
