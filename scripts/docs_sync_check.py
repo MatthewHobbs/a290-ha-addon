@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """docs-sync-check: enforce the documentation rules instead of trusting them.
 
-CLAUDE.md says a user-facing change bumps `config.yaml` version and adds a CHANGELOG entry,
-and that the options table and entity lists in the docs describe what the code publishes.
+CLAUDE.md says a user-facing change adds a CHANGELOG entry under `## Unreleased` and leaves
+`config.yaml` `version` alone (a release is a separate, requested PR; ADR 0006), and that the
+options table and entity lists in the docs describe what the code publishes.
 Those were checklist items, not checks, so they drifted: `stale_hours` was documented as
 "mark data stale after this many hours without a successful poll" long after the option had
 stopped meaning that, and it was only caught by reading the docs during an unrelated fix.
@@ -10,11 +11,17 @@ stopped meaning that, and it was only caught by reading the docs during an unrel
 This fails a PR that changes a documented surface WITHOUT touching its documentation. It is a
 GATE, not a generator — it never edits docs; it tells you which doc you owe.
 
-Deliberately narrow. Three triggers, each chosen because it has (near) zero false positives:
+Deliberately narrow. Four triggers, each chosen because it has (near) zero false positives:
 
   1. the set of add-on OPTIONS changed          -> DOCS.md must be updated
   2. the set of published ENTITIES changed      -> DOCS.md or a dashboards/*.md must be updated
   3. config.yaml `version` changed              -> CHANGELOG.md must carry that exact version
+  4. config.yaml `version` changed              -> the PR must be exactly a release: only
+     config.yaml and CHANGELOG.md change, the version line is the only config line that moves,
+     the version goes up, and `## Unreleased` is renamed to the new version with nothing else
+     touched. `scripts/prepare_release.py` (`just release`) makes exactly that edit. Merging
+     publishes an image, so a version that moves inside an ordinary PR cuts a release nobody
+     asked for. No label waives this one.
 
 Plus one invariant checked on every PR, bump or not: CHANGELOG history is append-above only.
 Every `## <version>` heading at the merge base must still be there, once, in the same order, and
@@ -31,8 +38,8 @@ changing code that publishes nothing new. That is the point — a required check
 needs waiving trains people to wave it through.
 
 Escape hatch: the exact lowercase `docs-sync-ok` PR label, for a genuinely doc-neutral change.
-It waives checks 1-3 only. It never waives CHANGELOG history: no doc-neutral change needs to
-delete, rename, reorder or bury a release.
+It waives checks 1-3 only. It never waives CHANGELOG history or the release shape: no
+doc-neutral change needs to delete, rename, reorder or bury a release, or to move the version.
 
 Usage: docs_sync_check.py [base-ref]        (default: origin/main)
        docs_sync_check.py --self-test
@@ -129,10 +136,118 @@ def entity_ids(catalog_text):
 
 
 def version_of(config_text):
+    """The add-on version, only in the one plain spelling the rest of the pipeline reads:
+    a top-level `version: "X.Y.Z"` (quotes optional) with nothing after it. A comment, a YAML tag
+    or a quoted key is valid YAML that a line regex cannot see, so those are refused by
+    `version_problem` rather than read as "no version"; reading None there let a bump pass."""
     if config_text is None:
         return None
-    m = re.search(r'^version:\s*"?([^"\s]+)"?\s*$', config_text, re.M)
+    m = re.search(r'^version:[ \t]*"?([0-9]+\.[0-9]+\.[0-9]+)"?[ \t]*(?=\r?$)', config_text, re.M)
     return m.group(1) if m else None
+
+
+def tree_modes(ref):
+    """{path: git mode} for every file at `ref`. `git show` on a symlink returns the link TEXT, so
+    a symlinked config.yaml reads as whatever its target path happens to say, while the image
+    publisher follows the link and reads the target file."""
+    r = _run(["git", "ls-tree", "-r", "-z", ref])
+    if r.returncode != 0:
+        fail_infra(f"cannot read the tree at {ref}: {r.stderr.strip()}")
+    out = {}
+    for entry in filter(None, r.stdout.split("\0")):
+        meta, _, path = entry.partition("\t")
+        out[path] = meta.split()[0]
+    return out
+
+
+def mode_problem(modes, config):
+    """None when config.yaml is a plain file (mode 100644), else why not."""
+    mode = modes.get(config)
+    if mode is None or mode == "100644":
+        return None
+    return (f"{config} has git mode {mode}, not a regular file (100644): a symlink makes git show "
+            f"the link text while the image publisher reads the file it points to.")
+
+
+_SUPERVISOR_FILE = re.compile(r"(^|/)(config|build)\.(ya?ml|json)$")
+
+
+def alt_config_problem(tree, addon):
+    """The Supervisor lists as an add-on every `config.yaml|yml|json` anywhere in the repository
+    clone (it skips only dot-directories and `rootfs`), and the image publisher reads
+    `config.json`, then `config.yml`, then `config.yaml`, and stops at the first it finds. It also
+    reads `build.*` for the architectures. Any such file other than `<addon>/config.yaml` is
+    another add-on, or another reading of this one, in a place this check never looks. Refused
+    everywhere, not only beside the real config: nothing here needs one."""
+    keep = f"{addon}/config.yaml"
+    found = sorted(p for p in tree if _SUPERVISOR_FILE.search(p) and p != keep)
+    if found:
+        return (f"{', '.join(found)}: the Supervisor treats every config.yaml/yml/json in the "
+                f"repository as an add-on and reads build.* for the architectures, and the image "
+                f"publisher reads config.json, then config.yml, then config.yaml. The repository "
+                f"keeps exactly one, {keep}.")
+    return None
+
+
+def _yaml():
+    try:
+        import yaml
+    except ImportError:
+        fail_infra("PyYAML is required to cross-check config.yaml against a YAML parser "
+                   "(python3 -m pip install PyYAML).")
+    return yaml
+
+
+def _has_merge_key(yaml, node):
+    """True when any mapping in the composed document has a key tagged as a YAML merge key."""
+    stack, seen = [node], set()
+    while stack:
+        n = stack.pop()
+        if n is None or id(n) in seen:
+            continue
+        seen.add(id(n))
+        if isinstance(n, yaml.MappingNode):
+            for key, value in n.value:
+                if key.tag == "tag:yaml.org,2002:merge":
+                    return True
+                stack += [key, value]
+        elif isinstance(n, yaml.SequenceNode):
+            stack += list(n.value)
+    return False
+
+
+def version_problem(config_text, path):
+    """None when config.yaml spells its version in the one plain way `version_of` reads, else why
+    not. A config that cannot be read must be loud: the check that runs on it would otherwise see
+    no version, and so no change."""
+    if config_text is None:
+        return None
+    keyish = re.findall(r"""^["']?version["']?[ \t]*:""", config_text, re.M)
+    if len(keyish) != 1 or version_of(config_text) is None:
+        return (f"{path} must have exactly one top-level `version: \"X.Y.Z\"` line with nothing "
+                f"after it (no comment, tag or quoted key): the release check and the image "
+                f"publisher both read that line, and a spelling only one of them understands lets "
+                f"a version move unnoticed.")
+    # The line regex above and a YAML parser can still disagree: a decoy `version:` line inside a
+    # multi-line quoted scalar, an explicit `? version` key, a stray trailing quote. The image
+    # publisher reads the file as YAML too (with yq, not PyYAML), so a parser's answer has to match.
+    # Merge keys are refused, found in the parsed structure and not by their spelling: `<<:`,
+    # `? <<`, `!!merge m:` and `!<tag:yaml.org,2002:merge> m:` are all the same key to a parser.
+    # PyYAML lets the explicit key win and yq lets a later merge overwrite it (reproduced on yq
+    # 4.53.6), so one file can carry two different versions.
+    yaml = _yaml()
+    try:
+        if _has_merge_key(yaml, yaml.compose(config_text)):
+            return (f"{path} uses a YAML merge key, which parsers disagree about; the add-on "
+                    f"config does not need one, and it could hide which version is published.")
+        parsed = yaml.safe_load(config_text)
+    except (yaml.YAMLError, RecursionError) as e:
+        return f"{path} is not valid YAML: {str(e).splitlines()[0][:120] if str(e) else type(e).__name__}"
+    read = parsed.get("version") if isinstance(parsed, dict) else None
+    if read != version_of(config_text):
+        return (f"{path}: a YAML parser reads version {read!r} but this check reads "
+                f"{version_of(config_text)!r} — the file must spell its version so both agree.")
+    return None
 
 
 _VERSION_HEADING = re.compile(r"^##\s+(v?\d+(?:\.\d+)+\S*)\s*$")
@@ -193,6 +308,272 @@ def changelog_history_problems(base_text, head_text, path):
     return problems, warnings
 
 
+# Horizontal whitespace only, and the line end is a lookahead: under re.M a trailing `\s*` would
+# swallow the newlines after the heading, and a consumed `\r` would turn CRLF into LF.
+_UNRELEASED = re.compile(r"^##[ \t]+Unreleased[ \t]*(?=\r?$)", re.M)
+_VERSION_LINE = re.compile(r'^(version:[ \t]*)"?[0-9]+\.[0-9]+\.[0-9]+"?([ \t]*)(?=\r?$)', re.M)
+
+
+def version_key(version):
+    """Numeric sort key, so 1.10.0 is above 1.9.0. Non-numeric text is not a version."""
+    parts = re.findall(r"[0-9]+", version or "")
+    if not parts:
+        raise ValueError(f"'{version}' is not a version number")
+    return tuple(int(x) for x in parts)
+
+
+def release_changelog(text, version):
+    """The CHANGELOG a release of `version` must leave: `## Unreleased` renamed, every other byte
+    kept. None when there is nothing to release: no such heading, more than one, or an empty
+    section. The guard and `prepare_release.py` both call this, so what the script writes is by
+    construction what the guard accepts."""
+    found = list(_UNRELEASED.finditer(text or ""))
+    if len(found) != 1:
+        return None
+    rest = text[found[0].end():]
+    following = re.search(r"^##\s", rest, re.M)
+    body = rest[:following.start()] if following else rest
+    if not body.strip():
+        return None
+    return text[:found[0].start()] + f"## {version}" + text[found[0].end():]
+
+
+def release_config(text, version):
+    """config.yaml with only its `version:` line moved to `version`, or None without one."""
+    new, n = _VERSION_LINE.subn(lambda m: f'{m.group(1)}"{version}"{m.group(2)}', text or "", count=1)
+    return new if n else None
+
+
+def release_problems(changed, config, changelog, v_before, v_after, cfg_before, cfg_after,
+                     log_before, log_after):
+    """Reasons a PR that moves `version` is not exactly a release; [] when it is one. Silent when
+    the version did not move: an ordinary PR is not this check's business."""
+    if v_before == v_after or not v_after:
+        return []
+    out = []
+    extra = sorted(set(changed) - {config, changelog})
+    if extra:
+        out.append(f"version went {v_before} -> {v_after} but the PR also changes "
+                   f"{', '.join(extra)} — a release PR changes only {config} and {changelog}.")
+    try:
+        if v_before and version_key(v_after) <= version_key(v_before):
+            out.append(f"version went {v_before} -> {v_after}, which is not an increase.")
+    except ValueError as e:
+        out.append(str(e))
+    if release_config(cfg_before, v_after) != cfg_after:
+        out.append(f"{config} changed beyond its `version:` line — a release moves nothing else.")
+    if release_changelog(log_before, v_after) is None:
+        out.append(f"{changelog} has no `## Unreleased` section with entries to release — "
+                   f"ordinary PRs add their entry there and leave the version alone.")
+    elif release_changelog(log_before, v_after) != log_after:
+        out.append(f"{changelog} must differ from the base only by renaming `## Unreleased` "
+                   f"to `## {v_after}`.")
+    return out
+
+
+def _clean_env():
+    """The environment for a throwaway repo's git and child processes, without GIT_*: a hook that
+    runs this self-test exports GIT_DIR and GIT_INDEX_FILE, and git would then commit the test's
+    files into the REAL repository instead of the temporary one."""
+    return {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+
+
+def _git(cwd, *args):
+    r = subprocess.run(["git", "-c", "commit.gpgsign=false", "-c", "user.name=t",
+                        "-c", "user.email=t@example.invalid", *args], cwd=cwd, capture_output=True, text=True,
+                       env=_clean_env())
+    if r.returncode != 0:
+        raise RuntimeError(f"git {' '.join(args)}: {r.stderr.strip()}")
+    return r.stdout
+
+
+def end_to_end():
+    """Run `_end_to_end` with GIT_DIR and GIT_INDEX_FILE pointing at a decoy repository, as a git
+    hook would leave them, and fail if the decoy changed: without `_clean_env` the throwaway
+    repo's commits land in whatever repository the hook was running for."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as d:
+        _git(d, "init", "-q", "-b", "main")
+        _git(d, "commit", "-q", "--allow-empty", "-m", "decoy")
+        before = _git(d, "rev-list", "--all", "--count")
+        saved = {k: os.environ.get(k) for k in ("GIT_DIR", "GIT_INDEX_FILE")}
+        os.environ["GIT_DIR"] = os.path.join(d, ".git")
+        os.environ["GIT_INDEX_FILE"] = os.path.join(d, ".git", "index")
+        try:
+            failed = _end_to_end()
+        finally:
+            for k, v in saved.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+        if failed:
+            return failed
+        if _git(d, "rev-list", "--all", "--count") != before:
+            return "the scenarios wrote into the repository named by GIT_DIR instead of their own"
+    return None
+
+
+def _end_to_end():
+    """Run the real script on real branches of a throwaway repo. The function-level cases above
+    cannot see main() lose its call to the release check; these can, because the exit code is
+    what CI acts on. Returns an error string, or None."""
+    import tempfile
+    from pathlib import Path
+    cfg = 'name: x\nversion: "1.2.0"\noptions:\n  a: 1\n'
+    log = "# Changelog\n\n## Unreleased\n\n- wip\n\n## 1.2.0\n\n- two\n"
+    with tempfile.TemporaryDirectory() as d:
+        root = Path(d)
+        _git(d, "init", "-q", "-b", "main")
+        (root / "a/app").mkdir(parents=True)
+        (root / "a/config.yaml").write_text(cfg)
+        (root / "a/CHANGELOG.md").write_text(log)
+        (root / "a/app/main.py").write_text("x = 1\n")
+        _git(d, "add", "-A")
+        _git(d, "commit", "-q", "-m", "base")
+
+        def bump(text):
+            return lambda: (root / "a/config.yaml").write_text(text)
+
+        def code():
+            (root / "a/app/main.py").write_text("x = 2\n")
+
+        def release(spelling='version: "1.2.1"'):
+            def do():
+                (root / "a/config.yaml").write_text(cfg.replace('version: "1.2.0"', spelling))
+                (root / "a/CHANGELOG.md").write_text(release_changelog(log, "1.2.1"))
+            return do
+
+        def both(*fns):
+            return lambda: [f() for f in fns]
+
+        def _write(path, text):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+
+        def symlinked():
+            # The link's own text reads as a valid version line; the file it points to holds the
+            # config that is actually published, at a different version.
+            target = 'version: "1.2.0"'
+            (root / "a/config.yaml").unlink()
+            os.symlink(target, root / "a/config.yaml")
+            (root / "a" / target).write_text(cfg.replace("1.2.0", "9.9.9"))
+            code()
+
+        # A decoy `version:` line inside a multi-line quoted scalar, with the real key spelled
+        # `? version`: the line regex reads 1.2.0 on both sides, a YAML parser reads 1.2.1.
+        decoy = ('name: x\ndescription: "a\nversion: 1.2.0"\n? version\n: "1.2.1"\noptions:\n  a: 1\n')
+        # (name, edits, wanted exit code, text the output must contain). The text is what stops a
+        # crash, which also exits 1, from passing as a refusal.
+        cases = [
+            ("a real release", release(), 0, ""),
+            ("an ordinary PR", both(code, lambda: (root / "a/CHANGELOG.md").write_text(
+                log.replace("- wip", "- wip\n- more"))), 0, ""),
+            ("a feature PR that moves the version", both(release(), code), 1, "also changes"),
+            ("a version moved with a trailing comment", both(release('version: "1.2.1"  # release'), code), 1,
+             "exactly one top-level"),
+            ("a version moved under a quoted key", both(release('"version": "1.2.1"'), code), 1,
+             "exactly one top-level"),
+            ("a version moved under a YAML tag", both(release("version: !!str 1.2.1"), code), 1,
+             "exactly one top-level"),
+            ("a version that is not X.Y.Z", both(release('version: "1.2.1-rc1"'), code), 1,
+             "exactly one top-level"),
+            ("a stray trailing quote on the version", both(release('version: 1.2.1"'), code), 1,
+             "YAML parser reads"),
+            ("a decoy version line and an explicit key", both(bump(decoy), code), 1, "YAML parser reads"),
+            ("a version moved without a changelog rename", bump(cfg.replace("1.2.0", "1.2.1")), 1,
+             "only by renaming"),
+            ("a version published through config.json", both(code, lambda: (root / "a/config.json").write_text(
+                '{"version": "9.9.9"}')), 1, "treats every config"),
+            ("a version published through config.yml", both(code, lambda: (root / "a/config.yml").write_text(
+                'version: "9.9.9"\n')), 1, "treats every config"),
+            ("a merge key beside the version", both(release('version: "1.2.1"\n<<: {version: "9.9.9"}'), code), 1,
+             "merge key"),
+            ("an explicit merge key", both(release('version: "1.2.1"\n? <<\n: {version: "9.9.9"}'), code), 1,
+             "merge key"),
+            ("a !!merge tagged key", both(release('version: "1.2.1"\n!!merge m: {version: "9.9.9"}'), code), 1,
+             "merge key"),
+            ("a long-form merge tag", both(release('version: "1.2.1"\n!<tag:yaml.org,2002:merge> m: {a: 1}'), code), 1,
+             "merge key"),
+            ("a symlinked config.yaml", symlinked, 1, "not a regular file"),
+            ("a hidden extra file whose name spells two allowed paths",
+             both(release(), lambda: _write(root / "a/config.yaml a/CHANGELOG.md", "x\n")), 1, "also changes"),
+            ("a hidden extra file named with a Unicode space",
+             both(release(), lambda: _write(root / "\u2003", "x\n")), 1, "also changes"),
+            ("a nested config.json", both(code, lambda: _write(root / "docs/examples/config.json",
+                                                                '{"version": "9.9.9"}')), 1, "treats every config"),
+            ("a nested config.yml", both(code, lambda: _write(root / "tests/fixtures/config.yml",
+                                                               'version: "9.9.9"\n')), 1, "treats every config"),
+            ("a build.yaml", both(code, lambda: _write(root / "a/build.yaml", "build_from: {}\n")), 1,
+             "treats every config"),
+        ]
+        for name, edits, want, needle in cases:
+            _git(d, "switch", "-q", "-c", "case", "main")
+            edits()
+            _git(d, "add", "-A")
+            _git(d, "commit", "-q", "-m", name)
+            got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
+                                 capture_output=True, text=True, env={**_clean_env(), "LABELS": ""})
+            _git(d, "switch", "-q", "main")
+            _git(d, "branch", "-q", "-D", "case")
+            out = got.stdout + got.stderr
+            if got.returncode != want or needle not in out or "Traceback" in out:
+                return (f"{name}: want exit {want} naming '{needle}', got {got.returncode}: "
+                        f"{out.strip()[:300]}")
+        # The waiver label clears checks 1-3 only. A feature PR that moves the version must still
+        # fail with it set, or "no label waives the release shape" is an unpinned claim.
+        _git(d, "switch", "-q", "-c", "waived", "main")
+        release()()
+        code()
+        _git(d, "add", "-A")
+        _git(d, "commit", "-q", "-m", "waived feature PR")
+        got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
+                             capture_output=True, text=True, env={**_clean_env(), "LABELS": "docs-sync-ok"})
+        _git(d, "switch", "-q", "main")
+        _git(d, "branch", "-q", "-D", "waived")
+        if got.returncode != 1 or "also changes" not in got.stdout + got.stderr:
+            return (f"the waiver label: want exit 1 naming 'also changes', got {got.returncode}: "
+                    f"{(got.stdout + got.stderr).strip()[:300]}")
+        # A config the tree lists but git cannot read must stop the check (exit 2), never read as
+        # "no config, so no version change": that passed a bump to 9.9.9 with an extra file.
+        _git(d, "switch", "-q", "-c", "unreadable", "main")
+        (root / "a/config.yaml").write_text(cfg.replace("1.2.0", "9.9.9"))
+        code()
+        _git(d, "add", "-A")
+        _git(d, "commit", "-q", "-m", "unreadable config")
+        blob = _git(d, "rev-parse", "HEAD:a/config.yaml").strip()
+        (root / ".git/objects" / blob[:2] / blob[2:]).unlink()
+        got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
+                             capture_output=True, text=True, env={**_clean_env(), "LABELS": ""})
+        if got.returncode != 2 or "cannot read" not in got.stdout + got.stderr:
+            return (f"an unreadable config: want exit 2 naming 'cannot read', got {got.returncode}: "
+                    f"{(got.stdout + got.stderr).strip()[:300]}")
+        # The same for the CHANGELOG at HEAD, and for the config at the merge base (head's own blob
+        # is intact there, so only the merge-base refusal can produce this exit).
+        for name, edits, path, rev, needle in (
+                ("an unreadable changelog", lambda: (root / "a/CHANGELOG.md").write_text(
+                    log.replace("- wip", "- wip, edited")), "a/CHANGELOG.md", "HEAD", "cannot read"),
+                ("an unreadable base config", lambda: (root / "a/config.yaml").write_text(
+                    cfg.replace("a: 1", "a: 2")), "a/config.yaml", "main", "although its tree lists it")):
+            _git(d, "switch", "-q", "-c", "u2", "main")
+            edits()
+            _git(d, "add", "-A")
+            _git(d, "commit", "-q", "-m", name)
+            blob = _git(d, "rev-parse", f"{rev}:{path}").strip()
+            loose = root / ".git/objects" / blob[:2] / blob[2:]
+            saved = loose.read_bytes()
+            loose.unlink()
+            got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
+                                 capture_output=True, text=True, env={**_clean_env(), "LABELS": ""})
+            loose.write_bytes(saved)
+            _git(d, "switch", "-q", "main")
+            _git(d, "branch", "-q", "-D", "u2")
+            if got.returncode != 2 or needle not in got.stdout + got.stderr:
+                return (f"{name}: want exit 2 naming '{needle}', got {got.returncode}: "
+                        f"{(got.stdout + got.stderr).strip()[:300]}")
+    return None
+
+
 def self_test():
     base = "# Changelog\n\n## 1.2.0\n\n- two\n\n## 1.1.0\n\n- one\n"
     wip = "## Unreleased\n\n- wip\n\n## 1.2.0\n\n- two\n\n## 1.1.0\n\n- one\n"
@@ -246,7 +627,97 @@ def self_test():
         if got != want:
             print(f"docs-sync self-test FAILED: {name}: want {want}, got {got}", file=sys.stderr)
             return 1
-    print(f"docs-sync self-test: {len(cases) + 1 + len(trees)} cases ok")
+    # Release shape. Every case is built from one valid release and then broken one way, so a
+    # check that returned [] for everything would fail all but the first and last.
+    cfg = 'name: x\nversion: "1.2.0"\noptions:\n  a: 1\n'
+    log = "# Changelog\n\n## Unreleased\n\n- wip\n\n## 1.2.0\n\n- two\n"
+    c, g = "x/config.yaml", "x/CHANGELOG.md"
+    good = (release_config(cfg, "1.2.1"), release_changelog(log, "1.2.1"))
+    releases = [
+        # (name, changed, v_before, v_after, cfg_after, log_after, log_before, problems, needle)
+        ("a real release", [c, g], "1.2.0", "1.2.1", good[0], good[1], log, 0, ""),
+        ("version did not move", ["x/app/main.py"], "1.2.0", "1.2.0", cfg, log, log, 0, ""),
+        ("1.10.0 is above 1.9.0", [c, g], "1.9.0", "1.10.0", release_config(cfg, "1.10.0"),
+         release_changelog(log, "1.10.0"), log, 0, ""),
+        ("version bumped inside a feature PR", [c, g, "x/app/main.py"], "1.2.0", "1.2.1", good[0],
+         good[1], log, 1, "also changes x/app/main.py"),
+        ("version goes down", [c, g], "1.2.0", "1.1.0", release_config(cfg, "1.1.0"),
+         release_changelog(log, "1.1.0"), log, 1, "not an increase"),
+        ("same number, different spelling", [c, g], "1.2.0", "1.02.0", release_config(cfg, "1.02.0"),
+         release_changelog(log, "1.02.0"), log, 1, "not an increase"),
+        ("another config line moved", [c, g], "1.2.0", "1.2.1", good[0].replace("a: 1", "a: 2"), good[1],
+         log, 1, "beyond its `version:` line"),
+        ("nothing under Unreleased", [c, g], "1.2.0", "1.2.1", good[0], "## 1.2.1\n\n- two\n",
+         "# Changelog\n\n## 1.2.0\n\n- two\n", 1, "no `## Unreleased` section"),
+        ("empty Unreleased", [c, g], "1.2.0", "1.2.1", good[0], "## 1.2.1\n\n## 1.2.0\n\n- two\n",
+         "## Unreleased\n\n## 1.2.0\n\n- two\n", 1, "no `## Unreleased` section"),
+        ("entry text changed while renaming", [c, g], "1.2.0", "1.2.1", good[0],
+         good[1].replace("- wip", "- wip, edited"), log, 1, "only by renaming"),
+        ("renamed to a different version", [c, g], "1.2.0", "1.2.1", good[0],
+         release_changelog(log, "1.2.2"), log, 1, "only by renaming"),
+    ]
+    for name, changed, vb, va, cfg_a, log_a, log_b, n, needle in releases:
+        got = release_problems(changed, c, g, vb, va, cfg, cfg_a, log_b, log_a)
+        if len(got) != n or needle not in " | ".join(got):
+            print(f"docs-sync self-test FAILED: release shape: {name}: want {n} problems naming "
+                  f"'{needle}', got {got}", file=sys.stderr)
+            return 1
+    if release_changelog(log, "1.2.1") != "# Changelog\n\n## 1.2.1\n\n- wip\n\n## 1.2.0\n\n- two\n":
+        print("docs-sync self-test FAILED: the rename is not byte-for-byte the heading swap", file=sys.stderr)
+        return 1
+    if release_config(cfg, "1.2.1") != 'name: x\nversion: "1.2.1"\noptions:\n  a: 1\n':
+        print("docs-sync self-test FAILED: the version rewrite touched more than the version", file=sys.stderr)
+        return 1
+    for name, text in (("two Unreleased headings", "## Unreleased\n\n- a\n\n## Unreleased\n\n- b\n"),
+                       ("no Unreleased heading", "## 1.2.0\n\n- two\n")):
+        if release_changelog(text, "1.2.1") is not None:
+            print(f"docs-sync self-test FAILED: release_changelog accepted {name}", file=sys.stderr)
+            return 1
+    if release_changelog("## Unreleased\n\n- a\n", "1.0.0") != "## 1.0.0\n\n- a\n":
+        print("docs-sync self-test FAILED: Unreleased as the last section was not renamed", file=sys.stderr)
+        return 1
+    crlf = "## Unreleased\r\n\r\n- wip\r\n\r\n## 1.2.0\r\n\r\n- two\r\n"
+    if release_changelog(crlf, "1.2.1") != crlf.replace("Unreleased", "1.2.1"):
+        print("docs-sync self-test FAILED: the rename does not preserve CRLF", file=sys.stderr)
+        return 1
+    if release_config('version: "1.2.0"\r\nname: x\r\n', "1.2.1") != 'version: "1.2.1"\r\nname: x\r\n':
+        print("docs-sync self-test FAILED: the version rewrite does not preserve CRLF", file=sys.stderr)
+        return 1
+    for spelling in ('version: "1.2.1"  # r', '"version": "1.2.1"', "version: !!str 1.2.1",
+                     'version: "1.2.1-rc1"', 'version: "1.2.1 beta"', 'version: "1.2.1"\nversion: "1.2.2"', "name: x",
+                     'version: 1.2.1"', 'name: x\ndescription: "a\nversion: 1.2.0"\n? version\n: "1.2.1"\n',
+                     'version: "\u0662.\u0660.\u0660"', 'version: "1.2.1"\n<<: {version: "9.9.9"}\n',
+                     'version: "1.2.1"\nx: ' + "[" * 20000,
+                     'version: "1.2.1"\n? <<\n: {version: "9.9.9"}\n',
+                     'version: "1.2.1"\n!!merge m: {version: "9.9.9"}\n',
+                     'version: "1.2.1"\n!<tag:yaml.org,2002:merge> m: {a: 1}\n',
+                     'version: "1.2.1"\nx:\n  y:\n    <<: {a: 1}\n',
+                     'version: "1.2.1"\nx:\n  - <<: {a: 1}\n'):
+        if version_problem(spelling, "c.yaml") is None:
+            print(f"docs-sync self-test FAILED: version_problem accepted {spelling!r}", file=sys.stderr)
+            return 1
+    if mode_problem({"a/config.yaml": "100644"}, "a/config.yaml") or \
+            not mode_problem({"a/config.yaml": "120000"}, "a/config.yaml") or \
+            not mode_problem({"a/config.yaml": "100755"}, "a/config.yaml"):
+        print("docs-sync self-test FAILED: mode_problem is wrong", file=sys.stderr)
+        return 1
+    for stray in ("a/config.json", "a/config.yml", "docs/config.yaml", "x/y/build.json", "build.yaml"):
+        if not alt_config_problem({"a/config.yaml", stray}, "a"):
+            print(f"docs-sync self-test FAILED: alt_config_problem accepted {stray}", file=sys.stderr)
+            return 1
+    if alt_config_problem({"a/config.yaml", "a/app/main.py", "a/CHANGELOG.md", "repository.yaml"}, "a") or \
+            not alt_config_problem({"a/config.yaml", "a/config.json"}, "a"):
+        print("docs-sync self-test FAILED: alt_config_problem is wrong", file=sys.stderr)
+        return 1
+    if version_problem('name: x\nversion: "1.2.1"\n', "c.yaml") or version_problem(None, "c.yaml"):
+        print("docs-sync self-test FAILED: version_problem refused a plain version", file=sys.stderr)
+        return 1
+    failed = end_to_end()
+    if failed:
+        print(f"docs-sync self-test FAILED: end to end: {failed}", file=sys.stderr)
+        return 1
+    print(f"docs-sync self-test: {len(cases) + 1 + len(trees) + len(releases) + 10} cases ok, "
+          f"end-to-end scenarios ok")
     return 0
 
 
@@ -261,10 +732,12 @@ def main():
     if _run(["git", "rev-parse", "--verify", f"{base}^{{commit}}"]).returncode != 0:
         fail_infra(f"base ref '{base}' is not available — is the checkout fetch-depth: 0?")
 
-    diff = _run(["git", "-c", "core.quotePath=false", "diff", "--name-only", f"{base}...HEAD"])
+    diff = _run(["git", "diff", "--name-only", "-z", f"{base}...HEAD"])
     if diff.returncode != 0:
         fail_infra(f"cannot diff {base}...HEAD: {diff.stderr.strip()}")
-    changed = set(diff.stdout.split())
+    # NUL-separated: splitting on whitespace turned `a/config.yaml a/CHANGELOG.md` (one path) into
+    # the two allowed ones, and dropped a file named with a Unicode space altogether.
+    changed = {p for p in diff.stdout.split("\0") if p}
 
     tree = ls_tree("HEAD")
     addons = addon_dirs(tree)
@@ -318,8 +791,9 @@ def main():
     if fork.returncode != 0:
         fail_infra(f"no merge base between {base} and HEAD: {fork.stderr.strip()}")
     fork = fork.stdout.strip()
+    fork_tree = ls_tree(fork)
     try:
-        base_log = base_changelog(ls_tree(fork))
+        base_log = base_changelog(fork_tree)
     except ValueError as e:
         fail_infra(str(e))
     # None must mean "the tree has no CHANGELOG", never "git could not read one": the first
@@ -330,6 +804,25 @@ def main():
         fail_infra(f"cannot read {base_log} at {fork} or {changelog} at HEAD although the tree lists it.")
     label = changelog if base_log in (None, changelog) else f"{changelog} (was {base_log})"
     history, warnings = changelog_history_problems(base_text, head_text, label)
+    # 5. A version that moves must be exactly a release. Read at the merge base like check 4, so
+    # a branch behind main does not read main's later releases as its own edits. Not waivable.
+    alt = alt_config_problem(set(tree), addon)
+    if alt:
+        history.append(alt)
+    not_regular = mode_problem(tree_modes("HEAD"), config)
+    if not_regular:
+        history.append(not_regular)
+    cfg_head = git_show("HEAD", config)
+    if config in tree and cfg_head is None:
+        fail_infra(f"cannot read {config} at HEAD although the tree lists it.")
+    unreadable = version_problem(cfg_head, config)
+    if unreadable:
+        history.append(unreadable)
+    cfg_fork = git_show(fork, config)
+    if config in fork_tree and cfg_fork is None:
+        fail_infra(f"cannot read {config} at {fork} although its tree lists it.")
+    history += release_problems(changed, config, changelog, version_of(cfg_fork),
+                                version_of(cfg_head), cfg_fork, cfg_head, base_text, head_text)
     if waived:
         print("docs-sync: checks 1-3 waived — 'docs-sync-ok' label present; CHANGELOG history "
               "is still checked.")
@@ -353,8 +846,9 @@ def main():
         print("\nUpdate the documentation named above, or add the 'docs-sync-ok' label if this "
               "change genuinely has no documentation impact.")
     if history:
-        print("\nRestore the CHANGELOG history named above; the 'docs-sync-ok' label does not "
-              "waive it.")
+        print("\nRestore the CHANGELOG history, or reshape the release, as named above; the "
+              "'docs-sync-ok' label does not waive either. To cut a release, run "
+              "`just release <version>` and open that as its own PR.")
     return 1
 
 

@@ -218,12 +218,35 @@ purpose.
 
 ## Release / versioning
 
-Any user-facing change bumps **`alpine_a290/config.yaml` `version`** and adds a
-**`alpine_a290/CHANGELOG.md`** entry (Supervisor keys the update on the version). When
-mirroring to `r5-ha-addon`, bump **`renault_5/config.yaml`** `version` and its
-**`renault_5/CHANGELOG.md`**; r5 has no version literal in code (`main.py` reads `R5_VERSION`,
-which its release workflow sets from `config.yaml` via the Dockerfile's `BUILD_VERSION`).
-Feature branches are **squash-merged** to `main` and deleted once merged.
+**Releases are batched and cut on request** ([ADR 0006](docs/adr/0006-release-on-request.md)).
+A user-facing change adds its entry under `## Unreleased` in **`alpine_a290/CHANGELOG.md`** and
+**leaves `alpine_a290/config.yaml` `version` alone**: the Supervisor keys updates on that
+version and `release.yaml` publishes an image for any PR that moves it, so moving it is
+releasing. The docs-sync check fails a PR that moves the version without being exactly a
+release, and no label waives that.
+
+Only when the owner asks for a release: `just release <version>` (read the entries it prints,
+then choose the number: a new feature is a minor, otherwise a patch), commit the two files it
+changes as their own PR titled `chore(release): <version>`, and let the existing gates run.
+Merging that PR publishes the image and tags `v<version>`. Never put a version bump in a
+feature PR "to get it out".
+
+**What reaches users on merge, whatever the version.** Batching holds back the container image
+only. The Supervisor reads the add-on's *files* straight from `main`, so a merge that changes
+`config.yaml` (options, schema, `image`, `arch`, `slug`), `build.yaml`, `apparmor.txt`,
+`DOCS.md` or `CHANGELOG.md` is visible to users immediately, while they still run the previous
+image. Such a change must work with the currently released image: adding an option the old image
+ignores is fine; removing or renaming one, changing `image`/`arch`/`slug`, or an `apparmor.txt`
+rule the old image does not need, is not, and belongs in the release PR's company, never in an
+ordinary merge. The docs-sync check refuses any `config.*` or `build.*` file other than
+`alpine_a290/config.yaml`, because the Supervisor treats every one it finds as an add-on
+([ADR 0006](docs/adr/0006-release-on-request.md)).
+
+When mirroring to `r5-ha-addon`, the entry goes under `## Unreleased` in
+**`renault_5/CHANGELOG.md`** and r5 is released separately, never ahead of this repo; r5 has no
+version literal in code (`main.py` reads `R5_VERSION`, which its release workflow sets from
+`config.yaml` via the Dockerfile's `BUILD_VERSION`). Feature branches are **squash-merged** to
+`main` and deleted once merged.
 
 ## Gotchas
 
