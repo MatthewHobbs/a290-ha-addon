@@ -11,8 +11,8 @@
 # only its self-test is. The Parity job in ci.yaml runs the full comparison.
 ci: lint pii ha-min parity-self-test docs-sync-self-test test
 
-# Proves the release guard and the release script can fail, and that the script writes exactly
-# what the guard accepts. The Docs sync job in ci.yaml runs the same two commands.
+# Proves the release guard, the release script and the publish decision can fail, and that the
+# script writes exactly what the guard accepts. The Docs sync job in ci.yaml runs the same three.
 docs-sync-self-test:
     python3 scripts/docs_sync_check.py --self-test
     python3 scripts/prepare_release.py --self-test
