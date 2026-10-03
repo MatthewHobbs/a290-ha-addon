@@ -119,7 +119,7 @@ verbatim	scripts/ha_minimum_check.py	-	-	shared check, copied verbatim
 verbatim	ruff.toml	-	-	shared lint config
 verbatim	.hadolint.yaml	-	-	shared lint config
 verbatim	LICENSE	-	-	same licence
-verbatim	alpine_a290/app/requirements.in	-	-	same pinned dependencies (renault-api 0.5.13)
+verbatim	alpine_a290/app/requirements.in	-	-	same pinned dependencies
 verbatim	alpine_a290/app/requirements.txt	-	-	same hash-locked dependencies
 verbatim	alpine_a290/tests/conftest.py	-	-	shared test fixtures
 verbatim	ui-tests/.gitignore	-	-	shared harness
