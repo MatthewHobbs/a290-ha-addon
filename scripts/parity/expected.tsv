@@ -148,13 +148,15 @@ pending	scripts/docs_cite_ignore.txt	both	*	3	the comment follows the bundled-te
 
 # --- UI gate coverage: dispatching-off pass and all Bubble pop-ups
 # Listed before the whole-file harness entries below so these lines are taken here, not there.
-pending	ui-tests/seed.py	both	py:<docstring>,<imports>,TOGGLES,MIN_POPUPS,TEMPLATE_DIR,HELPER_STATES,helper_states,state_for,derive_passes,TEXT_KEYS,IF_IS_STATE,ACTION_KEYS,_reads_state,expected_labels,popups_in,write_manifest,main	37	r5 ported ADR 0003 (#124); residue is a290 deriving a pass per TOGGLES entry (the off-peak badge's "Peak rate"), seeding the bundled pretty-location template at a real length, and comment wording. Target: converge wording
+pending	ui-tests/seed.py	a290	py:self_test	35	a290's browser self-test of the short-date model against the shipped dashboard JS (issue #201: the gate failed on days 1-9 of every month). Target: port to r5's harness, which has the same unpadded-day model (r5 never ahead)
+pending	ui-tests/run.sh	a290	re:Self-test: the gate|--self-test	2	a290's run.sh runs that self-test first. Target: port to r5 with it
+pending	ui-tests/seed.py	both	py:<docstring>,<imports>,TOGGLES,MIN_POPUPS,TEMPLATE_DIR,HELPER_STATES,helper_states,state_for,derive_passes,TEXT_KEYS,IF_IS_STATE,ACTION_KEYS,_reads_state,expected_labels,popups_in,write_manifest,main	39	r5 ported ADR 0003 (#124); residue is a290 deriving a pass per TOGGLES entry (the off-peak badge's "Peak rate"), seeding the bundled pretty-location template at a real length, and comment wording. Target: converge wording
 pending	ui-tests/completeness_fixtures.py	both	py:<docstring>,PRE_CHANGE_REF,Runner,main	31	r5 ported ADR 0003 row 6 (#124); residue is comment wording (a290/r5 each cite their own PR and pre-change SHA) and r5's own NavLog diagnostic in the Runner, which a290 has no equivalent of. Target: converge wording
 pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_labels,POPUP_SHOT_NAMES,_open_popup,_capture_popup,run	116	r5 ported ADR 0003 (#124); residue is r5's own NavLog diagnostic (a290 has none) and comment wording. Target: converge wording
 
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
 pending	ui-tests/check_overflow.py	both	*	91	residue after r5 #105 and #124 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow ADR 0001 row 13
-pending	ui-tests/seed.py	both	*	101	residue after r5 #105 and #124: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
+pending	ui-tests/seed.py	both	*	109	residue after r5 #105 and #124: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
 pending	ui-tests/README.md	both	*	69	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow ADR 0001 row 13
 
 # ---------------------------------------------------------------- prose and tests, excused wholesale
