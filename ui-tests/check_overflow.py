@@ -863,6 +863,7 @@ def run():
             if not p.get("cards"):
                 sys.exit(f"{args.expect}: pop-up {p.get('hash')} on {dash} lists no cards to wait for")
     captured = {(dash, p["hash"]): [0, 0, 0] for dash in args.dashboards for p in popups[dash]}  # [scanned, skipped, recovered]
+    sw_uncontrolled = []   # devices whose barrier hit its cap
     systemic = {}   # (dash, hash) -> devices on which it failed on a FRESH document too; two of them: not a flake
     tokens = json.load(open(args.tokens))
     devices = json.load(open(args.devices))["devices"]
@@ -895,7 +896,12 @@ def run():
                 ctx.add_init_script(WEDGE_JS)
             page = ctx.new_page()
             nav = _NavLog(page)
-            _await_sw_control(page, f"{args.base}/{args.dashboards[0]}", nav, dev["name"])
+            try:
+                if not _await_sw_control(page, f"{args.base}/{args.dashboards[0]}", nav, dev["name"]):
+                    sw_uncontrolled.append(dev["name"])
+            except Exception as err:    # a crashed page here must not end the pass for every later device
+                sw_uncontrolled.append(dev["name"])
+                print(f"    [sw] {dev['name']}: barrier failed ({type(err).__name__}) — measuring anyway")
             wedge_once = BREAK == "popup-wedge-each" or (BREAK == "popup-wedge-once" and dev is devices[0])
             for dash in args.dashboards:
                 slug = dev["name"].lower().replace(" ", "_").replace("(", "").replace(")", "")
@@ -907,9 +913,12 @@ def run():
                     try:
                         _load_dashboard(page, args.base, dash)
                         if dash == args.dashboards[0] and attempt == 0:
-                            born = page.evaluate("() => ((performance.getEntriesByType('navigation') || [])[0] || {})"
-                                                 ".workerStart > 0")
-                            print(f"    [sw] {dev['name']}: first measured document born controlled: {born}")
+                            try:    # a report; a torn-down context here must not cost a render attempt
+                                born = page.evaluate("() => ((performance.getEntriesByType('navigation') || [])[0]"
+                                                     " || {}).workerStart > 0")
+                                print(f"    [sw] {dev['name']}: first measured document born controlled: {born}")
+                            except Exception:
+                                pass
                         issues = _stable_issues(page)   # confirm truncations across two passes (see helper)
                         issues += _missing_labels(page, expect.get(dash, {}).get("labels", []))
                         # Drop HA's startup toasts only AFTER the truncation scan, so removing the
@@ -1005,10 +1014,12 @@ def run():
     # A pop-up that opens only after a reload, on more than half the devices, is a defect that the
     # reload is hiding, not a flake: fail it by name instead of leaving it to a summary line.
     for (dash, phash), (_scanned, _skipped, recovered) in captured.items():
-        if recovered * 2 > len(devices):
-            failures.append((dash, "every device", 0, [{
+        if recovered >= 2 and recovered * 2 > len(devices):
+            failures.append((f"{dash} [{args.pass_name}]" if args.pass_name else dash, "every device", 0, [{
                 "type": "popup-needs-reload", "tag": "-", "popup": phash,
-                "text": f"opened only on a freshly loaded document on {recovered} of {len(devices)} devices"}]))
+                "text": f"opened only on a freshly loaded document on {recovered} of {len(devices)} devices"
+                        f" ({len(sw_uncontrolled)} device(s) never reached service-worker control: "
+                        "if that is most of them, the barrier is the cause, not this pop-up)"}]))
 
     # Each skip already failed its device above; the summary names the pop-up once so a hash that
     # opens nothing anywhere reads as one fact rather than ten device failures.
