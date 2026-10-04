@@ -627,8 +627,12 @@ SW_BARRIER_S = 20
 # earns the reload: on a never-opens defect every device would otherwise pay it for every pop-up.
 SYSTEMIC_AFTER = 2
 # card-mod needing a fresh document on at least this many main captures, and on over a quarter of
-# them, fails the pass. The base rate is about 1 capture in 60 (one CI run in 30 on HA 2026.8.1).
+# them, fails the pass. The base rate is about 1 capture in 1,800 (one miss in 30 CI legs of ~60
+# main captures each, HA 2026.8.1), so the rule cannot trip on a flake.
 CARDMOD_RATE_MIN = 4
+# After card-mod missed on every attempt of this many captures it is not a lost race: stop retrying,
+# or a broken card-mod costs over an hour a pass in 30 s retries.
+CARDMOD_GIVE_UP = 2
 
 
 def _await_sw_control(page, url, nav, dev_name, cap_s=SW_BARRIER_S):
@@ -789,6 +793,8 @@ def _capture_popup(page, popup, where, dev_name, shot, nav):
     reopen-and-rescan retry. It does not recur, so reopen and rescan once, and only then give up."""
     stages = _Stages("open 1")
     for attempt in range(2):
+        if attempt:
+            stages.next("open 1 (rescan)")      # the outer retry delay is not part of the previous stage
         try:
             if not _open_popup(page, popup, where, dev_name, stages, nav):
                 if attempt == 0:
@@ -869,7 +875,7 @@ def run():
     captured = {(dash, p["hash"]): [0, 0, 0] for dash in args.dashboards for p in popups[dash]}  # [scanned, skipped, recovered]
     sw_uncontrolled = []   # devices whose barrier hit its cap
     cardmod_broken = False   # test hook state (UI_TESTS_BREAK=cardmod-once)
-    main_captures, cardmod_recovered = 0, 0   # for the card-mod recovery rate
+    main_captures, cardmod_recovered, cardmod_exhausted = 0, 0, 0   # card-mod recovery rate; captures it never recovered
     systemic = {}   # (dash, hash) -> devices on which it failed on a FRESH document too; two of them: not a flake
     tokens = json.load(open(args.tokens))
     devices = json.load(open(args.devices))["devices"]
@@ -932,8 +938,8 @@ def run():
                             cardmod_broken = True       # test hook: exercises the retry below, not card-mod
                             issues.append({"type": "card-mod-not-applied", "tag": "card-mod",
                                            "text": "UI_TESTS_BREAK: synthetic card-mod miss"})
-                        if attempt < MAX_RENDER_ATTEMPTS - 1 and any(i["type"] == "card-mod-not-applied"
-                                                                      for i in issues):
+                        if (attempt < MAX_RENDER_ATTEMPTS - 1 and cardmod_exhausted < CARDMOD_GIVE_UP
+                                and any(i["type"] == "card-mod-not-applied" for i in issues)):
                             # card-mod loses its race on a document now and then (one CI run in 30
                             # on HA 2026.8.1: 67 of 67 cards unstyled on one device) and a lost race
                             # never recovers on THAT document. A fresh one usually does; a card-mod
@@ -969,6 +975,8 @@ def run():
                         except Exception:
                             pass
                 main_captures += 1
+                if cardmod_retries and any(i["type"] == "card-mod-not-applied" for i in issues or []):
+                    cardmod_exhausted += 1      # every attempt missed: a defect, stop spending 30 s on each capture
                 if cardmod_retries and completed and not any(i["type"] == "card-mod-not-applied" for i in issues):
                     cardmod_recovered += 1
                 # Every pop-up the manifest lists for this dashboard, in its order: Bubble renders a
@@ -998,7 +1006,8 @@ def run():
                             print(f"    [popup reload] {where} @ {dev['name']}: {popup['hash']} fresh load "
                                   f"failed ({type(err).__name__})")
                         if found is not None:
-                            captured[key][2] += 1
+                            if not any(i.get("type") == "card-mod-not-applied" for i in found):
+                                captured[key][2] += 1
                         elif fresh_ran:     # a failed load says nothing about the pop-up
                             systemic.setdefault(key, []).append(dev["name"])
                     elif found is None:
@@ -1054,8 +1063,8 @@ def run():
     if cardmod_recovered:
         print(f"  card-mod needed a fresh document on {cardmod_recovered} of {main_captures} main capture(s)")
     if cardmod_recovered >= CARDMOD_RATE_MIN and cardmod_recovered * 4 > main_captures:
-        failures.append((f"every dashboard [{args.pass_name}]" if args.pass_name else "every dashboard",
-                         "card-mod", 0, [{"type": "card-mod-needs-reload", "tag": "card-mod",
+        failures.append((f"alpine dashboards [{args.pass_name}]" if args.pass_name else "alpine dashboards",
+                         "every device", 0, [{"type": "card-mod-needs-reload", "tag": "card-mod",
                                           "text": f"needed a fresh document on {cardmod_recovered} of "
                                                   f"{main_captures} main captures: card-mod is losing its race "
                                                   "too often to call that a flake"}]))
