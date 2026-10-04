@@ -81,7 +81,9 @@ Mushroom tile labels clipping on a phone.
    A main capture whose cards card-mod never styled gets a fresh document too (up to the same
    three attempts, printed as `[retry]`): card-mod loses its race on a document now and then, and a
    lost race never recovers on that document; one that is really broken fails every attempt and is
-   still reported.
+   still reported. The pass prints how many main captures needed it, and fails by name
+   (`CARD-MOD-NEEDS-RELOAD`) when that is at least four and over a quarter of them, so a
+   regression that makes card-mod lose often cannot hide behind the retry.
 
    A pop-up that never stays open, or whose scan is torn down, gets one more attempt on that
    page, and then one on a freshly loaded document in the same context, because a retry on a
@@ -100,8 +102,8 @@ Mushroom tile labels clipping on a phone.
    pop-up is skipped the log prints `[popup diag]` lines: the capture stage and its timings, every
    document load, the last navigations, recent page errors and failed requests, and whether the
    document was a reload and was served by the worker. `UI_TESTS_BREAK=popup-wedge-once`,
-   `popup-wedge-each` or `popup-wedge-always` (never set in CI; `cardmod-once` and `cardmod-always`
-   add a synthetic card-mod miss to the main capture, to exercise its retry) makes a document on which no pop-up opens, to prove the
+   `popup-wedge-each` or `popup-wedge-always` (never set in CI; `cardmod-once`, `cardmod-each` and
+   `cardmod-always` add a synthetic card-mod miss to the main capture, to exercise its retry) makes a document on which no pop-up opens, to prove the
    recovery recovers a flake and still fails a real defect.
 5. **Problem-sensor and toggle passes.** The seed is a parked car on a working add-on (Data
    Stale on, Poll Failing and API Auth Failure off) with the demo charger dispatching, so the rest

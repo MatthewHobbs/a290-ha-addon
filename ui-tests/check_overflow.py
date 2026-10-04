@@ -626,6 +626,9 @@ SW_BARRIER_S = 20
 # A pop-up that fails on a fresh document too, on this many devices, is a defect and no longer
 # earns the reload: on a never-opens defect every device would otherwise pay it for every pop-up.
 SYSTEMIC_AFTER = 2
+# card-mod needing a fresh document on at least this many main captures, and on over a quarter of
+# them, fails the pass. The base rate is about 1 capture in 60 (one CI run in 30 on HA 2026.8.1).
+CARDMOD_RATE_MIN = 4
 
 
 def _await_sw_control(page, url, nav, dev_name, cap_s=SW_BARRIER_S):
@@ -721,7 +724,7 @@ POPUP_SHOT_NAMES = {"#alpine-charging": "smart_charging"}
 # fail the pass); `always` wedges every document (a real never-opens defect must
 # still fail the device). Swallowing hashchange/popstate does NOT do it: Bubble's listeners are
 # registered first, so only an init script (`always`) would win. Without a hook the recovery has
-# never been seen to do anything. `cardmod-once|cardmod-always` instead add a synthetic card-mod miss
+# never been seen to do anything. `cardmod-once|cardmod-each|cardmod-always` instead add a synthetic card-mod miss
 # to the main capture, to exercise its fresh-document retry (the plumbing, not card-mod itself).
 BREAK = os.environ.get("UI_TESTS_BREAK", "")
 WEDGE_JS_BODY = ("() => { const c = DOMTokenList.prototype.contains; "
@@ -866,6 +869,7 @@ def run():
     captured = {(dash, p["hash"]): [0, 0, 0] for dash in args.dashboards for p in popups[dash]}  # [scanned, skipped, recovered]
     sw_uncontrolled = []   # devices whose barrier hit its cap
     cardmod_broken = False   # test hook state (UI_TESTS_BREAK=cardmod-once)
+    main_captures, cardmod_recovered = 0, 0   # for the card-mod recovery rate
     systemic = {}   # (dash, hash) -> devices on which it failed on a FRESH document too; two of them: not a flake
     tokens = json.load(open(args.tokens))
     devices = json.load(open(args.devices))["devices"]
@@ -911,6 +915,7 @@ def run():
                 where = f"{dash} [{args.pass_name}]" if args.pass_name else dash
                 shot = os.path.join(args.out, f"{stem}__{slug}.png")
                 issues = None
+                cardmod_retries = 0
                 for attempt in range(MAX_RENDER_ATTEMPTS):
                     try:
                         _load_dashboard(page, args.base, dash)
@@ -922,7 +927,8 @@ def run():
                             except Exception:
                                 pass
                         issues = _stable_issues(page)   # confirm truncations across two passes (see helper)
-                        if BREAK == "cardmod-always" or (BREAK == "cardmod-once" and not cardmod_broken):
+                        if (BREAK == "cardmod-always" or (BREAK == "cardmod-each" and attempt == 0)
+                                or (BREAK == "cardmod-once" and not cardmod_broken)):
                             cardmod_broken = True       # test hook: exercises the retry below, not card-mod
                             issues.append({"type": "card-mod-not-applied", "tag": "card-mod",
                                            "text": "UI_TESTS_BREAK: synthetic card-mod miss"})
@@ -934,6 +940,7 @@ def run():
                             # that is really broken fails every attempt and is still reported.
                             print(f"    [retry {attempt + 1}/{MAX_RENDER_ATTEMPTS - 1}] {where} @ "
                                   f"{dev['name']}: card-mod never applied — loading a fresh document")
+                            cardmod_retries += 1
                             page.wait_for_timeout(600)
                             continue
                         issues += _missing_labels(page, expect.get(dash, {}).get("labels", []))
@@ -960,6 +967,9 @@ def run():
                             page.screenshot(path=shot, full_page=True, animations="disabled")
                         except Exception:
                             pass
+                main_captures += 1
+                if cardmod_retries and not any(i["type"] == "card-mod-not-applied" for i in issues or []):
+                    cardmod_recovered += 1
                 # Every pop-up the manifest lists for this dashboard, in its order: Bubble renders a
                 # pop-up only while it is open, so the scan above saw none of them but the one the
                 # dashboard auto-opens.
@@ -1036,6 +1046,18 @@ def run():
                 "text": f"opened only on a freshly loaded document on {recovered} of {len(devices)} devices"
                         f" ({len(sw_uncontrolled)} device(s) never reached service-worker control: "
                         "if that is most of them, the barrier is the cause, not this pop-up)"}]))
+
+    # The same for card-mod: a fresh document recovers a lost race, but a regression that made it
+    # lose often would otherwise only show as a few percent of runs failing. Gross rates fail by
+    # name; any rate is printed so a drift is visible before it reaches this line.
+    if cardmod_recovered:
+        print(f"  card-mod needed a fresh document on {cardmod_recovered} of {main_captures} main capture(s)")
+    if cardmod_recovered >= CARDMOD_RATE_MIN and cardmod_recovered * 4 > main_captures:
+        failures.append((f"every dashboard [{args.pass_name}]" if args.pass_name else "every dashboard",
+                         "card-mod", 0, [{"type": "card-mod-needs-reload", "tag": "card-mod",
+                                          "text": f"needed a fresh document on {cardmod_recovered} of "
+                                                  f"{main_captures} main captures: card-mod is losing its race "
+                                                  "too often to call that a flake"}]))
 
     # Each skip already failed its device above; the summary names the pop-up once so a hash that
     # opens nothing anywhere reads as one fact rather than ten device failures.
