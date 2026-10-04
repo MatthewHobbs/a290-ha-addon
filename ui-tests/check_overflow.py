@@ -721,7 +721,8 @@ POPUP_SHOT_NAMES = {"#alpine-charging": "smart_charging"}
 # fail the pass); `always` wedges every document (a real never-opens defect must
 # still fail the device). Swallowing hashchange/popstate does NOT do it: Bubble's listeners are
 # registered first, so only an init script (`always`) would win. Without a hook the recovery has
-# never been seen to do anything.
+# never been seen to do anything. `cardmod-once|cardmod-always` instead add a synthetic card-mod miss
+# to the main capture, to exercise its fresh-document retry (the plumbing, not card-mod itself).
 BREAK = os.environ.get("UI_TESTS_BREAK", "")
 WEDGE_JS_BODY = ("() => { const c = DOMTokenList.prototype.contains; "
                  "DOMTokenList.prototype.contains = function (t) "
@@ -864,6 +865,7 @@ def run():
                 sys.exit(f"{args.expect}: pop-up {p.get('hash')} on {dash} lists no cards to wait for")
     captured = {(dash, p["hash"]): [0, 0, 0] for dash in args.dashboards for p in popups[dash]}  # [scanned, skipped, recovered]
     sw_uncontrolled = []   # devices whose barrier hit its cap
+    cardmod_broken = False   # test hook state (UI_TESTS_BREAK=cardmod-once)
     systemic = {}   # (dash, hash) -> devices on which it failed on a FRESH document too; two of them: not a flake
     tokens = json.load(open(args.tokens))
     devices = json.load(open(args.devices))["devices"]
@@ -920,6 +922,20 @@ def run():
                             except Exception:
                                 pass
                         issues = _stable_issues(page)   # confirm truncations across two passes (see helper)
+                        if BREAK == "cardmod-always" or (BREAK == "cardmod-once" and not cardmod_broken):
+                            cardmod_broken = True       # test hook: exercises the retry below, not card-mod
+                            issues.append({"type": "card-mod-not-applied", "tag": "card-mod",
+                                           "text": "UI_TESTS_BREAK: synthetic card-mod miss"})
+                        if attempt < MAX_RENDER_ATTEMPTS - 1 and any(i["type"] == "card-mod-not-applied"
+                                                                      for i in issues):
+                            # card-mod loses its race on a document now and then (one CI run in 30
+                            # on HA 2026.8.1: 67 of 67 cards unstyled on one device) and a lost race
+                            # never recovers on THAT document. A fresh one usually does; a card-mod
+                            # that is really broken fails every attempt and is still reported.
+                            print(f"    [retry {attempt + 1}/{MAX_RENDER_ATTEMPTS - 1}] {where} @ "
+                                  f"{dev['name']}: card-mod never applied — loading a fresh document")
+                            page.wait_for_timeout(600)
+                            continue
                         issues += _missing_labels(page, expect.get(dash, {}).get("labels", []))
                         # Drop HA's startup toasts only AFTER the truncation scan, so removing the
                         # toast node can never perturb the gate's measurement — it only cleans the shot.
