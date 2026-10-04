@@ -915,7 +915,7 @@ def run():
                 where = f"{dash} [{args.pass_name}]" if args.pass_name else dash
                 shot = os.path.join(args.out, f"{stem}__{slug}.png")
                 issues = None
-                cardmod_retries = 0
+                cardmod_retries, completed = 0, False
                 for attempt in range(MAX_RENDER_ATTEMPTS):
                     try:
                         _load_dashboard(page, args.base, dash)
@@ -949,6 +949,7 @@ def run():
                         page.evaluate(JS_DISMISS_TOASTS)
                         _write_diag(page, shot)
                         page.screenshot(path=shot, full_page=True, animations="disabled")
+                        completed = True
                         break
                     except Exception as err:
                         # A render error here is transient (auto-open context teardown / font-wait
@@ -968,7 +969,7 @@ def run():
                         except Exception:
                             pass
                 main_captures += 1
-                if cardmod_retries and not any(i["type"] == "card-mod-not-applied" for i in issues or []):
+                if cardmod_retries and completed and not any(i["type"] == "card-mod-not-applied" for i in issues):
                     cardmod_recovered += 1
                 # Every pop-up the manifest lists for this dashboard, in its order: Bubble renders a
                 # pop-up only while it is open, so the scan above saw none of them but the one the
