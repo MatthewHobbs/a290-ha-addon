@@ -85,12 +85,15 @@ Mushroom tile labels clipping on a phone.
    still unscanned after that is reported, its committed screenshot is kept rather than
    overwritten by the menu behind it, and **that device fails for that pop-up**: a truncation is
    specific to a width, so a scan at 430px says nothing about 360px. A pop-up that also failed
-   on a fresh document is not reloaded again on later devices. Each pass also prints how many
+   on a fresh document on two devices is not reloaded on later ones, which would only multiply the
+   time a real defect takes to report. A pop-up that needed the fresh document on more than half
+   the devices fails the pass by name (`POPUP-NEEDS-RELOAD`): opening only after a reload is a
+   defect the reload would otherwise hide. Each pass also prints how many
    devices skipped each pop-up, so a hash that opens nothing anywhere reads as one fact. When a
    pop-up is skipped the log prints `[popup diag]` lines: the capture stage and its timings, every
    document load, the last navigations, recent page errors and failed requests, and whether the
-   document was a reload and was served by the worker. `UI_TESTS_BREAK=popup-wedge-once` or
-   `popup-wedge-always` (never set in CI) makes a document on which no pop-up opens, to prove the
+   document was a reload and was served by the worker. `UI_TESTS_BREAK=popup-wedge-once`,
+   `popup-wedge-each` or `popup-wedge-always` (never set in CI) makes a document on which no pop-up opens, to prove the
    recovery recovers a flake and still fails a real defect.
 5. **Problem-sensor and toggle passes.** The seed is a parked car on a working add-on (Data
    Stale on, Poll Failing and API Auth Failure off) with the demo charger dispatching, so the rest

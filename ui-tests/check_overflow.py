@@ -623,17 +623,29 @@ def _wait_card_mod(page, cap_s=CARD_MOD_WAIT_S, poll_ms=250, quiet_s=CARD_MOD_QU
 # four opens, none shown). Blocking the worker is not an option: on HA 2026.8.1 card-mod only
 # applies after that reload (5 of 6 CI runs failed with card-mod never applied). So wait for it.
 SW_BARRIER_S = 20
+# A pop-up that fails on a fresh document too, on this many devices, is a defect and no longer
+# earns the reload: on a never-opens defect every device would otherwise pay it for every pop-up.
+SYSTEMIC_AFTER = 2
 
 
 def _await_sw_control(page, url, nav, dev_name, cap_s=SW_BARRIER_S):
-    """Load `url` once and wait until the service worker controls the page and no document has loaded
-    for 1 s, so every later load in this context starts controlled, with nothing left to reload.
+    """Load `url` once and wait until the document in front of us was itself served by the service
+    worker (the first one never is: it loads before the worker exists, then HA reloads it) and no
+    document has loaded for 1 s, so every later load in this context starts controlled, with
+    nothing left to reload. `controller` alone is not enough: HA reloads from `controllerchange`,
+    so the old document reads as controlled while its reload is still in flight.
     A cap is reported, never failed: the card-mod wait still fails a page that was not styled."""
-    t0 = time.monotonic()
-    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    except Exception as err:     # the measured load below has its own retries; this one only waits
+        print(f"    [sw] {dev_name}: first load failed ({type(err).__name__}) — measuring anyway")
+        return False
+    t0 = time.monotonic()      # the cap is for the worker, not for a slow first response
     while time.monotonic() - t0 < cap_s:
         try:
-            controlled = page.evaluate("() => !!(navigator.serviceWorker && navigator.serviceWorker.controller)")
+            controlled = page.evaluate(
+                "() => !!(navigator.serviceWorker && navigator.serviceWorker.controller)"
+                " && ((performance.getEntriesByType('navigation') || [])[0] || {}).workerStart > 0")
         except Exception:      # the reload we are waiting for destroys the context
             controlled = False
         if controlled and nav.quiet_for(1.0):
@@ -702,10 +714,11 @@ def _stable_issues(page, settle_ms=500, max_passes=12):
 # (refresh-screenshots.yaml); every other pop-up is popup_<hash without #>.
 POPUP_SHOT_NAMES = {"#alpine-charging": "smart_charging"}
 
-# Test hook, never set in CI: UI_TESTS_BREAK=popup-wedge-once|popup-wedge-always makes a document on
+# Test hook, never set in CI: UI_TESTS_BREAK=popup-wedge-once|popup-wedge-each|popup-wedge-always makes a document on
 # which no Bubble pop-up ever reads as open (what the gate saw on a reloaded page: the open is
 # dispatched, nothing is shown). `once` wedges the first device's bubble page after its main capture
-# (a fresh document must recover it); `always` wedges every document (a real never-opens defect must
+# (a fresh document must recover it); `each` does that on every device (the recovery rate must then
+# fail the pass); `always` wedges every document (a real never-opens defect must
 # still fail the device). Swallowing hashchange/popstate does NOT do it: Bubble's listeners are
 # registered first, so only an init script (`always`) would win. Without a hook the recovery has
 # never been seen to do anything.
@@ -850,7 +863,7 @@ def run():
             if not p.get("cards"):
                 sys.exit(f"{args.expect}: pop-up {p.get('hash')} on {dash} lists no cards to wait for")
     captured = {(dash, p["hash"]): [0, 0, 0] for dash in args.dashboards for p in popups[dash]}  # [scanned, skipped, recovered]
-    systemic = {}   # (dash, hash) -> device that first failed it on a FRESH document too: not a flake
+    systemic = {}   # (dash, hash) -> devices on which it failed on a FRESH document too; two of them: not a flake
     tokens = json.load(open(args.tokens))
     devices = json.load(open(args.devices))["devices"]
     os.makedirs(args.out, exist_ok=True)
@@ -883,7 +896,7 @@ def run():
             page = ctx.new_page()
             nav = _NavLog(page)
             _await_sw_control(page, f"{args.base}/{args.dashboards[0]}", nav, dev["name"])
-            wedge_once = BREAK == "popup-wedge-once" and dev is devices[0]
+            wedge_once = BREAK == "popup-wedge-each" or (BREAK == "popup-wedge-once" and dev is devices[0])
             for dash in args.dashboards:
                 slug = dev["name"].lower().replace(" ", "_").replace("(", "").replace(")", "")
                 stem = f"{dash}__{args.pass_name}" if args.pass_name else dash
@@ -933,27 +946,28 @@ def run():
                     pshot = os.path.join(args.out, f"{stem}__{pname}__{slug}.png")
                     found = _capture_popup(page, popup, where, dev["name"], pshot, nav)
                     key = (dash, popup["hash"])
-                    if found is None and key not in systemic:
+                    if found is None and len(systemic.get(key, [])) < SYSTEMIC_AFTER:
                         # The pop-up failed on this document; a retry on the SAME page is not an
                         # independent try (every open on a wedged page failed, 4 of 4 and 9 of 9),
                         # so load a fresh document in the same, already controlled, context and
                         # try once more. A pop-up that fails there too still fails the device.
                         print(f"    [popup reload] {where} @ {dev['name']}: {popup['hash']} failed on this "
                               "document — loading a fresh one, trying once more")
+                        fresh_ran = False
                         try:
                             _load_dashboard(page, args.base, dash)
-                            issues += _wait_card_mod(page)
+                            fresh_ran = True    # the capture below handles its own failures
                             found = _capture_popup(page, popup, where, dev["name"], pshot, nav)
                         except Exception as err:
                             print(f"    [popup reload] {where} @ {dev['name']}: {popup['hash']} fresh load "
                                   f"failed ({type(err).__name__})")
-                        if found is None:
-                            systemic[key] = dev["name"]
-                        else:
+                        if found is not None:
                             captured[key][2] += 1
+                        elif fresh_ran:     # a failed load says nothing about the pop-up
+                            systemic.setdefault(key, []).append(dev["name"])
                     elif found is None:
                         print(f"    [popup reload skipped] {where} @ {dev['name']}: {popup['hash']} already "
-                              f"failed on a fresh document on {systemic[key]}")
+                              f"failed on a fresh document on {', '.join(systemic[key])}")
                     captured[key][found is None] += 1
                     if found is not None and any(i.get("type") == "not-rendered" for i in found):
                         for line in _popup_skip_diag(page, _Stages("not-rendered"), nav):
@@ -987,6 +1001,14 @@ def run():
                       f"{len(issues)} issue(s)  -> {os.path.relpath(shot, HERE)}")
             ctx.close()
         browser.close()
+
+    # A pop-up that opens only after a reload, on more than half the devices, is a defect that the
+    # reload is hiding, not a flake: fail it by name instead of leaving it to a summary line.
+    for (dash, phash), (_scanned, _skipped, recovered) in captured.items():
+        if recovered * 2 > len(devices):
+            failures.append((dash, "every device", 0, [{
+                "type": "popup-needs-reload", "tag": "-", "popup": phash,
+                "text": f"opened only on a freshly loaded document on {recovered} of {len(devices)} devices"}]))
 
     # Each skip already failed its device above; the summary names the pop-up once so a hash that
     # opens nothing anywhere reads as one fact rather than ten device failures.
