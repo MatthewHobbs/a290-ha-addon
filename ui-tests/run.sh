@@ -77,7 +77,7 @@ echo "==> Seed entity states + dashboards"
 
 echo "==> Render + truncation check across the device matrix"
 rc=0
-"$PY" "$HERE/check_overflow.py" --base "$BASE" --tokens "$CONFIG/tokens.json" --expect "$CONFIG/pass.json" || rc=1
+"$PY" -u "$HERE/check_overflow.py" --base "$BASE" --tokens "$CONFIG/tokens.json" --expect "$CONFIG/pass.json" || rc=1
 
 # The seed is a parked car on a working add-on with the charger dispatching, so the text the
 # problem sensors and the demo toggles switch on (Not Polling, Auth Failure, Last Updated, Peak
@@ -88,7 +88,7 @@ PASSES="$("$PY" "$HERE/seed.py" --list-passes)"
 for pass in $PASSES; do
   echo "==> $pass pass: reseed the sensors it switches, re-check the dashboards that show them"
   "$PY" "$HERE/seed.py" --base "$BASE" --token "$ACCESS" --pass "$pass" --manifest "$CONFIG/pass-$pass.json"
-  "$PY" "$HERE/check_overflow.py" --base "$BASE" --tokens "$CONFIG/tokens.json" \
+  "$PY" -u "$HERE/check_overflow.py" --base "$BASE" --tokens "$CONFIG/tokens.json" \
     --pass-name "$pass" --expect "$CONFIG/pass-$pass.json" || rc=1
 done
 [ "$rc" -eq 0 ] || exit 1

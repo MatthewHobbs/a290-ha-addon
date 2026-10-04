@@ -113,6 +113,9 @@ JS_DISMISS_TOASTS = r"""
 # and the fix is a COMPLETENESS condition (a known-good count), not another wait.
 JS_DIAG = r"""
 () => {
+  // Playwright awaits document.fonts.ready before every screenshot; a face stuck 'loading' stalls it.
+  let fonts = [];
+  try { fonts = [...document.fonts].map(f => [f.family, f.weight, f.status]).slice(0, 60); } catch (e) {}
   const tags = {};
   const walk = (root) => {
     let nodes; try { nodes = root.querySelectorAll('*'); } catch (e) { return; }
@@ -130,6 +133,10 @@ JS_DIAG = r"""
     scrollH: document.documentElement.scrollHeight,
     imagesPending: Array.from(document.images).filter(i => !i.complete).length,
     readyState: document.readyState,
+    fontsStatus: document.fonts ? document.fonts.status : null, fonts, frames: window.frames.length,
+    navType: ((performance.getEntriesByType('navigation') || [])[0] || {}).type || null,
+    workerStart: ((performance.getEntriesByType('navigation') || [])[0] || {}).workerStart || 0,
+    swController: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
   };
 }
 """
@@ -374,6 +381,65 @@ def _failing_step(err):
     return f"{where} — {msg}"
 
 
+class _Stages:
+    """Which step of the pop-up capture is running, and how long each took: a skip used to print
+    only the error's type, so an intermittent TimeoutError could not be tied to a step."""
+
+    def __init__(self, first):
+        self.name, self.t0, self.done = first, time.monotonic(), []
+
+    def next(self, name):
+        self.done.append((self.name, round(time.monotonic() - self.t0, 2)))
+        self.name, self.t0 = name, time.monotonic()
+
+    def elapsed(self):
+        return round(time.monotonic() - self.t0, 2)
+
+
+class _NavLog:
+    """Frame navigations since the page opened. A pop-up capture failed with "Execution context was
+    destroyed ... navigation" on one HA leg only, so a skip prints what navigated, and when."""
+
+    def __init__(self, page):
+        self.page, self.t0, self.items, self.errors, self.last_load = page, time.monotonic(), [], [], None
+        page.on("framenavigated", self.record)
+        page.on("load", self.loaded)
+        page.on("pageerror", lambda err: self.error("pageerror", str(err)))
+        page.on("console", lambda m: self.error("console", m.text) if m.type == "error" else None)
+        page.on("requestfailed", lambda r: self.error("requestfailed", f"{r.url[-70:]} {r.failure}"))
+
+    def record(self, frame):
+        self.items.append((round(time.monotonic() - self.t0, 2),
+                           "main" if frame == self.page.main_frame else "sub", frame.url[-90:]))
+
+    def loaded(self, _page):
+        """A document load, which a hash change never fires: how a reload shows apart from one."""
+        self.last_load = time.monotonic()
+        self.items.append((round(self.last_load - self.t0, 2), "load", ""))
+
+    def error(self, kind, text):
+        self.errors = (self.errors + [(round(time.monotonic() - self.t0, 2), kind, text[:160])])[-20:]
+
+    def quiet_for(self, seconds):
+        return self.last_load is not None and time.monotonic() - self.last_load >= seconds
+
+
+def _popup_skip_diag(page, stages, nav):
+    """What a skipped pop-up capture was doing and what the page looked like at the time."""
+    try:
+        d = page.evaluate(JS_DIAG)
+        fonts = d.get("fonts") or []
+        state = {k: d.get(k) for k in ("fontsStatus", "frames", "navType", "workerStart", "swController", "readyState")}
+        state["fonts"] = f"{len(fonts)} faces, not loaded: {[f for f in fonts if f[2] != 'loaded']}"
+    except Exception as err:      # the context may be gone; that is itself the finding
+        state = {"error": f"{type(err).__name__}: {(str(err).strip().splitlines() or [''])[0]}"}
+    return [f"stage {stages.name} after {stages.elapsed()}s; completed {stages.done}",
+            f"url now: {page.url[-90:]}; document loads: {[i[0] for i in nav.items if i[1] == 'load']}; "
+            f"last navigations: {nav.items[-6:]}",
+            f"page: {state}",
+            f"errors (last {len(nav.errors)}): {nav.errors}"]
+
+
 def _write_diag(page, shot_path):
     """Record the DOM state at capture time, when UI_TESTS_DIAG=1."""
     if os.environ.get("UI_TESTS_DIAG") != "1":
@@ -550,6 +616,73 @@ def _wait_card_mod(page, cap_s=CARD_MOD_WAIT_S, poll_ms=250, quiet_s=CARD_MOD_QU
                      f"e.g. {', '.join(st['pending'][:4])}"}]
 
 
+# HA's service worker takes control of a context's first document a few seconds after load and then
+# reloads it (frontend register-service-worker: controllerchange -> location.reload). Under CI load
+# that lands anywhere in the next tens of seconds, including inside a pop-up scan, and a reloaded
+# document has been seen with Bubble opening no pop-up at all (run 37169573448: navType 'reload',
+# four opens, none shown). Blocking the worker is not an option: on HA 2026.8.1 card-mod only
+# applies after that reload (5 of 6 CI runs failed with card-mod never applied). So wait for it.
+SW_BARRIER_S = 20
+# A pop-up that fails on a fresh document too, on this many devices, is a defect and no longer
+# earns the reload: on a never-opens defect every device would otherwise pay it for every pop-up.
+SYSTEMIC_AFTER = 2
+# card-mod needing a fresh document on at least this many main captures, and on over a quarter of
+# them, fails the pass. The base rate is about 1 capture in 1,800 (one miss in 30 CI legs of ~60
+# main captures each, HA 2026.8.1), so the rule cannot trip on a flake.
+CARDMOD_RATE_MIN = 4
+# After card-mod missed on every attempt of this many captures it is not a lost race: stop retrying,
+# or a broken card-mod costs over an hour a pass in 30 s retries.
+CARDMOD_GIVE_UP = 2
+
+
+def _await_sw_control(page, url, nav, dev_name, cap_s=SW_BARRIER_S):
+    """Load `url` once and wait until the document in front of us was itself served by the service
+    worker (the first one never is: it loads before the worker exists, then HA reloads it) and no
+    document has loaded for 1 s, so every later load in this context starts controlled, with
+    nothing left to reload. `controller` alone is not enough: HA reloads from `controllerchange`,
+    so the old document reads as controlled while its reload is still in flight.
+    A cap is reported, never failed: the card-mod wait still fails a page that was not styled."""
+    try:
+        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    except Exception as err:     # the measured load below has its own retries; this one only waits
+        print(f"    [sw] {dev_name}: first load failed ({type(err).__name__}) — measuring anyway")
+        return False
+    t0 = time.monotonic()      # the cap is for the worker, not for a slow first response
+    while time.monotonic() - t0 < cap_s:
+        try:
+            controlled = page.evaluate(
+                "() => !!(navigator.serviceWorker && navigator.serviceWorker.controller)"
+                " && ((performance.getEntriesByType('navigation') || [])[0] || {}).workerStart > 0")
+        except Exception:      # the reload we are waiting for destroys the context
+            controlled = False
+        if controlled and nav.quiet_for(1.0):
+            print(f"    [sw] {dev_name}: controlled after {round(time.monotonic() - t0, 1)}s")
+            return True
+        page.wait_for_timeout(250)
+    print(f"    [sw] {dev_name}: not controlled after {cap_s}s — measuring anyway")
+    return False
+
+
+def _load_dashboard(page, base, dash):
+    """One cold load of a dashboard, up to the point the scan may start."""
+    page.goto(f"{base}/{dash}", wait_until="domcontentloaded", timeout=30000)
+    # Let the bubble dashboard's auto-open hash navigation fire (~60ms) and
+    # settle BEFORE any evaluate/screenshot, so it can't tear down an in-flight
+    # execution context or leave a font fetch pending mid-capture.
+    page.wait_for_timeout(300)
+    page.wait_for_function(JS_RENDERED, timeout=30000)
+    try:  # actually load Zen Dots before measuring — fonts.ready alone resolves
+        page.evaluate(                                 # before a not-yet-applied font fetches
+            "async () => { try {"
+            " await document.fonts.load('400 12px \"Zen Dots\"');"
+            " await document.fonts.load('700 13px \"Zen Dots\"');"
+            " await document.fonts.ready;"
+            " } catch (e) {} }")
+    except Exception:
+        pass
+    page.wait_for_timeout(1200)  # settle layout + late cards
+
+
 def _stable_issues(page, settle_ms=500, max_passes=12):
     """Poll the truncation scan across a settle window and report only issues that SURVIVE it.
     card-mod styles (e.g. `white-space:normal` on the card labels) and webfonts apply
@@ -588,8 +721,23 @@ def _stable_issues(page, settle_ms=500, max_passes=12):
 # (refresh-screenshots.yaml); every other pop-up is popup_<hash without #>.
 POPUP_SHOT_NAMES = {"#alpine-charging": "smart_charging"}
 
+# Test hook, never set in CI: UI_TESTS_BREAK=popup-wedge-once|popup-wedge-each|popup-wedge-always makes a document on
+# which no Bubble pop-up ever reads as open (what the gate saw on a reloaded page: the open is
+# dispatched, nothing is shown). `once` wedges the first device's bubble page after its main capture
+# (a fresh document must recover it); `each` does that on every device (the recovery rate must then
+# fail the pass); `always` wedges every document (a real never-opens defect must
+# still fail the device). Swallowing hashchange/popstate does NOT do it: Bubble's listeners are
+# registered first, so only an init script (`always`) would win. Without a hook the recovery has
+# never been seen to do anything. `cardmod-once|cardmod-each|cardmod-always` instead add a synthetic card-mod miss
+# to the main capture, to exercise its fresh-document retry (the plumbing, not card-mod itself).
+BREAK = os.environ.get("UI_TESTS_BREAK", "")
+WEDGE_JS_BODY = ("() => { const c = DOMTokenList.prototype.contains; "
+                 "DOMTokenList.prototype.contains = function (t) "
+                 "{ return t === 'is-popup-opened' ? false : c.call(this, t); }; }")
+WEDGE_JS = "(" + WEDGE_JS_BODY + ")()"
 
-def _open_popup(page, popup, where, dev_name):
+
+def _open_popup(page, popup, where, dev_name, stages, nav):
     """Open the Bubble pop-up `popup` ({hash, name}) by hash navigation and return once it is
     open on screen showing its header name, or False when two attempts never got it there.
     COMPLETENESS, not just settling. The selector timeout used to be swallowed by a bare
@@ -604,33 +752,38 @@ def _open_popup(page, popup, where, dev_name):
         page.evaluate("(h) => { location.hash = h; }", popup["hash"])
         try:  # the pop-up's inner cards lazy-render (Bubble Card)
             page.wait_for_function(JS_POPUP_SHOWS, arg=arg, timeout=8000)
+            stages.next(f"settle {attempt + 1}")
             page.wait_for_timeout(800)
             page.evaluate(JS_DISMISS_TOASTS)
+            stages.next(f"recheck {attempt + 1}")
             # Re-check after the settle: seen opening is not still open. The pop-up can close in
-            # that window, or the page reload under it: HA reloads once, ~3s after a context's
-            # first load, as its service worker takes control (measured on Bubble 3.2.5 and
-            # 3.4.0; blocking service workers removes it), leaving the pop-up sliding in below
-            # the viewport. Treated as a failed open, so the reopen recovers it.
+            # that window, or the page reload under it: HA reloads once, a few seconds after a
+            # context's first load, as its service worker takes control (see _await_sw_control),
+            # leaving the pop-up sliding in below the viewport. Treated as a failed open, so the
+            # reopen recovers it.
             if page.evaluate(JS_POPUP_SHOWS, arg):
                 return True
-        except Exception:
-            pass
+            why = "open, then gone at the recheck"
+        except Exception as err:
+            why = _failing_step(err)
         print(f"    [popup empty {attempt + 1}/2] {where} @ {dev_name}: {popup['hash']} not open on "
-              "screen — reopening")
+              f"screen ({why}) — reopening")
+        if attempt == 0:
+            stages.next("open 2")
         page.evaluate("() => { location.hash = ''; }")
         page.wait_for_timeout(400)
     return False
 
 
-def _capture_popup(page, popup, where, dev_name, shot):
+def _capture_popup(page, popup, where, dev_name, shot, nav):
     """Open one pop-up, scan it, then screenshot it. Returns its findings, or None when it never
     stayed open or its scan never completed (reported; the committed screenshot is kept rather
     than overwritten by the menu behind it). run() then FAILS that device for that pop-up: a
     truncation is specific to a width, so a pop-up scanned at 430px says nothing about 360px, and
     a skip that passed was a false green for that viewport (Codex on #171).
-    The one miss that recurs is HA's own reload: once, ~5 s after a context's first load, as its
-    service worker takes control (measured on Bubble 3.2.5, 3.4.0 and 3.4.1; the r5 twin saw it
-    land inside the pop-up scan on 4 of 8 legs). It usually tears down the JS context ("Execution
+    The one miss that recurs is HA's own reload, once per context, as its service worker takes
+    control (the r5 twin saw it land inside the pop-up scan on 4 of 8 legs; _await_sw_control now
+    waits for it before anything is measured). It usually tears down the JS context ("Execution
     context was destroyed") in whatever call is in flight, which the retry below already catches
     -- but landing BETWEEN two polls of _stable_issues raises nothing: the reload completes, and
     the scan quietly finishes against whatever the reload left on screen (the main menu, or the
@@ -638,9 +791,12 @@ def _capture_popup(page, popup, where, dev_name, shot):
     2). So the popup's open/label state is checked again after the scan, not just before it; a
     close during the scan is then indistinguishable from one during the open and gets the same
     reopen-and-rescan retry. It does not recur, so reopen and rescan once, and only then give up."""
+    stages = _Stages("open 1")
     for attempt in range(2):
+        if attempt:
+            stages.next("open 1 (rescan)")      # the outer retry delay is not part of the previous stage
         try:
-            if not _open_popup(page, popup, where, dev_name):
+            if not _open_popup(page, popup, where, dev_name, stages, nav):
                 if attempt == 0:
                     print(f"    [popup reopen] {where} @ {dev_name}: {popup['hash']} never stayed open — "
                           "trying once more")
@@ -648,6 +804,8 @@ def _capture_popup(page, popup, where, dev_name, shot):
                     continue
                 print(f"    [popup skipped] {where} @ {dev_name}: {popup['hash']} never stayed open twice; "
                       "not overwriting its screenshot")
+                for line in _popup_skip_diag(page, stages, nav):
+                    print(f"    [popup diag] {line}")
                 return None
             # Completeness first, THEN scan (Codex on #171 round 4, ADR 0003): Bubble's inner
             # cards lazy-render, and _stable_issues can exit on its fast path (two clean scans, as
@@ -655,8 +813,11 @@ def _capture_popup(page, popup, where, dev_name, shot):
             # that is not there. So wait, once, for every card the manifest lists for this pop-up
             # to be laid out inside it, then for the pass-driven labels (already among those
             # cards' texts, so met at once), and only then let the scan look.
+            stages.next("completeness")
             label_issues = _popup_short(page, popup)
+            stages.next("labels")
             label_issues += _missing_labels(page, popup.get("labels", []), popup["hash"])
+            stages.next("stable-issues")
             issues = _stable_issues(page)
             issues += label_issues
             # Re-confirm open+labelled, the same check _open_popup already passed: a reload
@@ -665,7 +826,9 @@ def _capture_popup(page, popup, where, dev_name, shot):
             if not page.evaluate(JS_POPUP_SHOWS, still_open):
                 raise RuntimeError(f"{popup['hash']} was no longer open after its scan")
             page.evaluate(JS_DISMISS_TOASTS)
+            stages.next("write-diag")
             _write_diag(page, shot)
+            stages.next("screenshot")
             page.screenshot(path=shot, full_page=True, animations="disabled")
             for it in issues:   # the report names the pop-up; the de-dupe in run() ignores this key
                 it.setdefault("popup", popup["hash"])
@@ -678,6 +841,8 @@ def _capture_popup(page, popup, where, dev_name, shot):
                 continue
             print(f"    [popup skipped] {where} @ {dev_name}: {popup['hash']} scan failed twice "
                   f"({type(err).__name__})\n      at {_failing_step(err)}")
+            for line in _popup_skip_diag(page, stages, nav):
+                print(f"    [popup diag] {line}")
             return None
 
 
@@ -707,7 +872,11 @@ def run():
         for p in entries:
             if not p.get("cards"):
                 sys.exit(f"{args.expect}: pop-up {p.get('hash')} on {dash} lists no cards to wait for")
-    captured = {(dash, p["hash"]): [0, 0] for dash in args.dashboards for p in popups[dash]}  # [scanned, skipped]
+    captured = {(dash, p["hash"]): [0, 0, 0] for dash in args.dashboards for p in popups[dash]}  # [scanned, skipped, recovered]
+    sw_uncontrolled = []   # devices whose barrier hit its cap
+    cardmod_broken = False   # test hook state (UI_TESTS_BREAK=cardmod-once)
+    main_captures, cardmod_recovered, cardmod_exhausted = 0, 0, 0   # card-mod recovery rate; captures it never recovered
+    systemic = {}   # (dash, hash) -> devices on which it failed on a FRESH document too; two of them: not a flake
     tokens = json.load(open(args.tokens))
     devices = json.load(open(args.devices))["devices"]
     os.makedirs(args.out, exist_ok=True)
@@ -735,38 +904,58 @@ def run():
                 # belt-and-braces that freezes anything that ignores the preference.
                 reduced_motion="reduce")
             ctx.add_init_script(init)
+            if BREAK == "popup-wedge-always":
+                ctx.add_init_script(WEDGE_JS)
             page = ctx.new_page()
+            nav = _NavLog(page)
+            try:
+                if not _await_sw_control(page, f"{args.base}/{args.dashboards[0]}", nav, dev["name"]):
+                    sw_uncontrolled.append(dev["name"])
+            except Exception as err:    # a crashed page here must not end the pass for every later device
+                sw_uncontrolled.append(dev["name"])
+                print(f"    [sw] {dev['name']}: barrier failed ({type(err).__name__}) — measuring anyway")
+            wedge_once = BREAK == "popup-wedge-each" or (BREAK == "popup-wedge-once" and dev is devices[0])
             for dash in args.dashboards:
                 slug = dev["name"].lower().replace(" ", "_").replace("(", "").replace(")", "")
                 stem = f"{dash}__{args.pass_name}" if args.pass_name else dash
                 where = f"{dash} [{args.pass_name}]" if args.pass_name else dash
                 shot = os.path.join(args.out, f"{stem}__{slug}.png")
                 issues = None
+                cardmod_retries, completed = 0, False
                 for attempt in range(MAX_RENDER_ATTEMPTS):
                     try:
-                        page.goto(f"{args.base}/{dash}", wait_until="domcontentloaded", timeout=30000)
-                        # Let the bubble dashboard's auto-open hash navigation fire (~60ms) and
-                        # settle BEFORE any evaluate/screenshot, so it can't tear down an in-flight
-                        # execution context or leave a font fetch pending mid-capture.
-                        page.wait_for_timeout(300)
-                        page.wait_for_function(JS_RENDERED, timeout=30000)
-                        try:  # actually load Zen Dots before measuring — fonts.ready alone resolves
-                            page.evaluate(                                 # before a not-yet-applied font fetches
-                                "async () => { try {"
-                                " await document.fonts.load('400 12px \"Zen Dots\"');"
-                                " await document.fonts.load('700 13px \"Zen Dots\"');"
-                                " await document.fonts.ready;"
-                                " } catch (e) {} }")
-                        except Exception:
-                            pass
-                        page.wait_for_timeout(1200)  # settle layout + late cards
+                        _load_dashboard(page, args.base, dash)
+                        if dash == args.dashboards[0] and attempt == 0:
+                            try:    # a report; a torn-down context here must not cost a render attempt
+                                born = page.evaluate("() => ((performance.getEntriesByType('navigation') || [])[0]"
+                                                     " || {}).workerStart > 0")
+                                print(f"    [sw] {dev['name']}: first measured document born controlled: {born}")
+                            except Exception:
+                                pass
                         issues = _stable_issues(page)   # confirm truncations across two passes (see helper)
+                        if (BREAK == "cardmod-always" or (BREAK == "cardmod-each" and attempt == 0)
+                                or (BREAK == "cardmod-once" and not cardmod_broken)):
+                            cardmod_broken = True       # test hook: exercises the retry below, not card-mod
+                            issues.append({"type": "card-mod-not-applied", "tag": "card-mod",
+                                           "text": "UI_TESTS_BREAK: synthetic card-mod miss"})
+                        if (attempt < MAX_RENDER_ATTEMPTS - 1 and cardmod_exhausted < CARDMOD_GIVE_UP
+                                and any(i["type"] == "card-mod-not-applied" for i in issues)):
+                            # card-mod loses its race on a document now and then (one CI run in 30
+                            # on HA 2026.8.1: 67 of 67 cards unstyled on one device) and a lost race
+                            # never recovers on THAT document. A fresh one usually does; a card-mod
+                            # that is really broken fails every attempt and is still reported.
+                            print(f"    [retry {attempt + 1}/{MAX_RENDER_ATTEMPTS - 1}] {where} @ "
+                                  f"{dev['name']}: card-mod never applied — loading a fresh document")
+                            cardmod_retries += 1
+                            page.wait_for_timeout(600)
+                            continue
                         issues += _missing_labels(page, expect.get(dash, {}).get("labels", []))
                         # Drop HA's startup toasts only AFTER the truncation scan, so removing the
                         # toast node can never perturb the gate's measurement — it only cleans the shot.
                         page.evaluate(JS_DISMISS_TOASTS)
                         _write_diag(page, shot)
                         page.screenshot(path=shot, full_page=True, animations="disabled")
+                        completed = True
                         break
                     except Exception as err:
                         # A render error here is transient (auto-open context teardown / font-wait
@@ -785,14 +974,49 @@ def run():
                             page.screenshot(path=shot, full_page=True, animations="disabled")
                         except Exception:
                             pass
+                main_captures += 1
+                if cardmod_retries and any(i["type"] == "card-mod-not-applied" for i in issues or []):
+                    cardmod_exhausted += 1      # every attempt missed: a defect, stop spending 30 s on each capture
+                if cardmod_retries and completed and not any(i["type"] == "card-mod-not-applied" for i in issues):
+                    cardmod_recovered += 1
                 # Every pop-up the manifest lists for this dashboard, in its order: Bubble renders a
                 # pop-up only while it is open, so the scan above saw none of them but the one the
                 # dashboard auto-opens.
+                if wedge_once and "bubble" in dash:
+                    page.evaluate(WEDGE_JS_BODY)
+                    wedge_once = False
                 for popup in popups[dash]:
                     pname = POPUP_SHOT_NAMES.get(popup["hash"], "popup_" + popup["hash"].lstrip("#"))
                     pshot = os.path.join(args.out, f"{stem}__{pname}__{slug}.png")
-                    found = _capture_popup(page, popup, where, dev["name"], pshot)
-                    captured[(dash, popup["hash"])][found is None] += 1
+                    found = _capture_popup(page, popup, where, dev["name"], pshot, nav)
+                    key = (dash, popup["hash"])
+                    if found is None and len(systemic.get(key, [])) < SYSTEMIC_AFTER:
+                        # The pop-up failed on this document; a retry on the SAME page is not an
+                        # independent try (every open on a wedged page failed, 4 of 4 and 9 of 9),
+                        # so load a fresh document in the same, already controlled, context and
+                        # try once more. A pop-up that fails there too still fails the device.
+                        print(f"    [popup reload] {where} @ {dev['name']}: {popup['hash']} failed on this "
+                              "document — loading a fresh one, trying once more")
+                        fresh_ran = False
+                        try:
+                            _load_dashboard(page, args.base, dash)
+                            fresh_ran = True    # the capture below handles its own failures
+                            found = _capture_popup(page, popup, where, dev["name"], pshot, nav)
+                        except Exception as err:
+                            print(f"    [popup reload] {where} @ {dev['name']}: {popup['hash']} fresh load "
+                                  f"failed ({type(err).__name__})")
+                        if found is not None:
+                            if not any(i.get("type") == "card-mod-not-applied" for i in found):
+                                captured[key][2] += 1
+                        elif fresh_ran:     # a failed load says nothing about the pop-up
+                            systemic.setdefault(key, []).append(dev["name"])
+                    elif found is None:
+                        print(f"    [popup reload skipped] {where} @ {dev['name']}: {popup['hash']} already "
+                              f"failed on a fresh document on {', '.join(systemic[key])}")
+                    captured[key][found is None] += 1
+                    if found is not None and any(i.get("type") == "not-rendered" for i in found):
+                        for line in _popup_skip_diag(page, _Stages("not-rendered"), nav):
+                            print(f"    [popup diag] {line}")
                     if found is None:
                         # Not covered on this device, so not green on it: a truncation at this
                         # width would have been missed, whatever the other devices found.
@@ -823,10 +1047,34 @@ def run():
             ctx.close()
         browser.close()
 
+    # A pop-up that opens only after a reload, on more than half the devices, is a defect that the
+    # reload is hiding, not a flake: fail it by name instead of leaving it to a summary line.
+    for (dash, phash), (_scanned, _skipped, recovered) in captured.items():
+        if recovered >= 2 and recovered * 2 > len(devices):
+            failures.append((f"{dash} [{args.pass_name}]" if args.pass_name else dash, "every device", 0, [{
+                "type": "popup-needs-reload", "tag": "-", "popup": phash,
+                "text": f"opened only on a freshly loaded document on {recovered} of {len(devices)} devices"
+                        f" ({len(sw_uncontrolled)} device(s) never reached service-worker control: "
+                        "if that is most of them, the barrier is the cause, not this pop-up)"}]))
+
+    # The same for card-mod: a fresh document recovers a lost race, but a regression that made it
+    # lose often would otherwise only show as a few percent of runs failing. Gross rates fail by
+    # name; any rate is printed so a drift is visible before it reaches this line.
+    if cardmod_recovered:
+        print(f"  card-mod needed a fresh document on {cardmod_recovered} of {main_captures} main capture(s)")
+    if cardmod_recovered >= CARDMOD_RATE_MIN and cardmod_recovered * 4 > main_captures:
+        failures.append((f"alpine dashboards [{args.pass_name}]" if args.pass_name else "alpine dashboards",
+                         "every device", 0, [{"type": "card-mod-needs-reload", "tag": "card-mod",
+                                          "text": f"needed a fresh document on {cardmod_recovered} of "
+                                                  f"{main_captures} main captures: card-mod is losing its race "
+                                                  "too often to call that a flake"}]))
+
     # Each skip already failed its device above; the summary names the pop-up once so a hash that
     # opens nothing anywhere reads as one fact rather than ten device failures.
     print()
-    for (dash, phash), (scanned, skipped) in captured.items():
+    for (dash, phash), (scanned, skipped, recovered) in captured.items():
+        if recovered:
+            print(f"  pop-up {phash} on {dash}: recovered on a fresh document on {recovered} device(s)")
         if skipped:
             print(f"  pop-up {phash} on {dash}: scanned on {scanned}, skipped on {skipped} of "
                   f"{scanned + skipped} device(s)" + ("" if scanned else " — never checked at all"))

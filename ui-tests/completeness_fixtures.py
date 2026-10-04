@@ -135,7 +135,9 @@ class Runner:
             popup["cards"] = items
         shot = os.path.join(self.tmp, f"shot-{int(time.time() * 1000)}.png")
         t0 = time.monotonic()
-        issues = mod._capture_popup(page, popup, "fixture", "chromium", shot)
+        # The tree under test may predate the navigation log; give it only what its signature takes.
+        extra = (mod._NavLog(page),) if hasattr(mod, "_NavLog") else ()
+        issues = mod._capture_popup(page, popup, "fixture", "chromium", shot, *extra)
         secs = time.monotonic() - t0
         cards = page.evaluate("() => document.querySelectorAll('.bubble-cards-container .card').length")
         page.wait_for_function("() => window.__t.painted !== null", timeout=LATE_MS + 3000)
