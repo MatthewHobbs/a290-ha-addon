@@ -86,9 +86,11 @@ Mushroom tile labels clipping on a phone.
    overwritten by the menu behind it, and **that device fails for that pop-up**: a truncation is
    specific to a width, so a scan at 430px says nothing about 360px. A pop-up that also failed
    on a fresh document on two devices is not reloaded on later ones, which would only multiply the
-   time a real defect takes to report. A pop-up that needed the fresh document on more than half
-   the devices fails the pass by name (`POPUP-NEEDS-RELOAD`): opening only after a reload is a
-   defect the reload would otherwise hide. Each pass also prints how many
+   time a real defect takes to report. A pop-up that needed the fresh document on at least two
+   devices, and on more than half of them, fails the pass by name (`POPUP-NEEDS-RELOAD`): opening
+   only after a reload is a defect the reload would otherwise hide. A one-device run (`--devices`)
+   cannot tell a flake from a defect, so it never fails on this rule; the `recovered on a fresh
+   document` line still prints. Each pass also prints how many
    devices skipped each pop-up, so a hash that opens nothing anywhere reads as one fact. When a
    pop-up is skipped the log prints `[popup diag]` lines: the capture stage and its timings, every
    document load, the last navigations, recent page errors and failed requests, and whether the

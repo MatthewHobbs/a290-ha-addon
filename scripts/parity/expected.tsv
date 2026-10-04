@@ -150,7 +150,7 @@ pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_l
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
 pending	ui-tests/check_overflow.py	both	*	156	residue after r5 #105 and #124 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow ADR 0001 row 13
 pending	ui-tests/seed.py	both	*	105	residue after r5 #105 and #124: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
-pending	ui-tests/README.md	both	*	99	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow ADR 0001 row 13
+pending	ui-tests/README.md	both	*	101	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow ADR 0001 row 13
 pending	ui-tests/run.sh	both	*	4	a290 runs check_overflow.py unbuffered (python -u) so CI timestamps mean something. Target: r5 ports it with the check_overflow.py barrier
 
 # ---------------------------------------------------------------- prose and tests, excused wholesale
