@@ -145,10 +145,10 @@ pending	scripts/docs_cite_ignore.txt	both	*	3	the comment follows the bundled-te
 local	ui-tests/seed.py	both	py:self_test	4	each repo's short-date self-test indexes its own bubble dashboard by name (a290 alpine-bubble, r5 renault-5-bubble); the function is otherwise identical
 pending	ui-tests/seed.py	both	py:<docstring>,<imports>,TOGGLES,MIN_POPUPS,TEMPLATE_DIR,HELPER_STATES,helper_states,state_for,derive_passes,TEXT_KEYS,IF_IS_STATE,ACTION_KEYS,_reads_state,expected_labels,popups_in,write_manifest,main	37	r5 ported ADR 0003 (#124); residue is a290 deriving a pass per TOGGLES entry (the off-peak badge's "Peak rate"), seeding the bundled pretty-location template at a real length, and comment wording. Target: converge wording
 pending	ui-tests/completeness_fixtures.py	both	py:<docstring>,PRE_CHANGE_REF,Runner,main	31	r5 ported ADR 0003 row 6 (#124); residue is comment wording (a290/r5 each cite their own PR and pre-change SHA) and r5's own NavLog diagnostic in the Runner, which a290 has no equivalent of. Target: converge wording
-pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_labels,POPUP_SHOT_NAMES,_open_popup,_capture_popup,run	116	r5 ported ADR 0003 (#124); residue is r5's own NavLog diagnostic (a290 has none) and comment wording. Target: converge wording
+pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_labels,POPUP_SHOT_NAMES,_open_popup,_capture_popup,run	86	r5 ported ADR 0003 (#124); a290 now has r5's pop-up skip diagnostic (_Stages, _NavLog, _popup_skip_diag); residue is comment wording. Target: converge wording
 
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
-pending	ui-tests/check_overflow.py	both	*	91	residue after r5 #105 and #124 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow ADR 0001 row 13
+pending	ui-tests/check_overflow.py	both	*	66	residue after r5 #105 and #124 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow ADR 0001 row 13
 pending	ui-tests/seed.py	both	*	105	residue after r5 #105 and #124: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
 pending	ui-tests/README.md	both	*	69	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow ADR 0001 row 13
 
