@@ -135,6 +135,7 @@ JS_DIAG = r"""
     readyState: document.readyState,
     fontsStatus: document.fonts ? document.fonts.status : null, fonts, frames: window.frames.length,
     navType: ((performance.getEntriesByType('navigation') || [])[0] || {}).type || null,
+    workerStart: ((performance.getEntriesByType('navigation') || [])[0] || {}).workerStart || 0,
     swController: !!(navigator.serviceWorker && navigator.serviceWorker.controller),
   };
 }
@@ -400,12 +401,27 @@ class _NavLog:
     destroyed ... navigation" on one HA leg only, so a skip prints what navigated, and when."""
 
     def __init__(self, page):
-        self.page, self.t0, self.items = page, time.monotonic(), []
+        self.page, self.t0, self.items, self.errors, self.last_load = page, time.monotonic(), [], [], None
         page.on("framenavigated", self.record)
+        page.on("load", self.loaded)
+        page.on("pageerror", lambda err: self.error("pageerror", str(err)))
+        page.on("console", lambda m: self.error("console", m.text) if m.type == "error" else None)
+        page.on("requestfailed", lambda r: self.error("requestfailed", f"{r.url[-70:]} {r.failure}"))
 
     def record(self, frame):
         self.items.append((round(time.monotonic() - self.t0, 2),
                            "main" if frame == self.page.main_frame else "sub", frame.url[-90:]))
+
+    def loaded(self, _page):
+        """A document load, which a hash change never fires: how a reload shows apart from one."""
+        self.last_load = time.monotonic()
+        self.items.append((round(self.last_load - self.t0, 2), "load", ""))
+
+    def error(self, kind, text):
+        self.errors = (self.errors + [(round(time.monotonic() - self.t0, 2), kind, text[:160])])[-20:]
+
+    def quiet_for(self, seconds):
+        return self.last_load is not None and time.monotonic() - self.last_load >= seconds
 
 
 def _popup_skip_diag(page, stages, nav):
@@ -413,13 +429,15 @@ def _popup_skip_diag(page, stages, nav):
     try:
         d = page.evaluate(JS_DIAG)
         fonts = d.get("fonts") or []
-        state = {k: d.get(k) for k in ("fontsStatus", "frames", "navType", "swController", "readyState")}
+        state = {k: d.get(k) for k in ("fontsStatus", "frames", "navType", "workerStart", "swController", "readyState")}
         state["fonts"] = f"{len(fonts)} faces, not loaded: {[f for f in fonts if f[2] != 'loaded']}"
     except Exception as err:      # the context may be gone; that is itself the finding
         state = {"error": f"{type(err).__name__}: {(str(err).strip().splitlines() or [''])[0]}"}
     return [f"stage {stages.name} after {stages.elapsed()}s; completed {stages.done}",
-            f"url now: {page.url[-90:]}; navigations: {nav.items[-6:]}",
-            f"page: {state}"]
+            f"url now: {page.url[-90:]}; document loads: {[i[0] for i in nav.items if i[1] == 'load']}; "
+            f"last navigations: {nav.items[-6:]}",
+            f"page: {state}",
+            f"errors (last {len(nav.errors)}): {nav.errors}"]
 
 
 def _write_diag(page, shot_path):
@@ -598,6 +616,54 @@ def _wait_card_mod(page, cap_s=CARD_MOD_WAIT_S, poll_ms=250, quiet_s=CARD_MOD_QU
                      f"e.g. {', '.join(st['pending'][:4])}"}]
 
 
+# HA's service worker takes control of a context's first document a few seconds after load and then
+# reloads it (frontend register-service-worker: controllerchange -> location.reload). Under CI load
+# that lands anywhere in the next tens of seconds, including inside a pop-up scan, and a reloaded
+# document has been seen with Bubble opening no pop-up at all (run 37169573448: navType 'reload',
+# four opens, none shown). Blocking the worker is not an option: on HA 2026.8.1 card-mod only
+# applies after that reload (5 of 6 CI runs failed with card-mod never applied). So wait for it.
+SW_BARRIER_S = 20
+
+
+def _await_sw_control(page, url, nav, dev_name, cap_s=SW_BARRIER_S):
+    """Load `url` once and wait until the service worker controls the page and no document has loaded
+    for 1 s, so every later load in this context starts controlled, with nothing left to reload.
+    A cap is reported, never failed: the card-mod wait still fails a page that was not styled."""
+    t0 = time.monotonic()
+    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+    while time.monotonic() - t0 < cap_s:
+        try:
+            controlled = page.evaluate("() => !!(navigator.serviceWorker && navigator.serviceWorker.controller)")
+        except Exception:      # the reload we are waiting for destroys the context
+            controlled = False
+        if controlled and nav.quiet_for(1.0):
+            print(f"    [sw] {dev_name}: controlled after {round(time.monotonic() - t0, 1)}s")
+            return True
+        page.wait_for_timeout(250)
+    print(f"    [sw] {dev_name}: not controlled after {cap_s}s — measuring anyway")
+    return False
+
+
+def _load_dashboard(page, base, dash):
+    """One cold load of a dashboard, up to the point the scan may start."""
+    page.goto(f"{base}/{dash}", wait_until="domcontentloaded", timeout=30000)
+    # Let the bubble dashboard's auto-open hash navigation fire (~60ms) and
+    # settle BEFORE any evaluate/screenshot, so it can't tear down an in-flight
+    # execution context or leave a font fetch pending mid-capture.
+    page.wait_for_timeout(300)
+    page.wait_for_function(JS_RENDERED, timeout=30000)
+    try:  # actually load Zen Dots before measuring — fonts.ready alone resolves
+        page.evaluate(                                 # before a not-yet-applied font fetches
+            "async () => { try {"
+            " await document.fonts.load('400 12px \"Zen Dots\"');"
+            " await document.fonts.load('700 13px \"Zen Dots\"');"
+            " await document.fonts.ready;"
+            " } catch (e) {} }")
+    except Exception:
+        pass
+    page.wait_for_timeout(1200)  # settle layout + late cards
+
+
 def _stable_issues(page, settle_ms=500, max_passes=12):
     """Poll the truncation scan across a settle window and report only issues that SURVIVE it.
     card-mod styles (e.g. `white-space:normal` on the card labels) and webfonts apply
@@ -636,6 +702,19 @@ def _stable_issues(page, settle_ms=500, max_passes=12):
 # (refresh-screenshots.yaml); every other pop-up is popup_<hash without #>.
 POPUP_SHOT_NAMES = {"#alpine-charging": "smart_charging"}
 
+# Test hook, never set in CI: UI_TESTS_BREAK=popup-wedge-once|popup-wedge-always makes a document on
+# which no Bubble pop-up ever reads as open (what the gate saw on a reloaded page: the open is
+# dispatched, nothing is shown). `once` wedges the first device's bubble page after its main capture
+# (a fresh document must recover it); `always` wedges every document (a real never-opens defect must
+# still fail the device). Swallowing hashchange/popstate does NOT do it: Bubble's listeners are
+# registered first, so only an init script (`always`) would win. Without a hook the recovery has
+# never been seen to do anything.
+BREAK = os.environ.get("UI_TESTS_BREAK", "")
+WEDGE_JS_BODY = ("() => { const c = DOMTokenList.prototype.contains; "
+                 "DOMTokenList.prototype.contains = function (t) "
+                 "{ return t === 'is-popup-opened' ? false : c.call(this, t); }; }")
+WEDGE_JS = "(" + WEDGE_JS_BODY + ")()"
+
 
 def _open_popup(page, popup, where, dev_name, stages, nav):
     """Open the Bubble pop-up `popup` ({hash, name}) by hash navigation and return once it is
@@ -657,10 +736,10 @@ def _open_popup(page, popup, where, dev_name, stages, nav):
             page.evaluate(JS_DISMISS_TOASTS)
             stages.next(f"recheck {attempt + 1}")
             # Re-check after the settle: seen opening is not still open. The pop-up can close in
-            # that window, or the page reload under it: HA reloads once, ~3s after a context's
-            # first load, as its service worker takes control (measured on Bubble 3.2.5 and
-            # 3.4.0; blocking service workers removes it), leaving the pop-up sliding in below
-            # the viewport. Treated as a failed open, so the reopen recovers it.
+            # that window, or the page reload under it: HA reloads once, a few seconds after a
+            # context's first load, as its service worker takes control (see _await_sw_control),
+            # leaving the pop-up sliding in below the viewport. Treated as a failed open, so the
+            # reopen recovers it.
             if page.evaluate(JS_POPUP_SHOWS, arg):
                 return True
             why = "open, then gone at the recheck"
@@ -681,9 +760,9 @@ def _capture_popup(page, popup, where, dev_name, shot, nav):
     than overwritten by the menu behind it). run() then FAILS that device for that pop-up: a
     truncation is specific to a width, so a pop-up scanned at 430px says nothing about 360px, and
     a skip that passed was a false green for that viewport (Codex on #171).
-    The one miss that recurs is HA's own reload: once, ~5 s after a context's first load, as its
-    service worker takes control (measured on Bubble 3.2.5, 3.4.0 and 3.4.1; the r5 twin saw it
-    land inside the pop-up scan on 4 of 8 legs). It usually tears down the JS context ("Execution
+    The one miss that recurs is HA's own reload, once per context, as its service worker takes
+    control (the r5 twin saw it land inside the pop-up scan on 4 of 8 legs; _await_sw_control now
+    waits for it before anything is measured). It usually tears down the JS context ("Execution
     context was destroyed") in whatever call is in flight, which the retry below already catches
     -- but landing BETWEEN two polls of _stable_issues raises nothing: the reload completes, and
     the scan quietly finishes against whatever the reload left on screen (the main menu, or the
@@ -770,7 +849,8 @@ def run():
         for p in entries:
             if not p.get("cards"):
                 sys.exit(f"{args.expect}: pop-up {p.get('hash')} on {dash} lists no cards to wait for")
-    captured = {(dash, p["hash"]): [0, 0] for dash in args.dashboards for p in popups[dash]}  # [scanned, skipped]
+    captured = {(dash, p["hash"]): [0, 0, 0] for dash in args.dashboards for p in popups[dash]}  # [scanned, skipped, recovered]
+    systemic = {}   # (dash, hash) -> device that first failed it on a FRESH document too: not a flake
     tokens = json.load(open(args.tokens))
     devices = json.load(open(args.devices))["devices"]
     os.makedirs(args.out, exist_ok=True)
@@ -798,8 +878,12 @@ def run():
                 # belt-and-braces that freezes anything that ignores the preference.
                 reduced_motion="reduce")
             ctx.add_init_script(init)
+            if BREAK == "popup-wedge-always":
+                ctx.add_init_script(WEDGE_JS)
             page = ctx.new_page()
             nav = _NavLog(page)
+            _await_sw_control(page, f"{args.base}/{args.dashboards[0]}", nav, dev["name"])
+            wedge_once = BREAK == "popup-wedge-once" and dev is devices[0]
             for dash in args.dashboards:
                 slug = dev["name"].lower().replace(" ", "_").replace("(", "").replace(")", "")
                 stem = f"{dash}__{args.pass_name}" if args.pass_name else dash
@@ -808,22 +892,11 @@ def run():
                 issues = None
                 for attempt in range(MAX_RENDER_ATTEMPTS):
                     try:
-                        page.goto(f"{args.base}/{dash}", wait_until="domcontentloaded", timeout=30000)
-                        # Let the bubble dashboard's auto-open hash navigation fire (~60ms) and
-                        # settle BEFORE any evaluate/screenshot, so it can't tear down an in-flight
-                        # execution context or leave a font fetch pending mid-capture.
-                        page.wait_for_timeout(300)
-                        page.wait_for_function(JS_RENDERED, timeout=30000)
-                        try:  # actually load Zen Dots before measuring — fonts.ready alone resolves
-                            page.evaluate(                                 # before a not-yet-applied font fetches
-                                "async () => { try {"
-                                " await document.fonts.load('400 12px \"Zen Dots\"');"
-                                " await document.fonts.load('700 13px \"Zen Dots\"');"
-                                " await document.fonts.ready;"
-                                " } catch (e) {} }")
-                        except Exception:
-                            pass
-                        page.wait_for_timeout(1200)  # settle layout + late cards
+                        _load_dashboard(page, args.base, dash)
+                        if dash == args.dashboards[0] and attempt == 0:
+                            born = page.evaluate("() => ((performance.getEntriesByType('navigation') || [])[0] || {})"
+                                                 ".workerStart > 0")
+                            print(f"    [sw] {dev['name']}: first measured document born controlled: {born}")
                         issues = _stable_issues(page)   # confirm truncations across two passes (see helper)
                         issues += _missing_labels(page, expect.get(dash, {}).get("labels", []))
                         # Drop HA's startup toasts only AFTER the truncation scan, so removing the
@@ -852,11 +925,39 @@ def run():
                 # Every pop-up the manifest lists for this dashboard, in its order: Bubble renders a
                 # pop-up only while it is open, so the scan above saw none of them but the one the
                 # dashboard auto-opens.
+                if wedge_once and "bubble" in dash:
+                    page.evaluate(WEDGE_JS_BODY)
+                    wedge_once = False
                 for popup in popups[dash]:
                     pname = POPUP_SHOT_NAMES.get(popup["hash"], "popup_" + popup["hash"].lstrip("#"))
                     pshot = os.path.join(args.out, f"{stem}__{pname}__{slug}.png")
                     found = _capture_popup(page, popup, where, dev["name"], pshot, nav)
-                    captured[(dash, popup["hash"])][found is None] += 1
+                    key = (dash, popup["hash"])
+                    if found is None and key not in systemic:
+                        # The pop-up failed on this document; a retry on the SAME page is not an
+                        # independent try (every open on a wedged page failed, 4 of 4 and 9 of 9),
+                        # so load a fresh document in the same, already controlled, context and
+                        # try once more. A pop-up that fails there too still fails the device.
+                        print(f"    [popup reload] {where} @ {dev['name']}: {popup['hash']} failed on this "
+                              "document — loading a fresh one, trying once more")
+                        try:
+                            _load_dashboard(page, args.base, dash)
+                            issues += _wait_card_mod(page)
+                            found = _capture_popup(page, popup, where, dev["name"], pshot, nav)
+                        except Exception as err:
+                            print(f"    [popup reload] {where} @ {dev['name']}: {popup['hash']} fresh load "
+                                  f"failed ({type(err).__name__})")
+                        if found is None:
+                            systemic[key] = dev["name"]
+                        else:
+                            captured[key][2] += 1
+                    elif found is None:
+                        print(f"    [popup reload skipped] {where} @ {dev['name']}: {popup['hash']} already "
+                              f"failed on a fresh document on {systemic[key]}")
+                    captured[key][found is None] += 1
+                    if found is not None and any(i.get("type") == "not-rendered" for i in found):
+                        for line in _popup_skip_diag(page, _Stages("not-rendered"), nav):
+                            print(f"    [popup diag] {line}")
                     if found is None:
                         # Not covered on this device, so not green on it: a truncation at this
                         # width would have been missed, whatever the other devices found.
@@ -890,7 +991,9 @@ def run():
     # Each skip already failed its device above; the summary names the pop-up once so a hash that
     # opens nothing anywhere reads as one fact rather than ten device failures.
     print()
-    for (dash, phash), (scanned, skipped) in captured.items():
+    for (dash, phash), (scanned, skipped, recovered) in captured.items():
+        if recovered:
+            print(f"  pop-up {phash} on {dash}: recovered on a fresh document on {recovered} device(s)")
         if skipped:
             print(f"  pop-up {phash} on {dash}: scanned on {scanned}, skipped on {skipped} of "
                   f"{scanned + skipped} device(s)" + ("" if scanned else " — never checked at all"))

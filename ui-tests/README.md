@@ -70,14 +70,28 @@ Mushroom tile labels clipping on a phone.
    `navigate` action whose target no pop-up defines, and on a Bubble dashboard defining fewer
    than `MIN_POPUPS`.
 
+   HA's service worker takes control of a context's first document a few seconds after it loads
+   and then reloads the page, which under CI load has landed inside a pop-up scan (a reloaded
+   document was seen with Bubble opening no pop-up at all). So each device's context first loads
+   the first dashboard and waits until the worker controls the page and no document has loaded
+   for a second (`[sw] ... controlled after Ns`), so every measured document starts controlled.
+   The worker is not blocked: on HA 2026.8.1 card-mod only applies after that reload, and a gate
+   with the worker blocked failed 5 of 6 minimum-leg runs with card-mod never applied.
+
    A pop-up that never stays open, or whose scan is torn down, gets one more attempt on that
-   device: HA reloads the page once, about five seconds after a context's first load, as its
-   service worker takes control, and opening by hash can tear down the JS context on a slow
-   viewport; neither recurs. A pop-up still unscanned after that is reported, its committed
-   screenshot is kept rather than overwritten by the menu behind it, and **that device fails for
-   that pop-up**: a truncation is specific to a width, so a scan at 430px says nothing about
-   360px. Each pass also prints how many devices skipped each pop-up, so a hash that opens
-   nothing anywhere reads as one fact.
+   page, and then one on a freshly loaded document in the same context, because a retry on a
+   document where nothing opens is not an independent try. That second chance is never silent:
+   it prints `[popup reload]` and the pass summary counts the devices that needed it. A pop-up
+   still unscanned after that is reported, its committed screenshot is kept rather than
+   overwritten by the menu behind it, and **that device fails for that pop-up**: a truncation is
+   specific to a width, so a scan at 430px says nothing about 360px. A pop-up that also failed
+   on a fresh document is not reloaded again on later devices. Each pass also prints how many
+   devices skipped each pop-up, so a hash that opens nothing anywhere reads as one fact. When a
+   pop-up is skipped the log prints `[popup diag]` lines: the capture stage and its timings, every
+   document load, the last navigations, recent page errors and failed requests, and whether the
+   document was a reload and was served by the worker. `UI_TESTS_BREAK=popup-wedge-once` or
+   `popup-wedge-always` (never set in CI) makes a document on which no pop-up opens, to prove the
+   recovery recovers a flake and still fails a real defect.
 5. **Problem-sensor and toggle passes.** The seed is a parked car on a working add-on (Data
    Stale on, Poll Failing and API Auth Failure off) with the demo charger dispatching, so the rest
    of what those sensors switch (the Not Polling and Auth Failure cards, the Last Updated branch
