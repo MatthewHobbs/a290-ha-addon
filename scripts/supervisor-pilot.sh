@@ -38,7 +38,7 @@ set -euo pipefail
 
 # Renovate keeps these current (customManagers in .github/renovate.json),
 # matching the quoted "name:tag@digest"; the tag must exist upstream.
-DEVCONTAINER_IMAGE="ghcr.io/home-assistant/devcontainer:6-apps@sha256:4e2d6efd9ac472c27f5cc522672ea9bbfdf35a897266ff4b1ac1f21ee611a4a9"
+DEVCONTAINER_IMAGE="ghcr.io/home-assistant/devcontainer:6-apps@sha256:9c08de75a4d91938dab76d44846a2d297d4ce92bf80024ff15a4f6dff766855e"
 REGISTRY_IMAGE="docker.io/library/registry:3@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
