@@ -177,7 +177,7 @@ def test_mqtt_connect(monkeypatch):
         def reconnect_delay_set(self, **k):
             seen["delay"] = k
 
-        def connect(self, host, port, keepalive):
+        def connect_async(self, host, port, keepalive):   # v0.20.0: retries a broker that is down at boot
             seen["connect"] = (host, port)
 
         def loop_start(self):
@@ -216,9 +216,10 @@ def test_on_connect_resubscribes_and_publishes():
 
 
 class _Msg:
-    def __init__(self, topic, payload=b""):
+    def __init__(self, topic, payload=b"", retain=False):
         self.topic = topic
         self.payload = payload
+        self.retain = retain
 
 
 def test_on_message_dispatches_via_injected_handler(monkeypatch):
@@ -241,8 +242,14 @@ def test_on_message_dispatches_via_injected_handler(monkeypatch):
     monkeypatch.setattr(mqtt, "_LOOP", object())
     monkeypatch.setattr(mqtt.asyncio, "run_coroutine_threadsafe", fake_schedule)
 
-    mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}horn"))
-    assert recorded == [("horn", "")]
+    mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}horn", b"PRESS"))
+    assert recorded == [("horn", "PRESS")]
+
+    # Since core v0.20.0 a retained command is never replayed, and an empty payload (how a
+    # retained command is cleared, delivered live) does not fire it either.
+    mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}horn", b"PRESS", retain=True))
+    mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}horn", b""))
+    assert recorded == [("horn", "PRESS")]
 
     mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}soc_target", b"80"))
     assert recorded[-1] == ("soc_target", "80")
