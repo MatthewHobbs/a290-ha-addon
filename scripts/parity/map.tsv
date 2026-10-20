@@ -109,10 +109,9 @@ identity	*	My Renault	My Alpine	companion app name
 identity	*	\bR5\b	A290	short model name
 
 # Shared verbatim: these must stay byte-identical. Compared raw, because normalising a file
-# that names both cars can manufacture a match: docs_cite_check.py says "the R5's ids" in
-# both repos, and the R5 rule would rewrite r5's copy to "the A290's".
+# that names both cars can manufacture a match: a script that says "the R5's ids" in
+# both repos would have the R5 rule rewrite r5's copy to "the A290's".
 verbatim	scripts/parity_check.py	-	-	this script: r5 runs the same file
-verbatim	scripts/docs_cite_check.py	-	-	shared check, copied verbatim
 verbatim	scripts/docs_sync_check.py	-	-	shared check, copied verbatim
 verbatim	scripts/pii_check.py	-	-	shared check, copied verbatim
 verbatim	scripts/ha_minimum_check.py	-	-	shared check, copied verbatim
