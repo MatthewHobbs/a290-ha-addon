@@ -3,7 +3,7 @@
   "description": [
     "Renovate covers what Dependabot cannot see in this repo: the CORE_REF git-SHA pin in the Dockerfile, which no manifest describes, and the Dockerfile base and build-stage images.",
     "Python is deliberately left to Dependabot. requirements.txt is a hash-locked pip-compile output installed with --require-hashes, and it carries no pip-compile header, so Renovate cannot regenerate the hashes and would leave the lock inconsistent.",
-    "renault-api stays manual regardless of tooling: per-model endpoint support is hard-coded in the library, so it is bumped by hand after a container-verified review.",
+    "renault-api is Dependabot's too, in its own group; tests/test_api_contract.py pins the A290's endpoint map, so a release that changes it fails CI.",
     "It also tracks the UI gate's render inputs in ui-tests/run.sh - the Home Assistant image and the four custom cards - which are pinned for a deterministic render, so without a bot they only move when someone remembers, and the gate drifts behind the Home Assistant users actually run.",
     "And the Supervisor pilot's devcontainer and registry images in scripts/supervisor-pilot.sh, pinned by digest so a run is reproducible; without a bot the pilot would keep booting an old devcontainer."
   ],
