@@ -6,10 +6,8 @@
   published security advisories in the previous ones.
 - **Charge limits outside the sliders' range are no longer sent to the car.** A value published
   to `alpine_a290/cmd/soc_min` or `soc_target` by an automation or another MQTT client is refused
-  with a warning when it is outside the slider's range (15–45%, 55–100%), not a finite number, or
-  would leave the minimum at or above the target. The sliders are unchanged.
-- **The Supervisor's watchdog can now restart the add-on** if it stops, for example when it exits
-  at boot because the MQTT broker was not up yet. No settings change.
+  with a warning when it is outside the slider's range (15–45%, 55–100%, in steps of 5), not a whole
+  number, or would leave the minimum at or above the target. The sliders are unchanged.
 
 ## 1.28.13
 

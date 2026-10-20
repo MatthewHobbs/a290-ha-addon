@@ -317,8 +317,8 @@ LOCATION_CMDS = {obj[_P:] for obj, (_n, _i, ep) in ACTION_BUTTONS.items() if ep 
 
 # Command suffixes (topic tail) that map to writable numbers rather than button actions.
 NUMBER_CMDS = {obj[_P:] for obj in NUMBERS}
-# The sliders' (min, max), enforced on the command too: any MQTT client can publish to the topic.
-NUMBER_RANGES = {obj[_P:]: (lo, hi) for obj, (_n, _i, lo, hi, _s) in NUMBERS.items()}
+# The sliders' (min, max, step), enforced on the command too: any MQTT client can publish to the topic.
+NUMBER_RANGES = {obj[_P:]: (lo, hi, step) for obj, (_n, _i, lo, hi, step) in NUMBERS.items()}
 
 _soc_lock = None
 _soc_lock_loop = None
@@ -344,13 +344,14 @@ async def set_soc_level(which, payload):
     except (TypeError, ValueError):
         LOG.warning("Ignoring non-numeric %s value: %r", which, payload)
         return
-    if not math.isfinite(number):  # int(inf) raises OverflowError, outside the except above
-        LOG.warning("Ignoring non-finite %s value: %r", which, payload)
+    # isfinite first: int(inf) raises OverflowError, outside the except above.
+    if not math.isfinite(number) or not number.is_integer():
+        LOG.warning("Ignoring %s value %r: not a whole number", which, payload)
         return
     value = int(number)
-    lo, hi = NUMBER_RANGES[which]
-    if not lo <= value <= hi:
-        LOG.warning("Ignoring %s=%s: outside %s-%s", which, value, lo, hi)
+    lo, hi, step = NUMBER_RANGES[which]
+    if not lo <= value <= hi or (value - lo) % step:
+        LOG.warning("Ignoring %s=%s: not %s-%s in steps of %s", which, value, lo, hi, step)
         return
     locale = cfg("A290_LOCALE", "en_GB")
     async with _soc_lock_get():

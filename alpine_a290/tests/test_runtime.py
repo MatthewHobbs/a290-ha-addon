@@ -664,6 +664,9 @@ _TGT_LO, _TGT_HI = main.NUMBERS["a290_soc_target"][2:4]
     ("soc_target", "inf"),
     ("soc_target", "-inf"),
     ("soc_min", "nan"),
+    ("soc_min", "45.9"),     # fractional: would truncate to an in-range 45
+    ("soc_min", "17"),       # in range, off the slider's step of 5
+    ("soc_target", "57"),
 ])
 def test_set_soc_rejects_out_of_range_or_non_finite(monkeypatch, caplog, cmd, payload):
     v = SocVehicle()
@@ -687,18 +690,20 @@ def test_set_soc_accepts_range_edges(monkeypatch, cmd, payload, expected):
     assert v.soc_set == expected
 
 
-def test_set_soc_rejects_min_not_below_target(monkeypatch, caplog):
-    # In range on its own, but the car's current target is below it, so the pair is invalid.
+@pytest.mark.parametrize("car_target", [_MIN_HI - 5, _MIN_HI])   # below, and equal (the >= edge)
+def test_set_soc_rejects_min_not_below_target(monkeypatch, caplog, car_target):
+    # In range on its own, but the car's current target (set elsewhere, e.g. the My Alpine app)
+    # is not above it, so the pair is invalid.
     class LowTarget(SocVehicle):
         async def get_battery_soc(self):
-            return ns(socTarget=_MIN_HI - 5, socMin=_MIN_LO)
+            return ns(socTarget=car_target, socMin=_MIN_LO)
 
     v = LowTarget()
     _login_as(monkeypatch, v)
     with caplog.at_level(logging.WARNING, logger=main.LOG.name):
         asyncio.run(main.run_command("soc_min", str(_MIN_HI)))
     assert v.soc_set is None
-    assert any(r.levelno == logging.WARNING for r in caplog.records)
+    assert any("must be below target" in r.getMessage() for r in caplog.records)
 
 
 def test_set_soc_bails_when_opposing_limit_missing(monkeypatch):

@@ -482,12 +482,17 @@ def test_validate_url_path_rejects_invalid(bad):
         deploy._validate_url_path(bad)
 
 
-def test_run_deploy_skips_reserved_url_path(monkeypatch):
-    # Reaches validation (token present) and returns before any WS connection / save.
+def test_run_deploy_skips_reserved_url_path(monkeypatch, caplog):
+    # Reaches validation (token present) and must return before any WS connection / save:
+    # deploying to "energy" would overwrite a built-in HA panel.
+    opened = _record_sessions(monkeypatch)
     monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "standard")
     monkeypatch.setenv("SUPERVISOR_TOKEN", "tok")
     monkeypatch.setenv("A290_DASHBOARD_URL_PATH", "energy")
-    asyncio.run(deploy.run_deploy())
+    with caplog.at_level(logging.DEBUG):
+        asyncio.run(deploy.run_deploy())
+    assert opened == []
+    assert any("auto-deploy skipped" in m for m in _warnings(caplog))
 
 
 # --------------------------------------------------------------------------- #
