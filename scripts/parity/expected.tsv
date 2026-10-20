@@ -111,6 +111,7 @@ pending	alpine_a290/dashboards/front-end.txt	r5	hunk:name: Cabin Temp	14	r5's Ca
 pending	alpine_a290/dashboards/front-end.txt	r5	hunk:^\s+name: (Initial|Uplift)$	16	r5 still has duplicate Initial and Uplift tiles, and Initial is mislabelled (audit H-C5). Target: remove from r5
 pending	alpine_a290/dashboards/front-end.txt	r5	hunk:name: Start Charging	18	r5's standard dashboard keeps a greyed-out Start Charging tile (audit H-D5). Target: owner decision, then one dashboard
 pending	alpine_a290/dashboards/front-end.txt	both	re:API request failed due to an authentication|Auth Failure\*\* card	4	alarm-card wording ("An Alpine API" / "API Auth Failure" on a290). Target: port a290's wording to r5
+pending	alpine_a290/dashboards/front-end.txt	both	hunk:--primary-text-color:#e1e1e1|--card-background-color: #14171b	12	the dark sections set light text and the map card a dark card colour (its marker), so text stays readable on the light theme. Target: r5 ports a290's light-theme text fix
 model	alpine_a290/dashboards/front-end-bubble.txt	both	re:^  - title:	2	the Bubble view title names the car
 pending	alpine_a290/dashboards/front-end-bubble.txt	both	re:# Ghost tile:	2	comment wording on the disabled charge tile. Target: converge, either way
 

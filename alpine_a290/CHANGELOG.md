@@ -4,6 +4,9 @@
 
 - **renault-api 0.6.1.** No change in what the A290 exposes. An account that Renault puts behind
   two-factor sign-in cannot sign in from the add-on, and shows as API Auth Failure.
+- **Tile names are readable again on Home Assistant's light theme.** The standard dashboard keeps
+  its dark sections whatever the theme, but on the light theme the cards inside drew dark text on
+  them, so names such as Battery Level were nearly invisible. The sections now set light text.
 - **Car commands are no longer replayed after a restart.** A command left retained on the broker
   (for example by an automation publishing with retain) used to run again every time the add-on
   restarted or reconnected; it is now ignored with a warning, and an empty payload never fires a
