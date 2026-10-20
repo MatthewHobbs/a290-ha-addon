@@ -8,14 +8,14 @@ clientWidth) or any broken card (hui-error-card). A screenshot is saved per devi
 non-zero with a report if any truncation or card error is found.
 
 A named pass (--pass-name alarm) writes its screenshots as <dashboard>__<pass>__<device>.png, so
-it never overwrites the normal pass's files, which the screenshot-drift workflow reads by name.
+it never overwrites the normal pass's files.
 --expect takes seed.py's manifest for the pass: it picks the dashboards, lists labels that must
 be visible on each, so a pass whose states failed to switch the cards on cannot pass, and lists
 the Bubble pop-ups to open on each. Bubble renders a pop-up only while it is open, so each is
 opened by its hash, proved open by its header name, held until every card the manifest lists for
 it is laid out inside it (a card that never paints fails the device by name), scanned and
 screenshotted as <dashboard>__popup_<hash>__<device>.png (the Smart Charging one keeps its
-smart_charging name, which the drift workflow reads). Without --expect no pop-up is opened.
+smart_charging name). Without --expect no pop-up is opened.
 """
 import argparse
 import json
@@ -717,8 +717,7 @@ def _stable_issues(page, settle_ms=500, max_passes=12):
     return not_applied + issues                # still flagged when the window closed → genuine
 
 
-# Screenshot stems for the pop-ups whose file the screenshot-drift workflow reads by name
-# (refresh-screenshots.yaml); every other pop-up is popup_<hash without #>.
+# Screenshot stems for pop-ups that keep a fixed name; every other pop-up is popup_<hash without #>.
 POPUP_SHOT_NAMES = {"#alpine-charging": "smart_charging"}
 
 # Test hook, never set in CI: UI_TESTS_BREAK=popup-wedge-once|popup-wedge-each|popup-wedge-always makes a document on

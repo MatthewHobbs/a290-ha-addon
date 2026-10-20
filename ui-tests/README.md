@@ -35,7 +35,7 @@ Mushroom tile labels clipping on a phone.
    opens each by hash navigation, waits until **that** pop-up (matched to its hash through the
    `bubble-card` that renders it) is open on screen showing its header `name`, scans it with the
    same truncation check, and screenshots it as `<dashboard>__popup_<hash>__<device>.png`
-   (`#alpine-charging` keeps its `smart_charging` name, which the drift workflow reads). Findings
+   (`#alpine-charging` keeps its `smart_charging` name). Findings
    inside a pop-up are reported with its hash. **The scan waits for the whole pop-up first**
    ([ADR 0003](../docs/adr/0003-wait-for-every-pop-up-card-before-scanning.md)): Bubble renders
    a pop-up's cards lazily, and nothing is truncated in a card that has not painted, so the
@@ -64,8 +64,7 @@ Mushroom tile labels clipping on a phone.
    `visibility: visible` and opacity above zero through every ancestor, not "in the viewport",
    since pop-ups scroll; a card that emits its text twice cannot stand in for a second card with
    the same text. What is still short at the timeout is a `not-rendered` finding naming the text
-   or the card type, and fails that device. `completeness_fixtures.py` is the isolated proof of
-   each case (row 6 of the ADR) against the tree before the wait. The listing cannot go quietly
+   or the card type, and fails that device. The listing cannot go quietly
    empty: `seed.py` stops on a pop-up without a hash or a name, on two sharing either, on a
    `navigate` action whose target no pop-up defines, and on a Bubble dashboard defining fewer
    than `MIN_POPUPS`.
@@ -161,8 +160,9 @@ Mushroom tile labels clipping on a phone.
 
 `devices.json` — the top mobile devices for 2024-25 plus the narrow/wide bounds (CSS
 viewport width is the truncation-critical dimension):
-iPhone 15 Pro Max / Pro / 15 / SE, Pixel 8 / 7a, Galaxy S24 / S23 / A54, and a 360px Android
-narrow bound.
+iPhone 15 Pro Max / Pro / SE, Pixel 8, Galaxy S24, Galaxy A54 and a 360px Android narrow
+bound: one device per width (430, 393, 375, 412, 360), plus the A54's fractional 2.625 scale
+and the 640px-high narrow bound at 360px, where sub-pixel truncation shows first.
 
 ## Run locally
 
@@ -175,30 +175,3 @@ PYTHON=/path/to/venv/bin/python bash ui-tests/run.sh
 
 Screenshots land in `ui-tests/screenshots/` (git-ignored; uploaded as a CI artifact). In CI
 this is the **UI Tests** workflow, which runs whenever the dashboards or this harness change.
-
-## Docs-screenshot drift report
-
-On a PR, a trusted `workflow_run` companion (`.github/workflows/refresh-screenshots.yaml`)
-downloads the rendered artifact, resizes the phone shots, and reports whether they differ from
-the committed `docs/screenshots/`. If they do, the regenerated PNGs are attached to the run as
-the **regenerated-screenshots** artifact; download and commit them yourself if the change is
-real. It writes a job summary and nothing else.
-
-**It does not commit, and it never fails the build.** Both are deliberate.
-
-It used to commit refreshed PNGs to the PR head via a GitHub App token, and that raced with
-whoever was working on the PR: push → render differs → bot commits → head moves → your push is
-rejected non-fast-forward, or the `CLEAN` verdict you just read is invalidated and the merge
-refused. On 2026-09-07 that rejected three pushes, twice mid-merge, and moved the head five
-times across the two repos. The `[refresh-shots]` guard only stopped the bot re-triggering
-*itself*; it did nothing about a human merging that commit and pushing again. CI writing to a
-branch a human is working on **is** the race, so CI no longer writes to it — the App token and
-its `Contents: write` scope are gone from the workflow entirely.
-
-It reports rather than failing because **the render is not yet reproducible**. Two consecutive
-runs of identical code against the same seed produced 10 of 30 screenshots differing, two at
-different page *dimensions* (724x5454 vs 734x5002) — cards still land after capture, so
-`full_page` grabs a different-height document. Freezing the CSS animations
-(`animations="disabled"` plus `reduced_motion`) and anchoring the seeded timestamps to run time
-fixed the fast oscillation; the remaining layout settling must be solved before this can become
-a required drift gate like the one in `gotoad`.

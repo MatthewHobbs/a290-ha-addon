@@ -300,6 +300,69 @@ def test_helper_packages_do_not_shadow_published_ids(published) -> None:
     assert not _helper_ids() & published, sorted(_helper_ids() & published)
 
 
+def _doc_files() -> list[Path]:
+    """The prose that tells people which entities to build automations on."""
+    return sorted({*_REPO.glob("*/DOCS.md"), *_REPO.glob("*/README.md"), *_REPO.glob("*/dashboards/*.md"),
+                   *_REPO.glob("docs/*.md"), _REPO / "README.md"})
+
+
+# Docs name entities in prose: only the add-on's own device prefix is judged (a user's charger or
+# the demo entities are not ours), and the domain is part of the id.
+_DOC_REF = re.compile(
+    r"\b(?:sensor|binary_sensor|button|number|device_tracker|switch|select)\." + re.escape(_DEVICE_SLUG) + r"_[a-z0-9_]*"
+)
+
+
+def _unknown_doc_ids(text: str, known: set[str]) -> list[str]:
+    """Entity ids in ``text`` that are the add-on's own but not in ``known``. Skipped on purpose:
+    wildcard or truncated forms in prose (``..._heated_*``, ``..._heated_…``) and the optional
+    ``*_test_*`` package, which ships separately."""
+    out = set()
+    for m in _DOC_REF.finditer(text):
+        eid = m.group(0)
+        if eid.endswith("_") or text[m.end():m.end() + 1] == "*" or "_test_" in eid or eid in known:
+            continue
+        out.add(eid)
+    return sorted(out)
+
+
+def test_documented_entities_exist(published) -> None:
+    """Every add-on entity id the docs name is one this build publishes (or a shipped helper
+    defines). Docs that name a renamed or r5-only id leave an automation targeting nothing; the
+    r5 ids ``number.alpine_a290_soc_min_target`` / ``..._soc_max_target`` once sat in DOCS.md."""
+    known = published | _helper_ids()
+    docs = _doc_files()
+    assert {p.name for p in docs} >= {"DOCS.md", "README.md", "dashboards-on-mobile.md"}, docs
+    cited = sum(len(_DOC_REF.findall(p.read_text(encoding="utf-8"))) for p in docs)
+    assert cited >= 5, "the docs cite almost no entities: the pattern or the file list has gone stale"
+    unknown = sorted(f"{p.relative_to(_REPO)}: {eid}"
+                     for p in docs for eid in _unknown_doc_ids(p.read_text(encoding="utf-8"), known))
+    assert not unknown, (
+        "Docs name entity ids this build does not publish. Home Assistant names entities "
+        "slug(device name + entity NAME), so check the catalog's names, not its object_ids:\n  "
+        + "\n  ".join(unknown)
+    )
+
+
+def test_unknown_documented_entity_is_reported(published) -> None:
+    """Self-check: the docs check can fail. A sample with one real id, one invented id, a
+    wrong-domain id, and the forms it must leave alone."""
+    real = "sensor.alpine_a290_battery_level"
+    sample = (
+        f"Use `{real}` and `number.alpine_a290_soc_min_target` in an automation.\n"
+        "Not `sensor.alpine_a290_battery_levl`, nor `button.alpine_a290_battery_level`.\n"
+        "Wildcards stay quiet: `sensor.alpine_a290_heated_*`, `sensor.alpine_a290_heated_…`,\n"
+        "as do the test package `input_boolean.a290_test_mode`, `sensor.alpine_a290_test_panel`\n"
+        "and a user's own `sensor.octopus_charger`.\n"
+    )
+    assert _unknown_doc_ids(sample, published | _helper_ids()) == [
+        "button.alpine_a290_battery_level",
+        "number.alpine_a290_soc_min_target",
+        "sensor.alpine_a290_battery_levl",
+    ]
+    assert _unknown_doc_ids(f"`{real}`", published) == []
+
+
 def test_ui_gate_seeds_what_the_add_on_publishes(published) -> None:
     """The seed must not invent entities, or the UI gate validates a fiction."""
     bad = []
