@@ -6,6 +6,7 @@
     { "name": "iPhone SE (2022)",  "width": 375, "height": 667, "deviceScaleFactor": 2, "isMobile": true, "hasTouch": true },
     { "name": "Pixel 8",           "width": 412, "height": 915, "deviceScaleFactor": 2.625, "isMobile": true, "hasTouch": true },
     { "name": "Galaxy S24",        "width": 360, "height": 780, "deviceScaleFactor": 3, "isMobile": true, "hasTouch": true },
+    { "name": "Galaxy A54",        "width": 360, "height": 800, "deviceScaleFactor": 2.625, "isMobile": true, "hasTouch": true },
     { "name": "Android (narrow bound)", "width": 360, "height": 640, "deviceScaleFactor": 2, "isMobile": true, "hasTouch": true }
   ]
 }

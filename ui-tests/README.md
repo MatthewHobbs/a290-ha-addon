@@ -160,8 +160,9 @@ Mushroom tile labels clipping on a phone.
 
 `devices.json` — the top mobile devices for 2024-25 plus the narrow/wide bounds (CSS
 viewport width is the truncation-critical dimension):
-iPhone 15 Pro Max / Pro / SE, Pixel 8, Galaxy S24, and a 360px Android narrow bound: one
-device per width (430, 393, 375, 412, 360) plus the 640px-high narrow bound.
+iPhone 15 Pro Max / Pro / SE, Pixel 8, Galaxy S24, Galaxy A54 and a 360px Android narrow
+bound: one device per width (430, 393, 375, 412, 360), plus the A54's fractional 2.625 scale
+and the 640px-high narrow bound at 360px, where sub-pixel truncation shows first.
 
 ## Run locally
 

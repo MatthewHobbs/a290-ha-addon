@@ -7,7 +7,7 @@ the same on every screen (no font/size changes between phone and desktop); label
 **wrap on clean word breaks** rather than getting cut off.
 
 Devices validated each run: **iPhone 15 Pro Max, iPhone 15 Pro, iPhone SE, Pixel 8,
-Galaxy S24, and a 360 px narrow Android bound.**
+Galaxy S24, Galaxy A54, and a 360 px narrow Android bound.**
 
 ## Standard dashboard
 

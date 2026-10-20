@@ -155,3 +155,35 @@ def test_soc_levels_model_contract():
     assert ranges["soc_target"][0] <= soc.socTarget <= ranges["soc_target"][1]
 
     assert main.SOC_ENDPOINT == "soc-levels"
+
+
+# What the library declares for the A290 (model A5E1AE). The add-on probes supports_endpoint() at
+# startup and publishes only what this allows, so a renault-api bump that changes the set changes
+# which buttons and sensors users get. Dependabot proposes renault-api like any dependency; this
+# makes such a bump fail CI until someone has looked at the change and updated the set.
+A5E1AE_SUPPORTED = {
+    "actions/charge-start", "actions/horn-start", "actions/hvac-start", "actions/hvac-stop",
+    "actions/lights-start", "actions/refresh-location", "battery-status", "charge-schedule",
+    "charges", "cockpit", "hvac-status", "location", "soc-levels",
+}
+
+
+def test_a290_endpoint_map_is_the_reviewed_one():
+    from renault_api.kamereon.models import _VEHICLE_ENDPOINTS
+    declared = {ep for ep, v in _VEHICLE_ENDPOINTS["A5E1AE"].items() if v}
+    assert declared == A5E1AE_SUPPORTED, (
+        f"added: {sorted(declared - A5E1AE_SUPPORTED)}, removed: {sorted(A5E1AE_SUPPORTED - declared)}")
+
+
+def test_requirements_in_pins_match_the_lock():
+    """A bump that edits requirements.in but not the hash-locked requirements.txt (or the reverse)
+    would pass every other gate while the image kept installing the old version."""
+    import re
+    from pathlib import Path
+    app = Path(__file__).resolve().parents[1] / "app"
+    pin = re.compile(r"^([A-Za-z0-9_.-]+)==([^\s\\;]+)", re.M)
+    norm = lambda n: re.sub(r"[-_.]+", "-", n).lower()   # noqa: E731
+    lock = {norm(n): v for n, v in pin.findall((app / "requirements.txt").read_text())}
+    wanted = {norm(n): v for n, v in pin.findall((app / "requirements.in").read_text())}
+    assert wanted, "requirements.in has no pins"
+    assert {n: lock.get(n) for n in wanted} == wanted

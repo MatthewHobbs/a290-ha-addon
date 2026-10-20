@@ -8,7 +8,7 @@ clientWidth) or any broken card (hui-error-card). A screenshot is saved per devi
 non-zero with a report if any truncation or card error is found.
 
 A named pass (--pass-name alarm) writes its screenshots as <dashboard>__<pass>__<device>.png, so
-it never overwrites the normal pass's files, which the screenshot-drift workflow reads by name.
+it never overwrites the normal pass's files.
 --expect takes seed.py's manifest for the pass: it picks the dashboards, lists labels that must
 be visible on each, so a pass whose states failed to switch the cards on cannot pass, and lists
 the Bubble pop-ups to open on each. Bubble renders a pop-up only while it is open, so each is

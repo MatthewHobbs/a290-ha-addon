@@ -124,7 +124,7 @@ local	docs/adr/0002-release-waits-for-the-ui-gate.md	r5	only	1	r5's own ADR for 
 pending	justfile	both	hunk:parity|against r5-ha-addon through|against a290-ha-addon through|twin=	14	r5 added its own reciprocal parity recipes (#126), symmetric wording (each names the other repo as its twin). Target: converge wording
 pending	.github/workflows/ci.yaml	both	re:uses: \S+@[0-9a-f]{40} +#	27	pinned-action comments: two spaces on a290, one on r5, and r5 names exact tags (v3.1.1, v2.21.1) where a290 says v3, v2. The house rule wants an exact upstream tag. Target: r5's exact tags into a290, one spacing in both
 pending	.github/workflows/ci.yaml	both	hunk:declared minimum HA must	2	comment wording. Target: converge, either way
-pending	.github/workflows/ci.yaml	both	hunk:optional test package|ported template package	21	comment follows the bundled-template difference. Target: follows the Templates decision
+pending	.github/workflows/ci.yaml	both	hunk:optional test package|ported template package	21	r5 still runs the advisory Docs cite-check job (a290 folded it into test_dashboard_conformance.py), and its comment names the ported template package. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, seven UI devices)
 pending	.github/workflows/ci.yaml	both	hunk:a VIN in a test fixture|pair of public add-on repos	5	PII-step comment wording. Target: converge, either way
 pending	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant/base	4	the same comment on the build step, in a different place. Target: one place in both
 pending	.github/workflows/ui-tests.yaml	both	hunk:NOT the prose in there|Decide whether this touches the render|needs: \[changes\]|Triggers unconditionally \(ADR 0005\)|the \`if:\` that skips a no-op run|if: needs\.changes\.outputs\.relevant|skipped outright on a no-op run|if: always\(\) && needs\.changes	21	r5 ported ADR 0005 (its ADR 0002). What remains is the path-filter comment, which names each repo's own user docs (USER-GUIDE.md/INSTALLATION.md vs CUSTOMISING.md) and the #115 incident a290 saw. Target: converge the comment wording
@@ -137,12 +137,12 @@ pending	.yamllint	a290	*	4	a290 exempts dashboards/ because it bundles upstream 
 # Listed before the whole-file harness entries below so these lines are taken here, not there.
 local	ui-tests/seed.py	both	py:self_test	4	each repo's short-date self-test indexes its own bubble dashboard by name (a290 alpine-bubble, r5 renault-5-bubble); the function is otherwise identical
 pending	ui-tests/seed.py	both	py:<docstring>,<imports>,TOGGLES,MIN_POPUPS,TEMPLATE_DIR,HELPER_STATES,helper_states,state_for,derive_passes,TEXT_KEYS,IF_IS_STATE,ACTION_KEYS,_reads_state,expected_labels,popups_in,write_manifest,main	37	r5 ported ADR 0003 (#124); residue is a290 deriving a pass per TOGGLES entry (the off-peak badge's "Peak rate"), seeding the bundled pretty-location template at a real length, and comment wording. Target: converge wording
-pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_labels,POPUP_SHOT_NAMES,_open_popup,_capture_popup,run	90	r5 ported ADR 0003 (#124) and the service-worker barrier and recoveries (#139, from a290 #218); residue is comment wording and JS_POPUP_SHOWS's match-by-hash, which r5 has not ported. Target: converge wording; r5 ports the match-by-hash
+pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_labels,POPUP_SHOT_NAMES,_open_popup,_capture_popup,run	92	r5 ported ADR 0003 (#124) and the service-worker barrier and recoveries (#139, from a290 #218); residue is comment wording and JS_POPUP_SHOWS's match-by-hash, which r5 has not ported. Target: converge wording; r5 ports the match-by-hash
 
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
 pending	ui-tests/check_overflow.py	both	*	78	residue after r5 #105 and #124 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow ADR 0001 row 13
 pending	ui-tests/seed.py	both	*	105	residue after r5 #105 and #124: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
-pending	ui-tests/README.md	both	*	88	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow ADR 0001 row 13
+pending	ui-tests/README.md	both	*	89	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow ADR 0001 row 13
 
 # ---------------------------------------------------------------- prose and tests, excused wholesale
 # These are the only unguarded entries (count *): drift inside them is not caught. They are
@@ -169,12 +169,13 @@ local	scripts/supervisor-pilot.sh	both	hunk:Published	4	r5's poll-success log li
 pending	scripts/supervisor-pilot.sh	both	re:^DEVCONTAINER_IMAGE=	2	Renovate moved a290's pilot devcontainer digest (4e2d6ef -> 9c08de7) first. Target: r5 merges its own Renovate bump to the same digest
 pending	alpine_a290/Dockerfile	both	re:^FROM ghcr.io/home-assistant/base:	2	Renovate moved a290's base image digest (93ef607 -> 8fde417) first. Target: r5 merges its own Renovate bump to the same digest
 
-pending	.github/dependabot.yml	both	*	7	r5 still holds renault-api back from Dependabot. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, six UI devices)
-pending	.github/templates/renault-api-release.md	r5	only	1	deleted on a290 with the renault-api watcher. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, six UI devices)
-pending	.github/workflows/renault-api-watch.yaml	r5	only	1	deleted on a290: Dependabot proposes renault-api now. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, six UI devices)
-pending	.github/workflows/refresh-screenshots.yaml	r5	only	1	deleted on a290: it never failed and its render is not reproducible. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, six UI devices)
-pending	scripts/docs_cite_check.py	r5	only	1	folded into test_dashboard_conformance.py on a290. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, six UI devices)
-pending	scripts/docs_cite_ignore.txt	r5	only	1	goes with docs_cite_check.py. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, six UI devices)
-pending	ui-tests/completeness_fixtures.py	r5	only	1	deleted on a290: a one-off proof recorded in ADR 0003. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, six UI devices)
-pending	.github/workflows/ui-tests.yaml	both	hunk:Refresh screenshots|refresh-screenshots|Screenshot drift|compare with docs/screenshots|holds NO secrets	8	comments about the deleted screenshot workflow. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, six UI devices)
-pending	ui-tests/devices.json	both	*	4	a290 tests six devices, one per width plus the narrow bound. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, six UI devices)
+pending	.github/dependabot.yml	both	*	11	r5 still holds renault-api back from Dependabot. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, seven UI devices)
+pending	.github/templates/renault-api-release.md	r5	only	1	deleted on a290 with the renault-api watcher. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, seven UI devices)
+pending	.github/workflows/renault-api-watch.yaml	r5	only	1	deleted on a290: Dependabot proposes renault-api now. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, seven UI devices)
+pending	.github/workflows/refresh-screenshots.yaml	r5	only	1	deleted on a290: it never failed and its render is not reproducible. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, seven UI devices)
+pending	scripts/docs_cite_check.py	r5	only	1	folded into test_dashboard_conformance.py on a290. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, seven UI devices)
+pending	scripts/docs_cite_ignore.txt	r5	only	1	goes with docs_cite_check.py. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, seven UI devices)
+pending	ui-tests/completeness_fixtures.py	r5	only	1	deleted on a290: a one-off proof recorded in ADR 0003. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, seven UI devices)
+pending	.github/workflows/ui-tests.yaml	both	hunk:Refresh screenshots|refresh-screenshots|Screenshot drift|compare with docs/screenshots|holds NO secrets	8	comments about the deleted screenshot workflow. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, seven UI devices)
+pending	ui-tests/devices.json	both	*	3	a290 tests six devices, one per width plus the narrow bound. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, seven UI devices)
+pending	.github/renovate.json	both	hunk:renault-api	2	renault-api moved to Dependabot, in its own group. Target: r5 ports a290's lean PR (deletions, renault-api via Dependabot, seven UI devices)

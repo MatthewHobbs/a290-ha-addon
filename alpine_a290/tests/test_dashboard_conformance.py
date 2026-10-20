@@ -302,8 +302,8 @@ def test_helper_packages_do_not_shadow_published_ids(published) -> None:
 
 def _doc_files() -> list[Path]:
     """The prose that tells people which entities to build automations on."""
-    return sorted({*_REPO.glob("*/DOCS.md"), *_REPO.glob("*/dashboards/*.md"), *_REPO.glob("docs/*.md"),
-                   _REPO / "README.md"})
+    return sorted({*_REPO.glob("*/DOCS.md"), *_REPO.glob("*/README.md"), *_REPO.glob("*/dashboards/*.md"),
+                   *_REPO.glob("docs/*.md"), _REPO / "README.md"})
 
 
 # Docs name entities in prose: only the add-on's own device prefix is judged (a user's charger or
@@ -345,8 +345,8 @@ def test_documented_entities_exist(published) -> None:
 
 
 def test_unknown_documented_entity_is_reported(published) -> None:
-    """Self-check: the docs check can fail. A sample with one real id, one invented id, an
-    object_id-shaped id, a wrong-domain id, and the forms it must leave alone."""
+    """Self-check: the docs check can fail. A sample with one real id, one invented id, a
+    wrong-domain id, and the forms it must leave alone."""
     real = "sensor.alpine_a290_battery_level"
     sample = (
         f"Use `{real}` and `number.alpine_a290_soc_min_target` in an automation.\n"
