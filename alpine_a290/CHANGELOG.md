@@ -17,6 +17,12 @@
   to `alpine_a290/cmd/soc_min` or `soc_target` by an automation or another MQTT client is refused
   with a warning when it is outside the slider's range (15–45%, 55–100%, in steps of 5), not a whole
   number, or would leave the minimum at or above the target. The sliders are unchanged.
+- **The Last Charge section now shows without the optional test package.** The standard dashboard
+  only showed it when the package's test-panel helper existed and read "off", so a default install
+  never saw it. The Run Test Charge button on the Bubble Card dashboard is likewise hidden until the
+  package is installed. With the package, nothing changes.
+- **Section headings wrap again on Home Assistant 2026.10**, which draws their titles differently
+  and was cutting long ones short on narrow phones.
 
 ## 1.28.13
 
