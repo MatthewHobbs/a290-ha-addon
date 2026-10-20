@@ -376,3 +376,132 @@ def test_ui_gate_seeds_what_the_add_on_publishes(published) -> None:
         "ui-tests/seed.py seeds entities that differ from what the add-on publishes, so the "
         "UI gate renders against an entity set no real install has:\n  " + "\n  ".join(bad)
     )
+
+
+# --- Visibility without the optional test package -------------------------------------------
+# The frontend's checkStateCondition reads a missing entity as "unknown". A condition needing
+# 'off' on a package-only entity therefore never matches on a default install (the package is
+# optional), and the UI gate cannot see it because ui-tests/seed.py seeds those entities too.
+
+
+def _package_ids() -> set[str]:
+    """Ids only the optional Packages/ define (the Templates/ ones are not test-mode)."""
+    ids = set()
+    for path in sorted((_DASH_DIR / "Packages").glob("*.yaml")):
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+        ids |= {f"{dom}.{key}" for dom, items in doc.items() if dom.startswith("input_") for key in items}
+        for block in doc.get("template", []):
+            for dom in ("sensor", "binary_sensor"):
+                ids |= {f"{dom}.{_slug(ent['name'])}" for ent in block.get(dom, [])}
+    return ids
+
+
+def _as_list(value) -> list:
+    return value if isinstance(value, list) else [value]
+
+
+def _condition_met(cond: dict, states: dict[str, str]) -> bool:
+    """Mirror of the frontend's checkStateCondition for the 'state' conditions the dashboards
+    use. A package entity missing from ``states`` is "unknown". Conditions on entities this test
+    does not model (the add-on's own) count as met."""
+    if cond.get("condition", "state") != "state":
+        return True
+    entity = cond["entity"]
+    if entity not in states and entity not in _package_ids():
+        return True
+    current = states.get(entity, "unknown")
+    if "state" in cond and current not in [str(s) for s in _as_list(cond["state"])]:
+        return False
+    return not ("state_not" in cond and current in [str(s) for s in _as_list(cond["state_not"])])
+
+
+def _shown(card: dict, states: dict[str, str]) -> bool:
+    return all(_condition_met(c, states) for c in card.get("visibility", []))
+
+
+def _walk_cards(node, states, visible=True):
+    """Yield (card, visible) for every dict with a ``type``; a hidden parent hides its children."""
+    if isinstance(node, list):
+        for item in node:
+            yield from _walk_cards(item, states, visible)
+    elif isinstance(node, dict):
+        if "type" in node:
+            visible = visible and _shown(node, states)
+            yield node, visible
+        for key, value in node.items():
+            if key not in ("card_mod", "visibility"):
+                yield from _walk_cards(value, states, visible)
+
+
+def _entity_refs(card: dict):
+    """Entities a card itself binds to or acts on (not the Jinja/JS inside its styles)."""
+    for key, value in card.items():
+        if key in ("entity", "entity_id") and isinstance(value, str):
+            yield value
+        elif key in ("tap_action", "hold_action", "double_tap_action", "button_action", "data", "target"):
+            if isinstance(value, dict):
+                yield from _entity_refs(value)
+
+
+def _load(name: str):
+    return yaml.safe_load((_DASH_DIR / name).read_text(encoding="utf-8"))
+
+
+def _visible_cards(name: str, states: dict[str, str]) -> list[dict]:
+    return [card for card, visible in _walk_cards(_load(name), states) if visible]
+
+
+def _card_lists(node):
+    if isinstance(node, list):
+        if node and all(isinstance(i, dict) for i in node):
+            yield node
+        for item in node:
+            yield from _card_lists(item)
+    elif isinstance(node, dict):
+        for value in node.values():
+            yield from _card_lists(value)
+
+
+@pytest.mark.parametrize("name", ["front-end.txt", "front-end-bubble.txt"])
+def test_no_visible_card_needs_the_test_package_when_absent(name) -> None:
+    """Default install (no package): nothing visible binds to a package-only entity, which would
+    render a not-found card or a tap that does nothing."""
+    package = _package_ids()
+    assert len(package) >= 10, sorted(package)
+    bad = sorted({e for c in _visible_cards(name, {}) for e in _entity_refs(c) if e in package})
+    assert not bad, f"{name}: visible without the test package: {bad}"
+
+
+def test_last_charge_shows_without_the_test_package() -> None:
+    """The real Last Charge heading and its grid render without the package; the Test Charge ones
+    do not. With the package they swap on show_panel, exactly as before."""
+    pairs = [(a, b) for lst in _card_lists(_load("front-end.txt")) for a, b in zip(lst, lst[1:], strict=False)
+             if a.get("type") == "heading" and a.get("heading") in ("Last Charge", "Test Charge")]
+    assert sorted(a["heading"] for a, _ in pairs) == ["Last Charge", "Test Charge"], pairs
+    panel = "binary_sensor.a290_test_show_panel"
+    assert panel in _package_ids()
+    for name, absent, off, on in (("Last Charge", True, True, False), ("Test Charge", False, False, True)):
+        head, grid = next(p for p in pairs if p[0]["heading"] == name)
+        assert grid.get("type") == "grid", (name, grid.get("type"))
+        for card in (head, grid):
+            assert _shown(card, {}) is absent, (name, "package absent")
+            assert _shown(card, {panel: "off"}) is off, (name, "panel off")
+            assert _shown(card, {panel: "on"}) is on, (name, "panel on")
+
+
+def test_run_test_charge_button_follows_the_package() -> None:
+    """With the package the Run button shows on both dashboards; without it, on neither."""
+    panel = "binary_sensor.a290_test_show_panel"
+    for name in ("front-end.txt", "front-end-bubble.txt"):
+        for states, expected in (({}, False), ({panel: "off"}, True)):
+            names = [c.get("name") for c in _visible_cards(name, states)]
+            assert ("Run Test Charge" in names) is expected, (name, states)
+
+
+def test_every_heading_card_wraps_the_h2_that_ha_2026_10_renders() -> None:
+    """HA 2026.10 renders heading titles as <h2>; the wrap rule must cover it (and keep <p> for
+    the declared minimum), or a long title truncates on a 360px phone."""
+    headings = [c for c, _ in _walk_cards(_load("front-end.txt"), {}) if c.get("type") == "heading"]
+    assert len(headings) == (_DASH_DIR / "front-end.txt").read_text(encoding="utf-8").count("type: heading\n")
+    bad = [h["heading"] for h in headings if ".content p, .content h2{white-space:normal" not in h["card_mod"]["style"]]
+    assert not bad, bad
