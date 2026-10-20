@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **Car commands are no longer replayed after a restart.** A command left retained on the broker
+  (for example by an automation publishing with retain) used to run again every time the add-on
+  restarted or reconnected; it is now ignored with a warning, and an empty payload never fires a
+  command.
+- **The add-on now waits for the MQTT broker** if the broker is not up when it starts, retrying with
+  a backoff and logging each attempt, instead of exiting. Values then appear from the first poll
+  after the broker comes up.
+- **Logs are safer**: error tracebacks are redacted like other log lines, and the optional debug
+  dump masks more spellings of location and number-plate keys, and the car's nickname.
 - **Security: updated aiohttp and multidict** (and yarl alongside them) to versions that clear
   published security advisories in the previous ones.
 - **Charge limits outside the sliders' range are no longer sent to the car.** A value published
