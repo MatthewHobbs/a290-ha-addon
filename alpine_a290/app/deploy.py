@@ -36,7 +36,7 @@ _REF = f"v{_VERSION}" if _VERSION not in ("", "dev") else "main"
 CDN = f"https://cdn.jsdelivr.net/gh/{REPO}@{_REF}/alpine_a290/dashboards"
 FONT_URL = "https://fonts.googleapis.com/css2?family=Zen+Dots&display=swap"
 DASHBOARDS = {"standard": "front-end.txt", "bubble": "front-end-bubble.txt"}
-DASHBOARD_DIR = os.environ.get("A290_DASHBOARD_DIR", "/app/dashboards")
+DASHBOARD_DIR = "/app/dashboards"
 
 # Built-in HA panels / dashboards we must never create-or-overwrite. (A custom dashboard
 # url_path must also contain a hyphen, which already excludes most single-word panels —
@@ -85,14 +85,15 @@ def _read_dashboard(style):
 
 # Optional "Smart Charging" controls — the user maps their own EV-charger control entities
 # (any integration, e.g. Octopus Intelligent) via the charger_* options; each blank slot is
-# skipped. On the standard dashboard these render as a built-in `entities` card; on the
-# bubble dashboard they become their own pop-up "tab" of native Bubble Card controls.
+# skipped. On the standard dashboard these render as Mushroom cards matching the presets; on
+# the bubble dashboard they become their own pop-up "tab" of native Bubble Card controls.
+# Order matters: both builders unpack these as smart, bump, soc, ttime, dispatch.
 _CHARGER_ENTITIES = (
-    ("A290_CHARGER_SMART_CHARGE", "Smart Charge"),
-    ("A290_CHARGER_BUMP_CHARGE", "Bump Charge"),
-    ("A290_CHARGER_TARGET_SOC", "Charge Target"),
-    ("A290_CHARGER_TARGET_TIME", "Target Time"),
-    ("A290_CHARGER_DISPATCHING", "Off-Peak"),
+    "A290_CHARGER_SMART_CHARGE",
+    "A290_CHARGER_BUMP_CHARGE",
+    "A290_CHARGER_TARGET_SOC",
+    "A290_CHARGER_TARGET_TIME",
+    "A290_CHARGER_DISPATCHING",
 )
 _CHARGER_HASH = "#alpine-charging"
 # The heading the standard-dashboard card is inserted directly beneath.
@@ -180,11 +181,7 @@ def _charger_cards():
     cards matching the Climate/Charging Presets (so the Charge Target shows as a value, not a
     light MDC box) and the off-peak badge. Returns a list of cards, or None when nothing is
     configured (so it only appears for users who opt in)."""
-    smart = _charger_eid("A290_CHARGER_SMART_CHARGE")
-    bump = _charger_eid("A290_CHARGER_BUMP_CHARGE")
-    soc = _charger_eid("A290_CHARGER_TARGET_SOC")
-    ttime = _charger_eid("A290_CHARGER_TARGET_TIME")
-    dispatch = _charger_eid("A290_CHARGER_DISPATCHING")
+    smart, bump, soc, ttime, dispatch = (_charger_eid(env) for env in _CHARGER_ENTITIES)
     if not any((smart, bump, soc, ttime, dispatch)):
         return None
     out = [{"type": "heading", "heading": "Smart Charging", "heading_style": "title",
@@ -260,11 +257,7 @@ def _charger_popup():
     smart/bump-charge as compact toggles on one line, a charge-target slider (with the live %
     and an 80% recommendation marker), a target-time dropdown, and an Octopus off-peak badge.
     Returns None when no charger entities are configured."""
-    smart = _charger_eid("A290_CHARGER_SMART_CHARGE")
-    bump = _charger_eid("A290_CHARGER_BUMP_CHARGE")
-    soc = _charger_eid("A290_CHARGER_TARGET_SOC")
-    ttime = _charger_eid("A290_CHARGER_TARGET_TIME")
-    dispatch = _charger_eid("A290_CHARGER_DISPATCHING")
+    smart, bump, soc, ttime, dispatch = (_charger_eid(env) for env in _CHARGER_ENTITIES)
     if not any((smart, bump, soc, ttime, dispatch)):
         return None
     cards = [{"type": "custom:bubble-card", "card_type": "separator",
@@ -416,7 +409,7 @@ def _inject_bubble_charging(view):
 class _WS:
     """Minimal Home Assistant WebSocket API client over the Supervisor proxy."""
 
-    def __init__(self, session, ws, token):
+    def __init__(self, ws, token):
         self._ws, self._token, self._id = ws, token, 0
 
     async def _cmd(self, **payload):
@@ -503,7 +496,7 @@ async def run_deploy(refresh_location=False):
         async with aiohttp.ClientSession() as session:
             async with session.ws_connect("ws://supervisor/core/websocket",
                                            timeout=aiohttp.ClientTimeout(total=30)) as ws:
-                api = _WS(session, ws, token)
+                api = _WS(ws, token)
                 await api.auth()
                 if not any(r.get("url") == FONT_URL for r in (await api.resources() or [])):
                     await api.create_resource(FONT_URL)

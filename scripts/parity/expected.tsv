@@ -100,10 +100,10 @@ pending	alpine_a290/app/deploy.py	both	py:<docstring>	11	docstring wording. Targ
 pending	alpine_a290/app/deploy.py	both	py:_REF,REF,CDN	4	the tag constant is _REF on a290 and REF on r5. Target: one name in both
 pending	alpine_a290/app/deploy.py	both	py:RESERVED_URL_PATHS,_validate_url_path	34	identical code at a different place in the file (a290 near the top, r5 beside run_deploy). Target: one position in both
 model	alpine_a290/app/deploy.py	both	py:IMG_MAP,_RENDER_TRIMS,_selected_render,_cdnify	18	r5's car_render option swaps the background for the chosen trim render
-pending	alpine_a290/app/deploy.py	both	py:_CHARGER_ENTITIES	4	a290's comment still says the charger block renders as an entities card (audit P-D7, stale). Target: fix the a290 comment
+pending	alpine_a290/app/deploy.py	both	py:_CHARGER_ENTITIES	11	a290 dropped the never-read label column and notes the unpack order. Target: r5 ports a290's dead-code removal
 model	alpine_a290/app/deploy.py	both	py:_CHARGE_TARGET_REC	4	"Alpine's recommended" vs "The recommended" charge target
-pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUTTON,_references,_drop_cards_referencing,_deploy_one,run_deploy	35	comment wording and the unrelated bubble/standard injection branches each add below the shared pruning logic. Target: converge wording
-pending	alpine_a290/app/deploy.py	both	py:_WS	2	one comment. Target: converge, either way
+pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUTTON,_references,_drop_cards_referencing,_deploy_one,run_deploy	37	comment wording and the unrelated bubble/standard injection branches each add below the shared pruning logic. Target: converge wording. Also a290 dropped _WS's unused session parameter (Target: r5 ports a290's dead-code removal).
+pending	alpine_a290/app/deploy.py	both	py:_WS	4	one comment. Target: converge, either way. Also a290 dropped _WS's unused session parameter (Target: r5 ports a290's dead-code removal).
 
 # ---------------------------------------------------------------- dashboards
 pending	alpine_a290/dashboards/front-end.txt	both	re:sensor\.(a290_)?test_	32	a290's test-mode package is namespaced a290_test_*; r5's is bare test_* (audit H-C4). Target: port to r5 with Packages/a290_test.yaml
@@ -181,3 +181,7 @@ pending	.github/workflows/renault-api-watch.yaml	r5	only	1	deleted on a290: Depe
 pending	.github/templates/renault-api-release.md	r5	only	1	deleted on a290 with the renault-api watcher. Target: r5 moves renault-api to Dependabot the same way (own group; endpoint-map and requirements tests)
 pending	.github/dependabot.yml	both	*	11	a290 lets Dependabot propose renault-api, in its own group. Target: r5 moves renault-api to Dependabot the same way (own group; endpoint-map and requirements tests)
 pending	.github/renovate.json	both	hunk:renault-api	2	renault-api moved to Dependabot. Target: r5 moves renault-api to Dependabot the same way (own group; endpoint-map and requirements tests)
+pending	alpine_a290/Dockerfile	both	hunk:tempio|reproducible build|reproducibility discipline|chmod a\+x /run.sh	35	a290 deletes the base image's unused /usr/bin/tempio instead of rebuilding it from Go source. Target: r5 ports a290's dead-code removal
+pending	alpine_a290/app/deploy.py	both	hunk:_charger_eid\(	12	a290 reads the five charger slots from _CHARGER_ENTITIES instead of listing them twice. Target: r5 ports a290's dead-code removal
+pending	alpine_a290/app/deploy.py	both	py:DASHBOARD_DIR	2	A290_DASHBOARD_DIR was set nowhere; a290 dropped the override. Target: r5 ports a290's dead-code removal
+pending	alpine_a290/app/main.py	both	py:STATE_FILE	2	A290_STATE_FILE was set nowhere; a290 dropped the override. Target: r5 ports a290's dead-code removal

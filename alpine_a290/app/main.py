@@ -67,7 +67,7 @@ LOG = logging.getLogger("alpine_a290")
 # per-model OBJ_PREFIX, so the r5 twin needs no change here — previously a bare `obj[5:]`.
 # (mqtt.py keeps its own copy for discovery; both derive from the same catalog constant.)
 _P = len(OBJ_PREFIX)
-STATE_FILE = os.environ.get("A290_STATE_FILE", "/data/state.json")
+STATE_FILE = "/data/state.json"
 
 # Decimal places the published GPS is rounded to before it goes on the retained MQTT topic
 # (privacy — coarsens an otherwise full-precision home location). 4 dp ≈ 11 m. Default 4.
