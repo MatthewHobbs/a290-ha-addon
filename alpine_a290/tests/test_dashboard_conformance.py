@@ -512,3 +512,17 @@ def test_every_heading_card_wraps_the_h2_that_ha_2026_10_renders() -> None:
     assert len(headings) == (_DASH_DIR / "front-end.txt").read_text(encoding="utf-8").count("type: heading\n")
     bad = [h["heading"] for h in headings if ".content p, .content h2{white-space:normal" not in h["card_mod"]["style"]]
     assert not bad, bad
+
+
+def test_dark_sections_set_light_text() -> None:
+    """The standard dashboard paints its sections dark whatever the user's theme. On HA's light
+    theme the cards inside then drew dark text on that dark fill, so tile names were unreadable.
+    Each dark section sets the text colours its cards inherit."""
+    dash = _load("front-end.txt")
+    dark = [c for c, _ in _walk_cards(dash, {}) if "rgba(20,23,27" in str(c.get("card_mod", {}).get("style", ""))]
+    sections = dash[0]["sections"]
+    assert len(dark) == len(sections) == 5, (len(dark), len(sections))
+    missing = [c.get("cards", [{}])[0].get("heading", "?") for c in dark
+               if "--primary-text-color:#e1e1e1" not in c["card_mod"]["style"]
+               or "--secondary-text-color:#9e9e9e" not in c["card_mod"]["style"]]
+    assert not missing, f"dark sections without light text: {missing}"

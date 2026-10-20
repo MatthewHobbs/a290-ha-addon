@@ -7,7 +7,7 @@
     sections:
     - type: grid
       card_mod:
-        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;}
+        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;--primary-text-color:#e1e1e1;--secondary-text-color:#9e9e9e;}
       cards:
       - type: heading
         heading: Vehicle Status
@@ -413,7 +413,7 @@
                 .: ha-card{background:none !important;box-shadow:none !important;border:none !important;}ha-state-icon{ {% set v = states('sensor.alpine_a290_battery_level') %}{% set b = (v|float(0)) if v not in ['unknown','unavailable','none',''] else 0 %}{% if b <= 15 %}color:red;{% else %}color:green;{% endif %}}
     - type: grid
       card_mod:
-        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;}
+        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;--primary-text-color:#e1e1e1;--secondary-text-color:#9e9e9e;}
       cards:
       - type: heading
         heading: Climate/Charging Presets
@@ -730,7 +730,7 @@
           state: 'on'
     - type: grid
       card_mod:
-        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;}
+        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;--primary-text-color:#e1e1e1;--secondary-text-color:#9e9e9e;}
       cards:
       - type: heading
         heading: Last Activity
@@ -797,10 +797,10 @@
         dark_mode: false
         card_mod:
           style: |
-            ha-card { background: none !important; box-shadow: none !important; border: none !important; }
+            ha-card { background: none !important; box-shadow: none !important; border: none !important; --card-background-color: #14171b; }
     - type: grid
       card_mod:
-        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;}
+        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;--primary-text-color:#e1e1e1;--secondary-text-color:#9e9e9e;}
       cards:
       - type: heading
         heading: Remote Control
@@ -896,7 +896,7 @@
             style: 'ha-card #name{font-family:"Zen Dots",system-ui,sans-serif;font-size:12px;font-weight:400;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;line-height:1.1;}ha-card{background:none !important;box-shadow:none !important;border:none !important;}'
     - type: grid
       card_mod:
-        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;}
+        style: :host{border:1px solid rgba(255,255,255,0.10) !important;border-radius:14px !important;padding:14px !important;background:rgba(20,23,27,0.70) !important;backdrop-filter:blur(4px) !important;--primary-text-color:#e1e1e1;--secondary-text-color:#9e9e9e;}
       cards:
       - type: heading
         heading: Update / Test / Errors
