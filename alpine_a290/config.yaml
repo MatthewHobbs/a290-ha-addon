@@ -20,6 +20,9 @@ init: false
 ingress: true
 panel_icon: mdi:car-sports
 panel_title: Alpine A290
+# The Supervisor's watchdog probes the same /healthz as the image HEALTHCHECK, so it can
+# restart an add-on that died at boot (e.g. the broker was not up yet).
+watchdog: "http://[HOST]:[PORT:8099]/healthz"
 # Talk to the HA core API (used to auto-deploy the dashboard, when enabled).
 homeassistant_api: true
 # Pull MQTT broker connection from the Mosquitto add-on automatically.

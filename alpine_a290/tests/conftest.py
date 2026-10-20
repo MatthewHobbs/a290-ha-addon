@@ -23,7 +23,9 @@ def _isolate_module_globals():
     # _last_command and _in_flight are the button debounce: left populated, a second test pressing
     # the same button would be silently dropped and pass while testing nothing. (Sets restore the
     # same way as dicts: clear() then update().)
+    # The hvac-settings breaker counts across polls; a trip left over makes the next poll skip the call.
     dict_globals = ((main, "_LATEST"), (main, "_last_command"), (main, "_in_flight"),
+                    (main, "_BREAKERS"), (main, "_BREAKER_FAILS"), (main, "_BREAKER_SKIPS"),
                     (mqtt, "_MQTT_CTX"), (debug, "_DEBUG_STATE"))
     scalar_globals = ((config, "_DISCOVERED_ACCOUNT_ID"),)
     saved_dicts = {(mod, name): copy.deepcopy(getattr(mod, name)) for mod, name in dict_globals}

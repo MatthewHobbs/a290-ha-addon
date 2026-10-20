@@ -13,6 +13,7 @@ import asyncio
 import inspect
 import json
 import logging
+import math
 import os
 import signal
 import sys
@@ -316,6 +317,8 @@ LOCATION_CMDS = {obj[_P:] for obj, (_n, _i, ep) in ACTION_BUTTONS.items() if ep 
 
 # Command suffixes (topic tail) that map to writable numbers rather than button actions.
 NUMBER_CMDS = {obj[_P:] for obj in NUMBERS}
+# The sliders' (min, max), enforced on the command too: any MQTT client can publish to the topic.
+NUMBER_RANGES = {obj[_P:]: (lo, hi) for obj, (_n, _i, lo, hi, _s) in NUMBERS.items()}
 
 _soc_lock = None
 _soc_lock_loop = None
@@ -337,9 +340,17 @@ async def set_soc_level(which, payload):
     opposing slider's current value is read back first and re-sent unchanged. Serialised so
     adjusting both sliders in quick succession can't interleave and clobber a change."""
     try:
-        value = int(float(payload))
+        number = float(payload)
     except (TypeError, ValueError):
         LOG.warning("Ignoring non-numeric %s value: %r", which, payload)
+        return
+    if not math.isfinite(number):  # int(inf) raises OverflowError, outside the except above
+        LOG.warning("Ignoring non-finite %s value: %r", which, payload)
+        return
+    value = int(number)
+    lo, hi = NUMBER_RANGES[which]
+    if not lo <= value <= hi:
+        LOG.warning("Ignoring %s=%s: outside %s-%s", which, value, lo, hi)
         return
     locale = cfg("A290_LOCALE", "en_GB")
     async with _soc_lock_get():
@@ -353,6 +364,10 @@ async def set_soc_level(which, payload):
                 if new_min is None or new_target is None:
                     LOG.error("Cannot set %s: current limits unavailable (min=%s, target=%s)",
                               which, cur_min, cur_target)
+                    return
+                if int(new_min) >= int(new_target):
+                    LOG.warning("Ignoring %s=%s: minimum %s%% must be below target %s%%",
+                                which, value, new_min, new_target)
                     return
                 await vehicle.set_battery_soc(min=int(new_min), target=int(new_target))
             LOG.info("Set charge limits: min=%s%%, target=%s%%", new_min, new_target)
