@@ -146,7 +146,7 @@ pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_l
 
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
 pending	ui-tests/check_overflow.py	both	*	78	residue after r5 #105 and #124 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow ADR 0001 row 13
-pending	ui-tests/seed.py	both	*	105	residue after r5 #105 and #124: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
+pending	ui-tests/seed.py	both	*	109	residue after r5 #105 and #124: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
 pending	ui-tests/README.md	both	*	91	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow ADR 0001 row 13
 
 # ---------------------------------------------------------------- prose and tests, excused wholesale
@@ -180,3 +180,5 @@ pending	scripts/docs_cite_ignore.txt	r5	only	1	goes with docs_cite_check.py. Tar
 pending	ui-tests/completeness_fixtures.py	r5	only	1	deleted on a290: a one-off proof recorded in ADR 0003. Target: r5 ports a290's dead-machinery deletions (seven UI devices)
 pending	.github/workflows/ui-tests.yaml	both	hunk:Refresh screenshots|refresh-screenshots|Screenshot drift|compare with docs/screenshots|holds NO secrets	8	comments about the deleted screenshot workflow. Target: r5 ports a290's dead-machinery deletions (seven UI devices)
 pending	ui-tests/devices.json	both	*	3	a290 tests seven devices: one per width, the A54's fractional scale and the narrow bound. Target: r5 ports a290's dead-machinery deletions (seven UI devices)
+pending	alpine_a290/dashboards/front-end.txt	both	hunk:\.content h2|state_not: 'on'	20	headings also wrap .content h2; the real Last Charge cards hide only when the test panel is on. Target: r5 ports a290's dashboard-defaults fix (Last Charge without the test package; headings wrap the h2 HA 2026.10 renders)
+pending	alpine_a290/dashboards/front-end-bubble.txt	a290	hunk:a290_test_show_panel	6	Run Test Charge shows only when the test package is installed. Target: r5 ports a290's dashboard-defaults fix (Last Charge without the test package; headings wrap the h2 HA 2026.10 renders)

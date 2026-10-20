@@ -180,8 +180,8 @@ DEFAULTS = {
     "device_tracker": ("home", {"latitude": 51.5074, "longitude": -0.1278, "gps_accuracy": 8, "source_type": "gps"}),  # synthetic-coords: Trafalgar Square, a public landmark
     "switch": ("off", {}),
     "button": ("unknown", {}),
-    # Test-mode helpers (a290_test_* package): default idle so the panels stay hidden and the
-    # always-visible "Run Test Charge" button renders instead of a "not found" error card.
+    # Test-mode helpers (a290_test_* package): seeded idle, as if the package is installed, so the
+    # test panels stay hidden and the "Run Test Charge" button renders.
     "input_boolean": ("off", {}),
     "input_button": ("unknown", {}),
     "input_datetime": ("2026-06-27 09:00:00", {"has_date": True, "has_time": True}),
