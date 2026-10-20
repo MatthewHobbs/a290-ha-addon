@@ -29,9 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      # The minimum leg renders only for a release (and on demand): a release is what ships the
-      # minimum claim to users. A base that cannot be read counts as a release, so the doubt
-      # costs a render, never the test.
+      # The minimum leg renders only for a release, a change to the declared minimum
+      # (`homeassistant:` reaches users on merge), or on demand. A base that cannot be read
+      # counts as a release, so the doubt costs a render, never the test.
       - name: Is this a release?
         id: release
         env:
@@ -45,10 +45,10 @@ jobs:
           elif [[ "$TITLE" == "chore(release):"* ]]; then
             release=true
           elif ! git fetch --quiet --depth=1 origin "$BASE" \
-               || ! base="$(git show FETCH_HEAD:alpine_a290/config.yaml | grep '^version:')"; then
+               || ! base="$(git show FETCH_HEAD:alpine_a290/config.yaml | grep -E '^(version|homeassistant):')"; then
             echo "::warning::could not read config.yaml version at base $BASE; rendering the minimum leg"
             release=true
-          elif [ "$base" != "$(grep '^version:' alpine_a290/config.yaml)" ]; then
+          elif [ "$base" != "$(grep -E '^(version|homeassistant):' alpine_a290/config.yaml)" ]; then
             release=true
           fi
           echo "release=$release" | tee -a "$GITHUB_OUTPUT"
@@ -95,7 +95,7 @@ jobs:
     # Off, the leg still runs and reports success under its own name (the required check),
     # only with every step skipped; see the ADR 0005 note below.
     env:
-      RENDER: ${{ needs.changes.outputs.relevant == 'true' && (matrix.leg == 'stable' || needs.changes.outputs.release == 'true') }}
+      RENDER: ${{ github.event_name == 'workflow_dispatch' || (needs.changes.outputs.relevant == 'true' && (matrix.leg == 'stable' || needs.changes.outputs.release == 'true')) }}
     steps:
       # Default checkout: for a PR this renders the merge ref (the PR's dashboard/deploy.py
       # changes). This job holds NO secrets.
