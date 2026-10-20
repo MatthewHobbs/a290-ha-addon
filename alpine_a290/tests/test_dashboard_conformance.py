@@ -332,7 +332,8 @@ def test_documented_entities_exist(published) -> None:
     r5 ids ``number.alpine_a290_soc_min_target`` / ``..._soc_max_target`` once sat in DOCS.md."""
     known = published | _helper_ids()
     docs = _doc_files()
-    assert {p.name for p in docs} >= {"DOCS.md", "README.md", "dashboards-on-mobile.md"}, docs
+    assert {str(p.relative_to(_REPO)) for p in docs} >= {
+        "README.md", "alpine_a290/README.md", "alpine_a290/DOCS.md", "docs/dashboards-on-mobile.md"}, docs
     cited = sum(len(_DOC_REF.findall(p.read_text(encoding="utf-8"))) for p in docs)
     assert cited >= 5, "the docs cite almost no entities: the pattern or the file list has gone stale"
     unknown = sorted(f"{p.relative_to(_REPO)}: {eid}"

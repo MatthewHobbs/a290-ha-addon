@@ -628,7 +628,7 @@ SW_BARRIER_S = 20
 SYSTEMIC_AFTER = 2
 # card-mod needing a fresh document on at least this many main captures, and on over a quarter of
 # them, fails the pass. The base rate is about 1 capture in 1,800 (one miss in 30 CI legs of ~60
-# main captures each, HA 2026.8.1), so the rule cannot trip on a flake.
+# main captures each with the former ten devices, HA 2026.8.1), so the rule cannot trip on a flake.
 CARDMOD_RATE_MIN = 4
 # After card-mod missed on every attempt of this many captures it is not a lost race: stop retrying,
 # or a broken card-mod costs over an hour a pass in 30 s retries.
@@ -776,7 +776,7 @@ def _open_popup(page, popup, where, dev_name, stages, nav):
 
 def _capture_popup(page, popup, where, dev_name, shot, nav):
     """Open one pop-up, scan it, then screenshot it. Returns its findings, or None when it never
-    stayed open or its scan never completed (reported; the committed screenshot is kept rather
+    stayed open or its scan never completed (reported; the previous screenshot file is kept rather
     than overwritten by the menu behind it). run() then FAILS that device for that pop-up: a
     truncation is specific to a width, so a pop-up scanned at 430px says nothing about 360px, and
     a skip that passed was a false green for that viewport (Codex on #171).

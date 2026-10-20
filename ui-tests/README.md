@@ -90,7 +90,7 @@ Mushroom tile labels clipping on a phone.
    page, and then one on a freshly loaded document in the same context, because a retry on a
    document where nothing opens is not an independent try. That second chance is never silent:
    it prints `[popup reload]` and the pass summary counts the devices that needed it. A pop-up
-   still unscanned after that is reported, its committed screenshot is kept rather than
+   still unscanned after that is reported, its previous screenshot file is kept rather than
    overwritten by the menu behind it, and **that device fails for that pop-up**: a truncation is
    specific to a width, so a scan at 430px says nothing about 360px. A pop-up that also failed
    on a fresh document on two devices is not reloaded on later ones, which would only multiply the
