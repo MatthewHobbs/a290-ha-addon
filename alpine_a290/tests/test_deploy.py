@@ -6,6 +6,7 @@ failure modes (no dashboard on first install / silently clobbering edits) from o
 import asyncio
 import glob
 import json
+import logging
 import os
 import subprocess
 import sys
@@ -418,20 +419,47 @@ def test_run_deploy_both_installs_standard_and_bubble(monkeypatch):
 # --------------------------------------------------------------------------- #
 # run_deploy early-exit branches
 # --------------------------------------------------------------------------- #
-def test_run_deploy_noop_when_disabled(monkeypatch):
+def _record_sessions(monkeypatch):
+    # run_deploy swallows every error, so "nothing happened" is only visible as "no session opened".
+    opened = []
+    monkeypatch.setattr(deploy.aiohttp, "ClientSession", lambda *a, **k: opened.append(1))
+    return opened
+
+
+def _warnings(caplog):
+    return [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+
+
+# Each test sets a token where the guard under test is not the token one, so deleting its guard
+# reaches the session instead of stopping at a later one.
+def test_run_deploy_noop_when_disabled(monkeypatch, caplog):
+    opened = _record_sessions(monkeypatch)
     monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "none")
-    asyncio.run(deploy.run_deploy())   # returns immediately
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "tok")
+    with caplog.at_level(logging.DEBUG):
+        asyncio.run(deploy.run_deploy())
+    assert opened == []
+    assert _warnings(caplog) == []     # "none" is a choice, not an unrecognised style
 
 
-def test_run_deploy_warns_on_unknown_style(monkeypatch):
+def test_run_deploy_warns_on_unknown_style(monkeypatch, caplog):
+    opened = _record_sessions(monkeypatch)
     monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "fancy")
-    asyncio.run(deploy.run_deploy())
+    monkeypatch.setenv("SUPERVISOR_TOKEN", "tok")
+    with caplog.at_level(logging.DEBUG):
+        asyncio.run(deploy.run_deploy())
+    assert opened == []
+    assert any("'fancy' not recognised" in m for m in _warnings(caplog))
 
 
-def test_run_deploy_skips_without_supervisor_token(monkeypatch):
+def test_run_deploy_skips_without_supervisor_token(monkeypatch, caplog):
+    opened = _record_sessions(monkeypatch)
     monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "standard")
     monkeypatch.delenv("SUPERVISOR_TOKEN", raising=False)
-    asyncio.run(deploy.run_deploy())
+    with caplog.at_level(logging.DEBUG):
+        asyncio.run(deploy.run_deploy())
+    assert opened == []
+    assert any("No SUPERVISOR_TOKEN" in m for m in _warnings(caplog))
 
 
 # --------------------------------------------------------------------------- #
@@ -454,12 +482,17 @@ def test_validate_url_path_rejects_invalid(bad):
         deploy._validate_url_path(bad)
 
 
-def test_run_deploy_skips_reserved_url_path(monkeypatch):
-    # Reaches validation (token present) and returns before any WS connection / save.
+def test_run_deploy_skips_reserved_url_path(monkeypatch, caplog):
+    # Reaches validation (token present) and must return before any WS connection / save:
+    # deploying to "energy" would overwrite a built-in HA panel.
+    opened = _record_sessions(monkeypatch)
     monkeypatch.setenv("A290_DEPLOY_DASHBOARD", "standard")
     monkeypatch.setenv("SUPERVISOR_TOKEN", "tok")
     monkeypatch.setenv("A290_DASHBOARD_URL_PATH", "energy")
-    asyncio.run(deploy.run_deploy())
+    with caplog.at_level(logging.DEBUG):
+        asyncio.run(deploy.run_deploy())
+    assert opened == []
+    assert any("auto-deploy skipped" in m for m in _warnings(caplog))
 
 
 # --------------------------------------------------------------------------- #

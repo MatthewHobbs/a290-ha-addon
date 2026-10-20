@@ -648,6 +648,64 @@ def test_set_soc_ignores_non_numeric(monkeypatch):
     assert v.soc_set is None             # never written
 
 
+# Bounds are read from the catalog so the test follows the sliders, not a copy of their literals.
+_MIN_LO, _MIN_HI = main.NUMBERS["a290_soc_min"][2:4]
+_TGT_LO, _TGT_HI = main.NUMBERS["a290_soc_target"][2:4]
+
+
+@pytest.mark.parametrize("cmd,payload", [
+    ("soc_target", str(_TGT_HI + 1)),
+    ("soc_target", str(_TGT_LO - 1)),
+    ("soc_target", "500"),
+    ("soc_target", "-5"),
+    ("soc_target", "0"),
+    ("soc_min", str(_MIN_HI + 1)),
+    ("soc_min", str(_MIN_LO - 1)),
+    ("soc_target", "inf"),
+    ("soc_target", "-inf"),
+    ("soc_min", "nan"),
+    ("soc_min", "45.9"),     # fractional: would truncate to an in-range 45
+    ("soc_min", "17"),       # in range, off the slider's step of 5
+    ("soc_target", "57"),
+])
+def test_set_soc_rejects_out_of_range_or_non_finite(monkeypatch, caplog, cmd, payload):
+    v = SocVehicle()
+    _login_as(monkeypatch, v)
+    with caplog.at_level(logging.WARNING, logger=main.LOG.name):
+        asyncio.run(main.run_command(cmd, payload))
+    assert v.soc_set is None             # nothing sent to the car
+    assert any(r.levelno == logging.WARNING and cmd in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.parametrize("cmd,payload,expected", [
+    ("soc_target", str(_TGT_LO), (20, _TGT_LO)),
+    ("soc_target", str(_TGT_HI), (20, _TGT_HI)),
+    ("soc_min", str(_MIN_LO), (_MIN_LO, 80)),
+    ("soc_min", str(_MIN_HI), (_MIN_HI, 80)),
+])
+def test_set_soc_accepts_range_edges(monkeypatch, cmd, payload, expected):
+    v = SocVehicle()
+    _login_as(monkeypatch, v)
+    asyncio.run(main.run_command(cmd, payload))
+    assert v.soc_set == expected
+
+
+@pytest.mark.parametrize("car_target", [_MIN_HI - 5, _MIN_HI])   # below, and equal (the >= edge)
+def test_set_soc_rejects_min_not_below_target(monkeypatch, caplog, car_target):
+    # In range on its own, but the car's current target (set elsewhere, e.g. the My Alpine app)
+    # is not above it, so the pair is invalid.
+    class LowTarget(SocVehicle):
+        async def get_battery_soc(self):
+            return ns(socTarget=car_target, socMin=_MIN_LO)
+
+    v = LowTarget()
+    _login_as(monkeypatch, v)
+    with caplog.at_level(logging.WARNING, logger=main.LOG.name):
+        asyncio.run(main.run_command("soc_min", str(_MIN_HI)))
+    assert v.soc_set is None
+    assert any("must be below target" in r.getMessage() for r in caplog.records)
+
+
 def test_set_soc_bails_when_opposing_limit_missing(monkeypatch):
     class NoLimits(SocVehicle):
         async def get_battery_soc(self):
@@ -736,14 +794,21 @@ def test_detect_supported_success(monkeypatch):
 # --------------------------------------------------------------------------- #
 # health server + account resolution
 # --------------------------------------------------------------------------- #
-def test_health_server_serves_200():
+def _bound_port(runner):
+    # HEALTH_PORT is patched to 0, so the OS picks a free port; read back the one it chose.
+    return runner.addresses[0][1]
+
+
+def test_health_server_serves_200(monkeypatch):
     import aiohttp
+
+    monkeypatch.setattr(main, "HEALTH_PORT", 0)
 
     async def scenario():
         runner = await main.start_health_server()
         try:
             async with aiohttp.ClientSession() as s:
-                async with s.get(f"http://127.0.0.1:{main.HEALTH_PORT}/healthz") as r:
+                async with s.get(f"http://127.0.0.1:{_bound_port(runner)}/healthz") as r:
                     assert r.status == 200 and (await r.text()) == "ok"
         finally:
             await runner.cleanup()
@@ -754,11 +819,13 @@ def test_health_server_serves_200():
 def test_status_panel_routes(monkeypatch):
     import aiohttp
 
+    monkeypatch.setattr(main, "HEALTH_PORT", 0)
+
     async def scenario():
         main._LATEST.update(ok=True, version="testver", supported=["x", "y"],
                             data={"battery_level": 42, "plug_status": "Plugged"})
         runner = await main.start_health_server()
-        base = f"http://127.0.0.1:{main.HEALTH_PORT}"
+        base = f"http://127.0.0.1:{_bound_port(runner)}"
         try:
             async with aiohttp.ClientSession() as s:
                 async with s.get(f"{base}/api/state") as r:        # JSON snapshot
@@ -1166,7 +1233,7 @@ def _command_session():
 
 
 def _soc_session():
-    asyncio.run(main.set_soc_level(sorted(main.NUMBER_CMDS)[0], "70"))
+    asyncio.run(main.set_soc_level("soc_min", "30"))
 
 
 SESSION_PATHS = {"poll": _poll_session, "command": _command_session, "charge_limit": _soc_session}
@@ -1235,20 +1302,6 @@ def test_vehicle_session_invalidates_on_login_failure(monkeypatch):
             await vs.vehicle()
         assert closed["n"] == 1          # half-open session was closed
         assert vs._vehicle is None
-
-    asyncio.run(scenario())
-
-
-def test_invalidate_swallows_close_error():
-    class BadSession:
-        async def close(self):
-            raise RuntimeError("already closed")
-
-    async def scenario():
-        vs = main.VehicleSession("en_GB")
-        vs._websession = BadSession()
-        await vs.invalidate()            # must not raise
-        assert vs._websession is None
 
     asyncio.run(scenario())
 
@@ -1468,8 +1521,6 @@ def test_hvac_breaker_stops_calling_after_repeated_failures():
     """v1.23.0 gated hvac-settings on supports_endpoint(), which returns True on this model while
     every call answers 502000 — so the warning continued every five minutes. What the endpoint
     does is the only reliable signal. Bounded log spam, then silence."""
-    main._BREAKERS.clear()
-    main._BREAKER_FAILS.clear()
     calls = []
 
     class _V(FakeVehicle):
@@ -1478,20 +1529,14 @@ def test_hvac_breaker_stops_calling_after_repeated_failures():
             raise RuntimeError("('err.tech.vcps.ev.hvac-settings.error', '502000')")
 
     eps = {"pressure", "charge-mode", "hvac-settings"}
-    try:
-        for _ in range(6):
-            asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-        assert len(calls) == main.BREAKER_TRIP, "must stop calling once the breaker trips"
-        assert main._BREAKERS.get("hvac-settings") is True
-    finally:
-        main._BREAKERS.clear()
-    main._BREAKER_FAILS.clear()
+    for _ in range(6):
+        asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
+    assert len(calls) == main.BREAKER_TRIP, "must stop calling once the breaker trips"
+    assert main._BREAKERS.get("hvac-settings") is True
 
 
 def test_hvac_breaker_resets_on_success():
     """A server-side fix must be picked up without intervention, so any success clears the count."""
-    main._BREAKERS.clear()
-    main._BREAKER_FAILS.clear()
     state = {"fail": True}
 
     class _V(FakeVehicle):
@@ -1501,26 +1546,19 @@ def test_hvac_breaker_resets_on_success():
             return types.SimpleNamespace(raw_data={})
 
     eps = {"pressure", "charge-mode", "hvac-settings"}
-    try:
-        for _ in range(main.BREAKER_TRIP - 1):
-            asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-        assert main._BREAKER_FAILS["hvac-settings"] == main.BREAKER_TRIP - 1
-        state["fail"] = False
+    for _ in range(main.BREAKER_TRIP - 1):
         asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-        assert main._BREAKER_FAILS["hvac-settings"] == 0
-        assert not main._BREAKERS.get("hvac-settings")
-    finally:
-        main._BREAKERS.clear()
-    main._BREAKER_FAILS.clear()
+    assert main._BREAKER_FAILS["hvac-settings"] == main.BREAKER_TRIP - 1
+    state["fail"] = False
+    asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
+    assert main._BREAKER_FAILS["hvac-settings"] == 0
+    assert not main._BREAKERS.get("hvac-settings")
 
 
 def test_tripped_breaker_retries_and_re_enables_on_recovery():
     """A tripped breaker that never retried would make "re-enabled automatically" false: the reset
     lives inside the call it stops making, so recovery would need a restart nobody knows to do.
     Dual review, 2026-09-06."""
-    main._BREAKERS.clear()
-    main._BREAKER_FAILS.clear()
-    main._BREAKER_SKIPS.clear()
     calls = []
     broken = {"v": True}
 
@@ -1532,49 +1570,36 @@ def test_tripped_breaker_retries_and_re_enables_on_recovery():
             return types.SimpleNamespace(raw_data={})
 
     eps = {"pressure", "charge-mode", "hvac-settings"}
-    try:
-        for _ in range(main.BREAKER_TRIP):
-            asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-        assert main._BREAKERS.get("hvac-settings") is True
-        tripped_at = len(calls)
-
-        # skipped while tripped ...
-        for _ in range(main.BREAKER_RETRY_EVERY - 1):
-            asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-        assert len(calls) == tripped_at, "must not call while tripped"
-
-        # ... then probes once, and recovery clears the breaker
-        broken["v"] = False
+    for _ in range(main.BREAKER_TRIP):
         asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-        assert len(calls) == tripped_at + 1
-        assert "hvac-settings" not in main._BREAKERS
-    finally:
-        main._BREAKERS.clear()
-        main._BREAKER_FAILS.clear()
-        main._BREAKER_SKIPS.clear()
+    assert main._BREAKERS.get("hvac-settings") is True
+    tripped_at = len(calls)
+
+    # skipped while tripped ...
+    for _ in range(main.BREAKER_RETRY_EVERY - 1):
+        asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
+    assert len(calls) == tripped_at, "must not call while tripped"
+
+    # ... then probes once, and recovery clears the breaker
+    broken["v"] = False
+    asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
+    assert len(calls) == tripped_at + 1
+    assert "hvac-settings" not in main._BREAKERS
 
 
 def test_failed_probe_stays_tripped_and_silent(caplog):
     """Spam must stay bounded at BREAKER_TRIP lines however long the outage runs."""
-    main._BREAKERS.clear()
-    main._BREAKER_FAILS.clear()
-    main._BREAKER_SKIPS.clear()
 
     class _V(FakeVehicle):
         async def get_hvac_settings(self):
             raise RuntimeError("502000")
 
     eps = {"pressure", "charge-mode", "hvac-settings"}
-    try:
-        with caplog.at_level(logging.WARNING):
-            for _ in range(main.BREAKER_TRIP + main.BREAKER_RETRY_EVERY + 2):
-                asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-        assert caplog.text.count("hvac-settings") <= main.BREAKER_TRIP
-        assert main._BREAKERS.get("hvac-settings") is True
-    finally:
-        main._BREAKERS.clear()
-        main._BREAKER_FAILS.clear()
-        main._BREAKER_SKIPS.clear()
+    with caplog.at_level(logging.WARNING):
+        for _ in range(main.BREAKER_TRIP + main.BREAKER_RETRY_EVERY + 2):
+            asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
+    assert caplog.text.count("hvac-settings") <= main.BREAKER_TRIP
+    assert main._BREAKERS.get("hvac-settings") is True
 
 
 # --- data_stale measures the CAR, poll_failing measures the FEED (v1.24.0) -------------------

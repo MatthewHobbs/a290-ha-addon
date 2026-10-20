@@ -6,6 +6,7 @@ publish_discovery reads mqtt.PUBLISH_LOCATION and _MQTT_CTX in the mqtt namespac
 patch/set those on the mqtt module. _on_message dispatches via the injected _COMMAND_HANDLER +
 _LOOP (main wires real ones at startup)."""
 import json
+import logging
 
 import catalog
 from renault_mqtt import mqtt
@@ -191,9 +192,14 @@ def test_mqtt_connect(monkeypatch):
     assert seen["delay"] == {"min_delay": 1, "max_delay": 120}   # bounded reconnect backoff
 
 
-def test_on_disconnect_logs_both_paths():
-    mqtt._on_disconnect(None, None, None, 0)   # clean disconnect — no warning
-    mqtt._on_disconnect(None, None, None, 1)   # unexpected — logs a reconnect warning
+def test_on_disconnect_warns_only_when_unexpected(caplog):
+    with caplog.at_level(logging.DEBUG):
+        mqtt._on_disconnect(None, None, None, 0)   # clean disconnect
+    assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+    caplog.clear()
+    with caplog.at_level(logging.DEBUG):
+        mqtt._on_disconnect(None, None, None, 1)   # unexpected
+    assert [r for r in caplog.records if r.levelno == logging.WARNING]
 
 
 def test_on_connect_resubscribes_and_publishes():
