@@ -71,7 +71,7 @@ def test_fetch_dashboard_reads_bundled_yaml_and_cdnifies(tmp_path, monkeypatch):
 # _charger_cards — optional standard-dashboard "Smart Charging" block (Mushroom cards)
 # --------------------------------------------------------------------------- #
 def test_charger_cards_none_when_no_entities_set(monkeypatch):
-    for env, _ in deploy._CHARGER_ENTITIES:
+    for env in deploy._CHARGER_ENTITIES:
         monkeypatch.delenv(env, raising=False)
     assert deploy._charger_cards() is None
 
@@ -137,7 +137,7 @@ def _template_cards(node):
 
 
 def test_no_generated_template_card_targets_mushroom_v4_parts(monkeypatch):
-    for env, _ in deploy._CHARGER_ENTITIES:
+    for env in deploy._CHARGER_ENTITIES:
         monkeypatch.setenv(env, "binary_sensor.disp" if env == "A290_CHARGER_DISPATCHING" else "switch.x")
     cards = list(_template_cards([deploy._charger_cards(), deploy._charger_popup()]))
     assert len(cards) == 2                      # standard badge + bubble pop-up badge
@@ -174,7 +174,7 @@ def test_fetch_dashboard_adds_charger_block_when_configured(tmp_path, monkeypatc
 
 
 def test_fetch_dashboard_no_charger_block_when_unset(tmp_path, monkeypatch):
-    for env, _ in deploy._CHARGER_ENTITIES:
+    for env in deploy._CHARGER_ENTITIES:
         monkeypatch.delenv(env, raising=False)
     (tmp_path / "front-end.txt").write_text("- title: Home\n  cards: []\n", encoding="utf-8")
     monkeypatch.setattr(deploy, "DASHBOARD_DIR", str(tmp_path))
@@ -209,7 +209,7 @@ def test_add_cards_cards_layout():
 # bubble dashboard — Smart Charging pop-up + main-menu restructure
 # --------------------------------------------------------------------------- #
 def test_charger_popup_none_when_unset(monkeypatch):
-    for env, _ in deploy._CHARGER_ENTITIES:
+    for env in deploy._CHARGER_ENTITIES:
         monkeypatch.delenv(env, raising=False)
     assert deploy._charger_popup() is None
 
@@ -296,7 +296,7 @@ def test_inject_bubble_charging_button_popup_and_location_full_width(monkeypatch
 
 
 def test_inject_bubble_charging_noop_when_unset(monkeypatch):
-    for env, _ in deploy._CHARGER_ENTITIES:
+    for env in deploy._CHARGER_ENTITIES:
         monkeypatch.delenv(env, raising=False)
     view = _bubble_menu_view()
     deploy._inject_bubble_charging(view)
@@ -382,7 +382,7 @@ def _run_deploy_with(monkeypatch, *, existing, redeploy, style="standard"):
         return {"title": "Alpine A290", "views": [{"cards": []}]}
 
     monkeypatch.setattr(deploy, "_fetch_dashboard", fake_fetch)
-    monkeypatch.setattr(deploy, "_WS", lambda session, ws, token: fake)
+    monkeypatch.setattr(deploy, "_WS", lambda ws, token: fake)
     monkeypatch.setattr(deploy.aiohttp, "ClientSession", _FakeSession)
     monkeypatch.setenv("A290_DEPLOY_DASHBOARD", style)
     monkeypatch.setenv("SUPERVISOR_TOKEN", "tok")
@@ -525,7 +525,7 @@ def test_ws_auth_then_commands():
             return await super().receive_json()
 
     async def scenario():
-        api = deploy._WS(None, WS(), "token")
+        api = deploy._WS(WS(), "token")
         await api.auth()
         await api.dashboards()
         await api.create_dashboard("p", "T")
@@ -547,7 +547,7 @@ def test_ws_raises_on_failed_result():
             return {"id": 1, "type": "result", "success": False, "error": "denied"}
 
     async def scenario():
-        api = deploy._WS(None, WS(), "token")
+        api = deploy._WS(WS(), "token")
         with pytest.raises(RuntimeError):
             await api.dashboards()
 
@@ -576,7 +576,7 @@ def test_ws_cmd_times_out_on_wedged_socket(monkeypatch):
                         lambda aw, timeout: real_wait_for(aw, timeout=0.05))
 
     async def scenario():
-        api = deploy._WS(None, WS(), "token")
+        api = deploy._WS(WS(), "token")
         with pytest.raises((asyncio.TimeoutError, TimeoutError)):
             await api.dashboards()
 
@@ -598,7 +598,7 @@ def test_ws_auth_failure_raises():
             return {"type": "auth_required"} if self.n == 1 else {"type": "auth_invalid"}
 
     async def scenario():
-        api = deploy._WS(None, WS(), "token")
+        api = deploy._WS(WS(), "token")
         with pytest.raises(RuntimeError):
             await api.auth()
 
@@ -662,7 +662,7 @@ def test_fetch_dashboard_keeps_refresh_location_tile_only_when_its_button_exists
     default deploy must not ship a tile that presses an entity which does not exist. Run against
     the REAL bundled dashboards, and assert that exactly one card goes — not the stack it sits
     in."""
-    for env, _ in deploy._CHARGER_ENTITIES:
+    for env in deploy._CHARGER_ENTITIES:
         monkeypatch.delenv(env, raising=False)
     monkeypatch.setattr(deploy, "DASHBOARD_DIR", _BUNDLED)
     bundled = yaml.safe_load(deploy._read_dashboard(style))
@@ -684,3 +684,11 @@ def test_deploy_imports_without_the_core():
     code = f"import sys; sys.modules['renault_mqtt'] = None; sys.path.insert(0, {app!r}); import deploy"
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
+
+
+def test_charger_slots_keep_their_order():
+    """Both builders unpack _CHARGER_ENTITIES by position; a reorder would swap two tiles'
+    names and icons without changing any entity set."""
+    assert deploy._CHARGER_ENTITIES == (
+        "A290_CHARGER_SMART_CHARGE", "A290_CHARGER_BUMP_CHARGE", "A290_CHARGER_TARGET_SOC",
+        "A290_CHARGER_TARGET_TIME", "A290_CHARGER_DISPATCHING")
