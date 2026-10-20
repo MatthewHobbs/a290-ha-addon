@@ -6,8 +6,8 @@ sizes and fails the build if any text is truncated or any card fails to render. 
 the same on every screen (no font/size changes between phone and desktop); labels and headings
 **wrap on clean word breaks** rather than getting cut off.
 
-Devices validated each run: **iPhone 15 Pro Max, iPhone 15 Pro, iPhone 15, iPhone SE, Pixel 8,
-Pixel 7a, Galaxy S24, Galaxy S23, Galaxy A54, and a 360 px narrow Android bound.**
+Devices validated each run: **iPhone 15 Pro Max, iPhone 15 Pro, iPhone SE, Pixel 8,
+Galaxy S24, Galaxy A54, and a 360 px narrow Android bound.**
 
 ## Standard dashboard
 
