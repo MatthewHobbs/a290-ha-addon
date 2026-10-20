@@ -11,7 +11,7 @@
   holds only its catalog data, config, dashboards and docs, and nothing the two share drifts
   unnoticed.
 
-*Format per my ADR template, referenced rather than copied: the
+*Format per the owner's ADR template, referenced rather than copied: the
 North star and the Decision table are THE PLAN and are kept current; Context, Alternatives,
 Consequences and Verification are THE RECORD and are dated, corrected but not revised. Accepting
 this ADR is the approval to carry out its Open rows in their named repos, each in that repo itself
@@ -106,7 +106,7 @@ hand-ported under A's check for now.
   repo can turn the other's check red with no change there, usually a stale entry to delete. Each
   repo therefore keeps its own copy of the map and list, so each can be made green by its own PR.
 - Five places are excused wholesale (count `*`) and printed as such on every run: the tests, the
-  CHANGELOG, `DOCS.md`, the root `README.md` and the contributor notes. Drift inside them is not caught.
+  CHANGELOG, `DOCS.md`, the root `README.md` and `CONTRIBUTING.md`. Drift inside them is not caught.
 - An entry excuses a count of differences, not their content. A change inside an already-excused
   block that keeps the count (a rewrite inside the listed `poll_once` symbol, say) passes. Found
   in review and accepted by the owner on 2026-09-26: pinning each difference's content would fail
@@ -144,7 +144,6 @@ See the PR that lands row 1 for the commands and output; in summary:
 
 ## References
 
-- RFC: How r5 inherits from a290, unnumbered, to be listed in my RFC index
-  (doc).
+- RFC: How r5 inherits from a290, unnumbered, to be listed in the owner's RFC index.
 - `scripts/parity_check.py`, `scripts/parity/map.tsv`, `scripts/parity/expected.tsv`.
-- RFC 0005, pinning MQTT entity ids with `default_entity_id` (my RFC index).
+- RFC 0005, pinning MQTT entity ids with `default_entity_id` (the owner's RFC index).
