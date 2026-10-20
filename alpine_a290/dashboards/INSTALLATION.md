@@ -105,7 +105,7 @@ Using the **File Editor** app or **Samba**:
 
 ### 4. Wire up resources (and any extras)
 
-The [`config-entries.yaml`](config-entries.yaml) here shows the blocks to merge into your
+The block below shows what to merge into your
 `configuration.yaml` (adjust paths to where you place the files):
 
 ```yaml

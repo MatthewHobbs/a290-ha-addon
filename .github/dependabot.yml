@@ -2,9 +2,8 @@
 # moved to Renovate (.github/renovate.json), which can see the SHA pin that no manifest declares.
 #
 # Python stays here: requirements.txt is a hash-locked pip-compile output installed with
-# --require-hashes, and Dependabot understands the requirements.in/.txt pair. renault-api is
-# deliberately NOT auto-updated: per-model endpoint support is hard-coded in the library
-# (see CLAUDE.md), so it is bumped manually after a docker-verified review.
+# --require-hashes, and Dependabot understands the requirements.in/.txt pair. That includes
+# renault-api: review each bump against the per-model endpoint map the contract test pins.
 version: 2
 updates:
   - package-ecosystem: pip
@@ -14,8 +13,6 @@ updates:
       day: saturday
       time: "06:00"
       timezone: Europe/London
-    ignore:
-      - dependency-name: renault-api
     groups:
       python:
         patterns: ["*"]

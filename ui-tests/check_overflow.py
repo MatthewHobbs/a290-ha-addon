@@ -717,8 +717,7 @@ def _stable_issues(page, settle_ms=500, max_passes=12):
     return not_applied + issues                # still flagged when the window closed → genuine
 
 
-# Screenshot stems for the pop-ups whose file the screenshot-drift workflow reads by name
-# (refresh-screenshots.yaml); every other pop-up is popup_<hash without #>.
+# Screenshot stems for pop-ups that keep a fixed name; every other pop-up is popup_<hash without #>.
 POPUP_SHOT_NAMES = {"#alpine-charging": "smart_charging"}
 
 # Test hook, never set in CI: UI_TESTS_BREAK=popup-wedge-once|popup-wedge-each|popup-wedge-always makes a document on
