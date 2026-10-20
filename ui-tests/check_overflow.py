@@ -15,7 +15,7 @@ the Bubble pop-ups to open on each. Bubble renders a pop-up only while it is ope
 opened by its hash, proved open by its header name, held until every card the manifest lists for
 it is laid out inside it (a card that never paints fails the device by name), scanned and
 screenshotted as <dashboard>__popup_<hash>__<device>.png (the Smart Charging one keeps its
-smart_charging name, which the drift workflow reads). Without --expect no pop-up is opened.
+smart_charging name). Without --expect no pop-up is opened.
 """
 import argparse
 import json
