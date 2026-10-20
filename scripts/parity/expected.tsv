@@ -146,7 +146,7 @@ pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_l
 
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
 pending	ui-tests/check_overflow.py	both	*	78	residue after r5 #105 and #124 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow ADR 0001 row 13
-pending	ui-tests/seed.py	both	*	105	residue after r5 #105 and #124: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
+pending	ui-tests/seed.py	both	*	109	residue after r5 #105 and #124: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow ADR 0001 row 13
 pending	ui-tests/README.md	both	*	91	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow ADR 0001 row 13
 
 # ---------------------------------------------------------------- prose and tests, excused wholesale

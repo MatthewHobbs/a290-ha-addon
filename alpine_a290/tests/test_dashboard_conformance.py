@@ -403,9 +403,13 @@ def _as_list(value) -> list:
 def _condition_met(cond: dict, states: dict[str, str]) -> bool:
     """Mirror of the frontend's checkStateCondition for the 'state' conditions the dashboards
     use. A package entity missing from ``states`` is "unknown". Conditions on entities this test
-    does not model (the add-on's own) count as met."""
-    if cond.get("condition", "state") != "state":
-        return True
+    does not model (the add-on's own) count as met. Any other condition type fails the test
+    rather than being guessed at, so a dashboard edit cannot slip past it."""
+    kind = cond.get("condition", "state")
+    if kind in ("and", "or", "not"):
+        met = [_condition_met(c, states) for c in cond["conditions"]]
+        return {"and": all(met), "or": any(met), "not": not any(met)}[kind]
+    assert kind == "state", f"visibility condition type {kind!r} is not modelled here: {cond}"
     entity = cond["entity"]
     if entity not in states and entity not in _package_ids():
         return True
@@ -416,7 +420,9 @@ def _condition_met(cond: dict, states: dict[str, str]) -> bool:
 
 
 def _shown(card: dict, states: dict[str, str]) -> bool:
-    return all(_condition_met(c, states) for c in card.get("visibility", []))
+    conds = [*card.get("visibility", []),
+             *(card.get("conditions", []) if card.get("type") == "conditional" else [])]
+    return all(_condition_met(c, states) for c in conds)
 
 
 def _walk_cards(node, states, visible=True):
@@ -490,10 +496,11 @@ def test_last_charge_shows_without_the_test_package() -> None:
 
 
 def test_run_test_charge_button_follows_the_package() -> None:
-    """With the package the Run button shows on both dashboards; without it, on neither."""
+    """Without the package the Run button shows on neither dashboard. With it, it shows on both
+    while the test panel is off; while a test runs (panel on) only the Bubble one stays."""
     panel = "binary_sensor.a290_test_show_panel"
-    for name in ("front-end.txt", "front-end-bubble.txt"):
-        for states, expected in (({}, False), ({panel: "off"}, True)):
+    for name, while_on in (("front-end.txt", False), ("front-end-bubble.txt", True)):
+        for states, expected in (({}, False), ({panel: "off"}, True), ({panel: "on"}, while_on)):
             names = [c.get("name") for c in _visible_cards(name, states)]
             assert ("Run Test Charge" in names) is expected, (name, states)
 
