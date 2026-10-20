@@ -106,7 +106,7 @@ hand-ported under A's check for now.
   repo can turn the other's check red with no change there, usually a stale entry to delete. Each
   repo therefore keeps its own copy of the map and list, so each can be made green by its own PR.
 - Five places are excused wholesale (count `*`) and printed as such on every run: the tests, the
-  CHANGELOG, `DOCS.md`, the root `README.md` and `CONTRIBUTING.md`. Drift inside them is not caught.
+  CHANGELOG, `DOCS.md`, the root `README.md` and the contributor notes. Drift inside them is not caught.
 - An entry excuses a count of differences, not their content. A change inside an already-excused
   block that keeps the count (a rewrite inside the listed `poll_once` symbol, say) passes. Found
   in review and accepted by the owner on 2026-09-26: pinning each difference's content would fail
