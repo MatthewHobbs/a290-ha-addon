@@ -25,8 +25,33 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       relevant: ${{ steps.filter.outputs.relevant }}
+      release: ${{ steps.release.outputs.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      # The minimum leg renders only for a release (and on demand): a release is what ships the
+      # minimum claim to users. A base that cannot be read counts as a release, so the doubt
+      # costs a render, never the test.
+      - name: Is this a release?
+        id: release
+        env:
+          EVENT: ${{ github.event_name }}
+          TITLE: ${{ github.event.pull_request.title || github.event.head_commit.message }}
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          release=false
+          if [ "$EVENT" = workflow_dispatch ]; then
+            release=true
+          elif [[ "$TITLE" == "chore(release):"* ]]; then
+            release=true
+          elif ! git fetch --quiet --depth=1 origin "$BASE" \
+               || ! base="$(git show FETCH_HEAD:alpine_a290/config.yaml | grep '^version:')"; then
+            echo "::warning::could not read config.yaml version at base $BASE; rendering the minimum leg"
+            release=true
+          elif [ "$base" != "$(grep '^version:' alpine_a290/config.yaml)" ]; then
+            release=true
+          fi
+          echo "release=$release" | tee -a "$GITHUB_OUTPUT"
 
       # Same patterns the trigger-level `paths:` filter used before ADR 0005, moved here so the
       # workflow itself can always start (see the header comment) while still skipping the
@@ -67,6 +92,10 @@ jobs:
       fail-fast: false
       matrix:
         leg: [stable, minimum]
+    # Off, the leg still runs and reports success under its own name (the required check),
+    # only with every step skipped; see the ADR 0005 note below.
+    env:
+      RENDER: ${{ needs.changes.outputs.relevant == 'true' && (matrix.leg == 'stable' || needs.changes.outputs.release == 'true') }}
     steps:
       # Default checkout: for a PR this renders the merge ref (the PR's dashboard/deploy.py
       # changes). This job holds NO secrets.
@@ -81,20 +110,20 @@ jobs:
       # each step instead still expands the matrix into two real, correctly-named jobs; they just
       # finish in seconds instead of ~14 minutes.
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
-        if: needs.changes.outputs.relevant == 'true'
+        if: env.RENDER == 'true'
         with:
           # Match the add-on runtime (HA base 3.24 → Python 3.14); the harness imports app/deploy.py.
           python-version: "3.14"
 
       - name: Install deps (aiohttp + PyYAML + Playwright/Chromium + Pillow)
-        if: needs.changes.outputs.relevant == 'true'
+        if: env.RENDER == 'true'
         run: |
-          python3 -m pip install --quiet aiohttp PyYAML playwright pillow
+          python3 -m pip install --quiet aiohttp==3.14.5 PyYAML==6.0.3 playwright==1.64.0 pillow==13.0.0
           python3 -m playwright install --with-deps chromium
 
       - name: Pick the Home Assistant image for this leg
         id: ha
-        if: needs.changes.outputs.relevant == 'true'
+        if: env.RENDER == 'true'
         run: |
           # A stable pin behind current stable means this leg is not testing what users run.
           # Renovate proposes the bump; until it merges, say so visibly rather than failing every PR.
@@ -112,7 +141,7 @@ jobs:
             echo "image=ghcr.io/home-assistant/home-assistant:$v" >> "$GITHUB_OUTPUT"
           fi
       - name: Render dashboards across the mobile device matrix
-        if: needs.changes.outputs.relevant == 'true'
+        if: env.RENDER == 'true'
         env:
           UI_TESTS_DARK: "1"   # render dark (the truncation gate is colour-agnostic)
           HA_IMAGE: ${{ steps.ha.outputs.image }}   # empty on the stable leg: run.sh keeps its pin
@@ -123,7 +152,7 @@ jobs:
       # its partial shots for debugging; skipped outright on a no-op run, so a non-dashboard PR
       # doesn't get a spurious "no files found" warning for a directory that was never created.
       - name: Upload device screenshots
-        if: always() && needs.changes.outputs.relevant == 'true'
+        if: always() && env.RENDER == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ${{ matrix.leg == 'stable' && 'dashboard-screenshots' || 'dashboard-screenshots-minimum' }}
