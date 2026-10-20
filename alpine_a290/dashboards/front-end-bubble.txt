@@ -962,6 +962,12 @@
               perform_action: input_button.press
               target:
                 entity_id: input_button.a290_test_charge_run
+          visibility:
+          - condition: state
+            entity: binary_sensor.a290_test_show_panel
+            state:
+            - 'on'
+            - 'off'
           styles: .bubble-icon-container{${(()=>{const test=hass.states["input_boolean.a290_test_mode"]?.state==="on";const active=hass.states["binary_sensor.alpine_a290_charging"]?.state==="on";if(test)return "color:red !important;animation:pulse 1s linear infinite;";if(active)return "color:grey !important;opacity:0.35;";return "color:green !important;";})()}}@keyframes pulse{0%{transform:scale(1);opacity:1;}50%{transform:scale(1.08);opacity:0.85;}100%{transform:scale(1);opacity:1;}}
       - type: horizontal-stack
         cards:

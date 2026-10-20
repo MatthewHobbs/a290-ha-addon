@@ -98,7 +98,7 @@ when the car last reported; `…_last_successful_poll` shows when the add-on las
 ### Test mode (optional)
 
 If you installed the optional test package (`input_boolean.a290_test_mode` +
-`button.a290_test_charge_run`), you can simulate a 5-minute charge to preview the charge
+`input_button.a290_test_charge_run`), you can simulate a 5-minute charge to preview the charge
 panels without a real session. It's off by default and not needed for normal use.
 
 ## Bubble dashboard
