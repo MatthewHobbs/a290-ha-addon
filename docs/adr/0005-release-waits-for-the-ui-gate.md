@@ -1,10 +1,10 @@
 # ADR 0005 — Release publishing waits for the UI gate
 
 - **Status:** Accepted (2026-09-27). I chose Option B of the RFC on the day it was raised.
-- **Context:** on `v1.28.11`, the release/tag/image-publish pipeline (`release.yaml`) tagged and published within 2 minutes of the merge while the same push's UI-gate render (`ui-tests.yaml`) was still running for another 11 minutes on that commit. Separately, the UI gate is not a required PR check at all. Proposed as [RFC 0015: release publishing must wait for the UI gate](https://(private link removed)), indexed in the owner's config repo's `docs/rfc/README.md` since a290 has no RFC index of its own yet.
+- **Context:** on `v1.28.11`, the release/tag/image-publish pipeline (`release.yaml`) tagged and published within 2 minutes of the merge while the same push's UI-gate render (`ui-tests.yaml`) was still running for another 11 minutes on that commit. Separately, the UI gate is not a required PR check at all. Proposed as RFC 0015: release publishing must wait for the UI gate, indexed in my RFC index, since a290 has none of its own yet.
 - **North star:** a release cannot publish, and a PR cannot merge, ahead of a UI-gate verdict on that exact commit — whether or not the UI gate was even relevant to what changed.
 
-<!-- Format: the owner's config repo docs/adr/0000-template.md, referenced at source rather than copied.
+<!-- Format: my ADR template, referenced at source rather than copied.
 The Decision table is the plan and is kept current; the rest is the dated record. -->
 
 ## Decision
@@ -56,6 +56,6 @@ What this did not establish when written, and now does: row 2's wait-then-gate b
 
 ## References
 
-- RFC 0015: release publishing must wait for the UI gate — https://(private link removed)
+- RFC 0015: release publishing must wait for the UI gate
 - `release.yaml`'s `release-gate` job (the precedent this ADR reuses)
 - #115 (the incident that produced `ui-tests.yaml`'s original path filter)

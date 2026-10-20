@@ -1,11 +1,11 @@
 # ADR 0004 — Wrap Bubble button names instead of scrolling them
 
 - **Status:** Accepted (2026-09-27). I chose Option A of the RFC, with the Activity dates handled as Option B; the rows below are the plan and are all Open.
-- **Context:** the r5 twin, rendering its mirror of the Bubble dashboard through the all-pop-ups harness (#171's port), found labels cut short with a fade that the gate reported as 0 issues. It measured the mechanism: Bubble Card's scrolling-text marquee. Proposed as [RFC 0012: catch marquee-clipped labels in the UI gate](https://(private link removed)), indexed in the owner's config repo; logged in `BACKLOG.md` as "UI gate misses text cut short with a fade".
+- **Context:** the r5 twin, rendering its mirror of the Bubble dashboard through the all-pop-ups harness (#171's port), found labels cut short with a fade that the gate reported as 0 issues. It measured the mechanism: Bubble Card's scrolling-text marquee. Proposed as RFC 0012: catch marquee-clipped labels in the UI gate, indexed in my RFC index; logged in `BACKLOG.md` as "UI gate misses text cut short with a fade".
 - **Amended (2026-09-27):** Option A cannot fit the four rows that hold three buttons; they are re-laid two per row, decided in RFC 0013 (see Amendment below).
 - **North star:** no label on either dashboard is clipped at any phone width, for anyone, including users with reduced motion, and the gate can see a clip wherever Bubble hides one.
 
-<!-- Format: the owner's config repo docs/adr/0000-template.md, referenced at source rather than copied.
+<!-- Format: my ADR template, referenced at source rather than copied.
 The Decision table is the plan and is kept current; the rest is the dated record. -->
 
 ## Decision
@@ -21,7 +21,7 @@ The gate's detector measures a clipping box by its text content when it owns no 
 | 5 | Full gate green on both legs (stable and the declared minimum) with the patched detector, every pop-up, every device; the number of marquee findings goes from the must-fail's count to 0 by name. Version bump and changelog in user terms | a290 | Done | `adr0004-pass2-stable.log` rc=0 wall=575s, `adr0004-pass2-min.log` rc=0 wall=557s, all four passes green on both legs, zero findings |
 | 6 | A wrapped button name's height is measured at 360px for the busiest rows (Last Charge's five, Diagnostics' three) and recorded here, so a later redesign can see what this cost | a290 | Open | Not done: row 5's full gate proves nothing overflows at the taller row heights, but no specific pixel height was recorded. Left Open rather than closed on that proxy |
 | 7 | `ui-tests/README.md` says what `JS_DETECT` now measures and why; `BACKLOG.md`'s entry closes with a pointer here; parity recounted | a290 | Done | 354cf59 (README step 3), this PR deletes the BACKLOG.md entry (mechanism now established and fixed, not just found), parity entries for the dashboard/detector diff against r5 (both pending, target ADR 0004 row 9) |
-| 8 | Dual review, then merge under the repo's normal gates | a290 | Done | Merged `25126bc` (#181) on a single review (the owner's config repo's `.data-class` registry fix was still open); a second review covered the combined `5033512..5f2efb4` diff once that fix landed, one finding (a truncated 1.28.9 CHANGELOG instruction, from this PR), fixed forward as #183. Review record upgraded single → dual |
+| 8 | Dual review, then merge under the repo's normal gates | a290 | Done | Merged `25126bc` (#181) on a single review (a fix to the review process was still open); a second, independent review covered the combined `5033512..5f2efb4` diff once that fix landed, one finding (a truncated 1.28.9 CHANGELOG instruction, from this PR), fixed forward as #183. Review record upgraded single → dual |
 | 9 | r5-ha-addon mirrors the pair from the merged SHA; its own prepared patch files are the starting point | r5 | Open | |
 
 Status is one of **Open**, **Done**, **Blocked**, **Dropped**. A **Done** row carries Evidence.
@@ -60,7 +60,7 @@ Copied from RFC 0012, with the chosen options marked. The detector fix was not i
 
 ## Amendment (2026-09-27)
 
-The r5 twin measured the first cut (scrolling off on the 24 buttons) live at 360px and 393px: Presets, the Smart Charging button and Activity clear the gate, and two-per-row buttons have 85px of name width, where every name fits; but a row of three buttons leaves 29px (360) or 40px (393) beside the icon, and a single word is 36 to 51px (Started 43, Duration 50, Refresh Location 51). Option A as decided cannot fix those four rows. Proposed as [RFC 0013: three-button rows at 360px in Last Charge and Diagnostics](https://(private link removed)); I chose A2, two per row, on 2026-09-27. Row 3 carries the change. The options weighed, copied from RFC 0013:
+The r5 twin measured the first cut (scrolling off on the 24 buttons) live at 360px and 393px: Presets, the Smart Charging button and Activity clear the gate, and two-per-row buttons have 85px of name width, where every name fits; but a row of three buttons leaves 29px (360) or 40px (393) beside the icon, and a single word is 36 to 51px (Started 43, Duration 50, Refresh Location 51). Option A as decided cannot fix those four rows. Proposed as RFC 0013: three-button rows at 360px in Last Charge and Diagnostics; I chose A2, two per row, on 2026-09-27. Row 3 carries the change. The options weighed, copied from RFC 0013:
 
 | Option | What | Cost | Risk |
 | --- | --- | --- | --- |
@@ -79,7 +79,7 @@ Row 6 (the wrapped-row height measurement) is not done; it is not a correctness 
 
 ## References
 
-- RFC 0012: [catch marquee-clipped labels in the UI gate](https://(private link removed)), indexed in the owner's config repo as "a290-ha-addon: catch marquee-clipped labels in the UI gate". Decided 2026-09-27.
+- RFC 0012: catch marquee-clipped labels in the UI gate, indexed in my RFC index as "a290-ha-addon: catch marquee-clipped labels in the UI gate". Decided 2026-09-27.
 - `BACKLOG.md`, "UI gate misses text cut short with a fade" (P2, 2026-09-27), with the r5 measurements.
 - #170 (separators wrap, 1.28.6) and #178 (the separator's yellow line keeps a floor, 1.28.8): the same rule applied to the other Bubble text.
 - ADR 0003, whose completeness wait is why a late-painting wrapped name is still scanned.
