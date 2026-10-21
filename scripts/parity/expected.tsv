@@ -118,7 +118,6 @@ local	docs/adr/0001-release-on-request.md	r5	only	1	r5's own ADR for release on 
 local	docs/adr/0002-release-waits-for-the-ui-gate.md	r5	only	1	r5's own ADR for the release waiting on the UI gate; it restates a290's ADR 0005 for r5, which a290 keeps as docs/adr/0005-release-waits-for-the-ui-gate.md
 pending	justfile	both	hunk:parity|against r5-ha-addon through|against a290-ha-addon through|twin=	14	r5 added its own reciprocal parity recipes (#126), symmetric wording (each names the other repo as its twin). Target: converge wording
 pending	justfile	both	hunk:pytest-cov	2	pinned pytest in the local venv. Target: r5 ports a290's CI-pinning PR (pins, setup-trivy, pilot cadence, minimum leg on releases, no dependency dashboard)
-pending	justfile	both	hunk:CONTRIBUTING\.md	2	the contributor notes moved to CONTRIBUTING.md. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)
 pending	.github/workflows/ci.yaml	both	re:uses: \S+@[0-9a-f]{40} +#	27	pinned-action comments: two spaces on a290, one on r5; and a290's setup-trivy pin. Target: r5 ports a290's CI-pinning PR (r5 #160), one spacing in both
 pending	.github/workflows/ci.yaml	both	hunk:declared minimum HA must	2	comment wording. Target: converge, either way
 pending	.github/workflows/ci.yaml	both	hunk:a VIN in a test fixture|pair of public add-on repos	5	PII-step comment wording. Target: converge, either way
@@ -126,7 +125,7 @@ pending	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant
 pending	.github/workflows/ci.yaml	both	hunk:pip install --quiet (pytest|bandit|pip-audit)|setup-trivy|Pinned action and Trivy|malicious v0.69.4|version: v0\.|trivy/main/contrib	11	pinned CI tools and Trivy via setup-trivy. Target: r5 ports a290's CI-pinning PR (pins, setup-trivy, pilot cadence, minimum leg on releases, no dependency dashboard)
 pending	.github/workflows/ui-tests.yaml	both	hunk:NOT the prose in there|Decide whether this touches the render|needs: \[changes\]|Triggers unconditionally \(ADR 0005\)|the \`if:\` that skips a no-op run|if: needs\.changes\.outputs\.relevant|skipped outright on a no-op run|if: always\(\) && needs\.changes	31	r5 ported ADR 0005 (its ADR 0002). What remains is the path-filter comment, which names each repo's own user docs (USER-GUIDE.md/INSTALLATION.md vs CUSTOMISING.md) and the #115 incident a290 saw. Target: converge the comment wording Plus the render steps' if: conditions, which a290 now reads from env.RENDER (pending with the CI-pinning port).
 pending	.github/renovate.json	both	re:"Strict vX\.Y\.Z	4	rule descriptions worded differently for the same strict-tag rule. Target: converge, either way
-pending	.gitignore	both	*	22	section order differs; a290 ignores .bak* backups of *.local.json; r5 ignores a local reference/ checkout. Target: port .bak* to r5, one section order
+pending	.gitignore	both	*	16	section order differs; r5 ignores a local reference/ checkout. Target: one section order
 pending	.trivyignore	r5	*	3	r5 still ignores AVD-DS-0026 (no HEALTHCHECK) although its Dockerfile has one. Target: delete from r5
 pending	.yamllint	a290	*	4	a290 exempts dashboards/ because it bundles upstream YAML packages there. Target: follows the Packages/Templates decision
 
@@ -146,9 +145,8 @@ pending	ui-tests/README.md	both	*	60	residue after r5 #105: tile and timestamp n
 # hand-maintained per repo today, and pinning a count would make every edit bump it blindly.
 pending	alpine_a290/tests/test_*.py	both	*	*	tests are largely rewritten per repo (test_runtime.py is 14% line-identical). Target: B1/B2 move the shared tests into the core; before that, r5's stronger tests (P-B3 to P-B7) port to a290 and a290's (P-C4, P-C5, P-C7) to r5
 pending	alpine_a290/DOCS.md	both	*	*	each add-on's options page; 38% shared. r5's claim that its entities bind straight to Topolino65 was corrected in r5 #102 (ADR 0001). Target: reconcile with r5's naming migration release
+pending	CONTRIBUTING.md	both	*	*	each repo's contributor notes, worded for its own car (names, model codes, endpoint facts, the boot recipe's env vars). Target: same as DOCS.md
 pending	README.md	both	*	*	repository README; 44% shared. Target: same as DOCS.md
-pending	CONTRIBUTING.md	a290	only	1	a290's contributor notes (its former tool notes, untracked). Target: r5 moves its notes to CONTRIBUTING.md the same way
-pending	CONTRIBUTING.md	r5	only	1	r5 still tracks its tool notes. Target: r5 untracks them and adds CONTRIBUTING.md; then delete this row and the one above
 pending	alpine_a290/README.md	both	*	39	the add-on's store README. Target: same as DOCS.md
 pending	docs/dashboards-on-mobile.md	both	*	10	r5 claims the screenshots auto-refresh, which is false there, plus rewrapping. Target: fix r5's claim, then rewrap
 # ---------------------------------------------------------------- Supervisor pilot + AppArmor pin (a290 #160, r5 #108, ADR 0002)
@@ -165,9 +163,5 @@ local	.github/workflows/supervisor.yml	both	hunk:deploy_dashboard	15	r5 defaults
 pending	.github/workflows/supervisor.yml	both	hunk:cron:|runs-on:|arch:|core:|runner:|Nightly is amd64|matrix below keys|a miss runs the full|The runner follows|an include whose|own, with no Core	20	nightly runs amd64 on Core stable, the full matrix weekly. Target: r5 ports a290's CI-pinning PR (pins, setup-trivy, pilot cadence, minimum leg on releases, no dependency dashboard)
 local	scripts/supervisor-pilot.sh	both	hunk:deploy_dashboard	15	the same default difference in cmd_install (sets deploy_dashboard: standard) and the dashboard-probe comment (r5's deliberate choice, confirmed on r5 2026-09-27)
 local	scripts/supervisor-pilot.sh	both	hunk:Published	4	r5's poll-success log line is "Published in <s>s" where a290's is "Published: ", so each pilot greps its own; the guard follows each repo's main.py and r5 keeps its line (confirmed on r5 2026-09-27)
-pending	scripts/supervisor-pilot.sh	both	hunk:CONTRIBUTING\.md	4	comments name CONTRIBUTING.md. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)
 pending	.github/workflows/ui-tests.yaml	both	hunk:release|RENDER|Off, the leg still|only with every step skipped|pip install --quiet aiohttp	30	minimum leg renders only for a release; pinned pip installs. Target: r5 ports a290's CI-pinning PR (pins, setup-trivy, pilot cadence, minimum leg on releases, no dependency dashboard)
 pending	.github/renovate.json	both	hunk:dependencyDashboard	2	Renovate dependency dashboard off. Target: r5 ports a290's CI-pinning PR (pins, setup-trivy, pilot cadence, minimum leg on releases, no dependency dashboard)
-pending	scripts/docs_sync_check.py	both	py:<docstring>	2	the docstring names CONTRIBUTING.md. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)
-pending	scripts/ha_minimum_check.py	both	py:<docstring>	2	the docstring states the rule without citing its source. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)
-pending	scripts/pii_check.py	both	*	104	a290 also catches emails, home paths and VIN prefixes, case-insensitively, and a coordinate pair with one key line between. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)
