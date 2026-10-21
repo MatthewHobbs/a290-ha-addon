@@ -1134,6 +1134,7 @@ def test_two_factor_account_is_an_auth_failure(monkeypatch):
     err.args = ("pending verification",)
     published, invalidated = _one_failed_poll(monkeypatch, err)
     assert published and all(d["api_auth_failure"] == "on" for d in published)
+    assert main._LATEST["data"]["api_auth_failure"] == "on"
     assert invalidated == 1
 
 

@@ -4,7 +4,7 @@
 
 - **renault-api 0.6.1.** No change in what the A290 exposes. Renault now requires two-factor
   sign-in for some accounts; the add-on cannot complete it, and such an account shows as API Auth
-  Failure (now recognised by the error's type, not its wording).
+  Failure.
 - **Tile names are readable again on Home Assistant's light theme.** The standard dashboard keeps
   its dark sections whatever the theme, but on the light theme the cards inside drew dark text on
   them, so names such as Battery Level were nearly invisible. The sections now set light text.
@@ -30,8 +30,8 @@
 - **Section headings on the standard dashboard wrap again on Home Assistant 2026.10**, which draws
   their titles differently and was cutting long ones short on narrow phones.
 - **To get the three dashboard fixes above, redeploy the dashboard**: an existing dashboard is
-  never overwritten on its own. Set `redeploy_dashboard: true`, restart, then set it back to
-  `false` (this replaces your edits), or paste `front-end.txt` / `front-end-bubble.txt` again.
+  never overwritten on its own. Set `redeploy_dashboard: true` and restart (this replaces your
+  edits), then set it back to `false`; or paste `front-end.txt` / `front-end-bubble.txt` again.
 - **The image no longer ships the base image's unused `tempio` binary**, which security scanners
   flagged; it was previously rebuilt from source.
 
