@@ -19,9 +19,8 @@ once on the Configuration page, no files to edit.
 Under the hood it polls the [Renault/Kamereon API](https://github.com/hacf-fr/renault-api)
 and publishes `sensor.alpine_a290_*` entities over **MQTT auto-discovery**.
 
-The **dashboards now ship inside the app** (previously a separate `a290-dashboard-view`
-repo — since merged in and archived): enable `deploy_dashboard` and the app installs a
-ready-made dashboard for you. Controls (lights, horn, climate, refresh location) are sent
+The **dashboards ship inside the app**: `deploy_dashboard` is on by default (`standard`) and the
+app installs a ready-made dashboard for you. Controls (lights, horn, climate) are sent
 **natively** by the app — **you do not need Home Assistant's `renault` integration**. (Remote
 charge-start is now advertised for the A290 via renault-api 0.5.13, so the app publishes a
 Start Charging button that *requests* an immediate charge; remote charge-*stop* stays
@@ -71,7 +70,7 @@ key needed.
 ### Optional (not required to run)
 
 - **Test-mode preview** — the charge-simulation panels. A small HA helper/template package
-  (`alpine_a290/dashboards/Packages/`, `Templates/`, `Helpers/`); without it those tiles
+  (`alpine_a290/dashboards/Packages/`, `Templates/`); without it those tiles
   read *unavailable*.
 - **Pretty location** — `sensor.alpine_pretty_location` ("Driveway / Home / town"), a
   template sensor (`alpine_a290/dashboards/Templates/`) with an optional
@@ -94,9 +93,9 @@ key needed.
    you have multiple accounts — it's auto-discovered otherwise), then **Start**. The
    `sensor.alpine_a290_*` / `binary_sensor.alpine_a290_*` entities and `button.alpine_a290_*`
    controls appear under an **Alpine A290** device within a minute.
-4. **Get a dashboard:** set `deploy_dashboard` to `standard`, `bubble`, or `both` and
-   restart the app (it installs the dashboard + assets via CDN, nothing to copy), **or**
-   copy `alpine_a290/dashboards/front-end*.txt` into a new dashboard's raw config manually.
+4. **Get a dashboard:** the standard dashboard deploys by default (`deploy_dashboard:
+   standard`, assets via CDN, nothing to copy). Choose `bubble` or `both` instead, or `none`
+   (set before the first start, as the default deploys on start) and copy `alpine_a290/dashboards/front-end*.txt` into a new dashboard's raw config yourself.
    With `both`, the standard dashboard lands at your `dashboard_url_path` and the bubble one
    gets a `-bubble` suffix (e.g. `alpine-a290` and `alpine-a290-bubble`).
 
@@ -113,7 +112,8 @@ key needed.
   previously-retained GPS from the broker, for a zero location footprint.
 - **Native controls (no Home Assistant `renault` integration):**
   `button.alpine_a290_sound_horn`, `…_flash_lights`, `…_start_climate`, `…_stop_climate`,
-  `…_refresh_location`, `…_start_charging` — each gated on what the platform supports.
+  `…_start_charging`, and `…_refresh_location` only if you set `enable_refresh_location: true`
+  (off by default) — each gated on what the platform supports.
   Charge-start (new via renault-api 0.5.13) *requests* an immediate charge; charge-*stop*
   stays unavailable.
 - **Writable charge limits:** `number.alpine_a290_minimum_soc` (15–45 %) and
@@ -141,7 +141,7 @@ available.
 | Sound horn | `actions/horn-start` | ✅ |
 | Flash lights | `actions/lights-start` | ✅ |
 | Start / stop climate | `actions/hvac-start` · `actions/hvac-stop` | ✅ |
-| Refresh location | `actions/refresh-location` | ⚠️ best-effort (may 403) |
+| Refresh location | `actions/refresh-location` | ⚠️ opt-in (`enable_refresh_location`, off by default); best-effort (may 403) |
 | Tyre pressure (TPMS) | `pressure` | ❌ forbidden |
 | Charge mode | `charge-mode` | ❌ forbidden |
 | Start charging | `actions/charge-start` | ⚠️ car-timer only — a no-op under Octopus/external scheduling (tested) |

@@ -79,7 +79,7 @@ HASSIO_NETWORK="172.30.32.0/23"
 HASSIO_NETWORK6="fd0c:ac1e:2100::/48"
 EGRESS_COMMENT="a290-pilot-no-egress"
 # Credentials are fake and every route off the hassio network is refused
-# (egress phase), so Renault is never reached; the same stubs as CLAUDE.md.
+# (egress phase), so Renault is never reached; the same stubs as CONTRIBUTING.md.
 STUB_USERNAME="stub@example.invalid"
 STUB_PASSWORD="stub-not-a-real-credential"
 STUB_ACCOUNT_ID="0000000000"
@@ -365,7 +365,7 @@ cmd_sideload() {
 
 # --- egress: nothing an add-on sends may leave the hassio network ------------
 # The add-on logs in to Renault at start. The credentials are fake, but the
-# rule is that Renault is never reached at all. CLAUDE.md's boot test does it
+# rule is that Renault is never reached at all. CONTRIBUTING.md's boot test does it
 # with --add-host, which a Supervisor-created container cannot be given, so
 # instead every forwarded packet from the add-on range to anywhere outside
 # the hassio network is refused. That is stricter than blackholing three

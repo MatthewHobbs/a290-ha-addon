@@ -779,14 +779,14 @@ def _capture_popup(page, popup, where, dev_name, shot, nav):
     stayed open or its scan never completed (reported; the previous screenshot file is kept rather
     than overwritten by the menu behind it). run() then FAILS that device for that pop-up: a
     truncation is specific to a width, so a pop-up scanned at 430px says nothing about 360px, and
-    a skip that passed was a false green for that viewport (Codex on #171).
+    a skip that passed was a false green for that viewport (review of #171).
     The one miss that recurs is HA's own reload, once per context, as its service worker takes
     control (the r5 twin saw it land inside the pop-up scan on 4 of 8 legs; _await_sw_control now
     waits for it before anything is measured). It usually tears down the JS context ("Execution
     context was destroyed") in whatever call is in flight, which the retry below already catches
     -- but landing BETWEEN two polls of _stable_issues raises nothing: the reload completes, and
     the scan quietly finishes against whatever the reload left on screen (the main menu, or the
-    popup Bubble reopened from the still-set hash), never the popup mid-scan (Codex on #171 round
+    popup Bubble reopened from the still-set hash), never the popup mid-scan (review of #171 round
     2). So the popup's open/label state is checked again after the scan, not just before it; a
     close during the scan is then indistinguishable from one during the open and gets the same
     reopen-and-rescan retry. It does not recur, so reopen and rescan once, and only then give up."""
@@ -806,7 +806,7 @@ def _capture_popup(page, popup, where, dev_name, shot, nav):
                 for line in _popup_skip_diag(page, stages, nav):
                     print(f"    [popup diag] {line}")
                 return None
-            # Completeness first, THEN scan (Codex on #171 round 4, ADR 0003): Bubble's inner
+            # Completeness first, THEN scan (review of #171 round 4, ADR 0003): Bubble's inner
             # cards lazy-render, and _stable_issues can exit on its fast path (two clean scans, as
             # little as ~1s) before a slower card finishes painting; nothing is truncated in a card
             # that is not there. So wait, once, for every card the manifest lists for this pop-up
@@ -1026,7 +1026,7 @@ def run():
                         issues += found
                 # De-dupe: the pop-up scan re-walks the whole document, so a main-dashboard finding
                 # can otherwise appear twice when both the main view and the pop-up are flagged. The
-                # popup hash is part of the key too (Codex on #171 round 3): two DIFFERENT pop-ups
+                # popup hash is part of the key too (review of #171 round 3): two DIFFERENT pop-ups
                 # sharing an identical card-mod failure or truncated label are two findings, not one,
                 # and collapsing them hid which pop-ups still needed the fix. A main-view item's
                 # `popup` is always None, so main-view duplicates still merge exactly as before;

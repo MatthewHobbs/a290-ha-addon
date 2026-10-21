@@ -71,8 +71,7 @@
 
 ## 1.28.11
 
-- **Both bundled dashboards get a Refresh Location tile** (the Renault 5 twin's approach, now
-  shared), on the standard dashboard's Diagnostics grid and the Bubble Diagnostics pop-up.
+- **Both bundled dashboards get a Refresh Location tile**, on the standard dashboard's Diagnostics grid and the Bubble Diagnostics pop-up.
   Tapping it presses the Refresh Location button. Ships only when the button itself would exist —
   `publish_location: true` and `enable_refresh_location: true` — so a default install, which
   withholds the button, gets no tile that presses nothing. Re-copy or redeploy the dashboard to
@@ -82,7 +81,7 @@
 ## 1.28.10
 
 - **Plug-suspect detection now reads the decoded plug state, not the raw API code.** No change
-  in behaviour, but a more robust input (the Renault 5 twin's approach, now shared): the
+  in behaviour, but a more robust input: the
   Connected-but-driven / Disconnected-but-charging check compares against the same `PlugState`
   the rest of the poll already uses, instead of a magic 0/1. One side effect on upgrade: the
   stored baseline resets once, since the persisted state's shape changed, so
@@ -91,9 +90,9 @@
 
 ## 1.28.9
 
-- **Bubble dashboard: no label is clipped by the scrolling-text marquee any more.** The UI gate
-  could not see a name Bubble hid behind its scrolling-text mask, so labels cut short with a fade
-  ("Steering Whee", "Last Updat...") passed unnoticed. The gate now sees them, and the affected
+- **Bubble dashboard: no label is clipped by the scrolling-text marquee any more.** Bubble hid
+  some names behind its scrolling-text mask, so labels were cut short with a fade
+  ("Steering Whee", "Last Updat..."). The affected
   buttons (Last Charge, Diagnostics, Presets' Steering Wheel, the Smart Charging menu button, the
   Activity timestamps) stop scrolling and wrap their names instead.
 - **Last Charge's nine captured-data buttons are now five rows of two, not three rows of three.**
@@ -113,7 +112,6 @@
   heading wraps onto a second line instead of being cut off, but on narrow phones the wrapped
   heading pushed the yellow line beside it down to nothing. The line now keeps a minimum width, so
   "Batt / Range / Mileage", "Update / Test / Errors" and "Charging Schedule" show it again at 360px.
-  Found by the Renault 5 twin measuring its mirror of this dashboard; the fix is the same there.
   Re-copy or redeploy the Bubble dashboard to pick it up (`redeploy_dashboard: true`, or paste
   `front-end-bubble.txt` again).
 
@@ -127,9 +125,7 @@
   entity sat in the registry as *unavailable* for good. The add-on now re-publishes its discovery
   whenever Home Assistant announces it is online, and sends each retirement in a form Home
   Assistant acts on even for an entity it has never seen in the current run, so such orphans clear
-  on the next Home Assistant start. Shared core `renault-mqtt` v0.19.0. One path, the location
-  opt-out, is covered by the core's unit tests but not by its end-to-end Home Assistant harness;
-  the other four are.
+  on the next Home Assistant start.
 
 ## 1.28.6
 
@@ -150,7 +146,7 @@
   those are the same ids, so nothing changes. If yours already carry a prefix (for example
   `sensor.garage_alpine_a290_battery_level`, from a device put in an area before its entities
   were first registered), the pin does not rename them; see *Entity ids with an area prefix*
-  under Entities in the docs. Shared core `renault-mqtt` v0.18.0.
+  under Entities in the docs.
 
 ## 1.28.4
 
@@ -246,7 +242,6 @@
   since v1.19.0 — the claim survived in the add-on README, the user guide, and the poller's own
   module docstring. The user guide also implied the standard dashboard carries a Start Charging
   tile; neither bundled dashboard does.
-- Picks up shared core `renault-mqtt` v0.17.0.
 
 ## 1.26.0
 
@@ -257,7 +252,6 @@
   follows whether the add-on actually published a value, so a card can hide or grey them instead
   of showing a blank. This was asked for on 5 September and is the half three releases of
   breaker work left behind.
-- Picks up shared core `renault-mqtt` v0.16.0.
 
 ## 1.25.0
 
@@ -283,8 +277,8 @@
 - **Documents when the values actually update — and why a parked car looks "stuck".** The car
   does not report continuously: it commits a batch of data when it is **powered off** and then sleeps,
   so polling a sleeping car returns the same trip-end values indefinitely. Measured on a real
-  A290 parked after a drive ending 12:03 UTC — battery-status 12:03:20, location 12:02:41,
-  climate 11:46 — all three still unchanged eight hours later. **Mileage** and **Location** only
+  A290 parked after a drive, battery, location and climate readings were all still unchanged
+  eight hours later. **Mileage** and **Location** only
   move after a completed journey; battery, range and plug values refresh only while the car is
   awake (briefly after power-on, and during a charge).
 - **Clarifies that `Data Stale` on a parked car is expected, not a fault.** It measures how old
@@ -300,9 +294,9 @@ Documentation only — no behaviour change.
 - **Fixed: a car that stops reporting no longer reads as healthy.** `Data Stale` was wired to
   whether the *poll* succeeded, and was forced off on every successful poll — so it answered
   "can we reach Renault?" and never "is this reading current?". On the vehicle that prompted
-  this, the car last reported on 4 September; the add-on polled successfully every five minutes
-  for the next 68 hours, received the same three-day-old payload each time, and published it as
-  fresh. The dashboard showed 55% battery while the car was actually at 83%. `Data Stale` now
+  this, the car stopped reporting; the add-on polled successfully every five minutes
+  for the next three days, received the same payload each time, and published it as
+  fresh. The dashboard showed a battery level well below the car's real one. `Data Stale` now
   measures the age of the timestamp *inside* the car's own reading, which is the thing
   `stale_hours` was always meant to bound.
 - **New: `binary_sensor.alpine_a290_poll_failing`** takes over the old meaning — the add-on
@@ -345,7 +339,6 @@ Documentation only — no behaviour change.
   wrong"` on every single poll. It is now probed like any other optional endpoint: cars that
   lack it simply do not get the two climate-schedule sensors, and cars that gain it pick them
   up automatically. No configuration needed.
-- Picks up shared core `renault-mqtt` v0.15.0.
 
 ## 1.22.0
 
@@ -360,7 +353,6 @@ Documentation only — no behaviour change.
   opt-out: with location publishing off, the location endpoint is not queried even with
   `debug_dump` on. It fails safe — if the flag has not been configured yet, location is skipped
   rather than fetched.
-- Picks up shared core `renault-mqtt` v0.14.1.
 
 ## 1.21.1
 
@@ -370,8 +362,6 @@ Documentation only — no behaviour change.
   log now names what was withheld and why. In particular, if your vehicle does not expose Renault's
   SOC endpoint, the log says so explicitly rather than silently omitting the Minimum SoC and Charge
   Target SoC controls.
-- Picks up shared core `renault-mqtt` v0.13.1. No behaviour change beyond the logging.
-
 
 ## 1.21.0
 
@@ -444,25 +434,18 @@ Documentation only — no behaviour change.
 
 - **Security: bump `aiohttp` to 3.14.3.** Clears three advisories affecting the
   transitively-pinned `aiohttp` 3.14.1 (`PYSEC-2026-3545`, `-3546`, `-3547`; fixed upstream in
-  3.14.2/3.14.3). Lockfile-only refresh (`requirements.txt`) — no behaviour, entity, or
-  `object_id` change. (Mirrored in the R5.)
+  3.14.2/3.14.3). No behaviour or entity change.
 
 ## 1.18.1
 
 - **Available Energy now populated even when the car omits it.** The A290's battery data
   frequently doesn't include `batteryAvailableEnergy`, which left the *Available Energy* sensor
   unknown. It now falls back to an estimate from the battery SoC × your configured
-  `battery_capacity_kwh` when the car sends no value. (Shared fix via the renault-mqtt package;
-  mirrored in the R5.)
+  `battery_capacity_kwh` when the car sends no value.
 
 ## 1.18.0
 
-- **Internal: adopt the shared `renault-mqtt` package.** The code this add-on runs in common
-  with its Renault 5 sibling (config/redaction, MQTT discovery, charge-session reconciliation,
-  the API debug dump, and the pure parse/format helpers) now lives in one installed package
-  instead of being duplicated in each repo. No user-facing behaviour change — every entity,
-  `object_id`, MQTT topic, and command topic is identical to 1.17.1 (verified by a byte-for-byte
-  discovery diff); purely a maintainability move so fixes land once for both add-ons.
+Internal changes only.
 
 ## 1.17.1
 
@@ -470,7 +453,7 @@ Documentation only — no behaviour change.
   opted out, the retained tracker/GPS topics were already cleared, but the **Refresh Location**
   action button (and its `alpine_a290/cmd/refresh_location` command) stayed live — so an
   opted-out install could still trigger a location refresh. The button is now cleared and the
-  command ignored while `publish_location` is off, so the opt-out is complete. (Mirrored in R5.)
+  command ignored while `publish_location` is off, so the opt-out is complete.
 
 ## 1.17.0
 
@@ -486,30 +469,15 @@ Documentation only — no behaviour change.
   now scrubbed (VIN / account id / credentials masked) on every log and panel path — not just the
   `debug_dump` path. Auth failures are also detected by HTTP status (401/403), not only message
   text.
-- **Real build-provenance attestation on the published image.** The release workflow now attaches
-  a keyless (GitHub OIDC) Sigstore build-provenance attestation to the multi-arch image and pushes
-  it to GHCR alongside the image — so the image a Supervisor pulls can be cryptographically
-  verified: `gh attestation verify oci://ghcr.io/matthewhobbs/alpine_a290:<version> --owner
-  MatthewHobbs`. The mutable `latest` tag is no longer published (Supervisor resolves by version).
-  This replaces the previously-advertised-but-never-implemented "Cosign-signed" claim with a real,
-  verifiable one.
-- **Reproducible, integrity-checked dependency builds.** The image now installs from a
-  fully-resolved, hash-pinned lockfile (`requirements.txt`, generated from `requirements.in`) with
-  `pip --require-hashes`, so the *entire* dependency tree — not just the three top-level pins — is
-  reproducible and tamper-evident. The base image is additionally pinned by digest.
 - **Docs:** new "Personal data this add-on processes" section, a status-panel trust-boundary note
   (co-tenant containers can read telemetry — but no credentials or raw GPS — from `/api/state`),
   and an MQTT command-topic ACL recommendation.
 
 ## 1.16.3
 
-- **Bundled `tempio` rebuilt to clear inherited CVEs.** The stock `/usr/bin/tempio` in the HA
-  base image was compiled against an old `golang.org/x/crypto` on a stale Go toolchain, so
-  vulnerability scanners flagged it for a batch of CVEs (all in the unused `crypto/ssh` path,
-  plus Go stdlib — never reached at runtime). The add-on now rebuilds `tempio` from a pinned
-  upstream commit on a current Go toolchain with `x/crypto >= 0.52.0` and overwrites the base
-  copy. Verified: trivy reports 0 CVEs on the result. No behaviour change — purely supply-chain
-  hygiene of the shipped image.
+- **Bundled `tempio` rebuilt to clear inherited CVEs.** Vulnerability scanners flagged the copy
+  in the Home Assistant base image; the code involved was never reached at runtime. No behaviour
+  change.
 
 ## 1.16.2
 
@@ -522,7 +490,7 @@ Documentation only — no behaviour change.
 
 - **Dashboard deploy can no longer hang indefinitely.** The HA WebSocket client now wraps each
   receive in a 15s per-receive timeout, so an unexpected event/close frame raises a timeout
-  instead of blocking the deploy forever. (Brings the A290 in line with the R5 add-on.)
+  instead of blocking the deploy forever.
 
 ## 1.16.0
 
@@ -531,7 +499,6 @@ Documentation only — no behaviour change.
   until June 2028. This bumps the add-on's Python runtime from **3.11 to 3.14**. The pinned
   dependencies (`renault-api==0.5.12`, `paho-mqtt==2.1.0`, `PyYAML==6.0.3`) are unchanged and
   install/run cleanly on 3.14. No user-facing behaviour change — purely the runtime base.
-- CI now tests on Python 3.14 to match the new runtime.
 
 ## 1.15.1
 
@@ -577,8 +544,7 @@ Documentation only — no behaviour change.
     selection), instead of a tap-to-open row.
   - New optional **`charger_dispatching`** option (an Octopus Intelligent dispatching
     `binary_sensor`) adds a green **"Off-peak now"** / red **"Peak rate"** badge.
-- All verified across the phone-viewport render gate; the standard-dashboard card gains the
-  off-peak row too. No change unless the `charger_*` options are set.
+- The standard-dashboard card gains the off-peak row too. No change unless the `charger_*` options are set.
 
 ## 1.12.0
 
@@ -591,8 +557,7 @@ Documentation only — no behaviour change.
     pop-up of native Bubble Card controls: smart/bump-charge toggles, an **inline slider**
     for the charge target, and a tap-to-edit target time. The **Location** button moves to a
     full-width row at the bottom of the menu.
-- Nothing to configure beyond the existing `charger_*` options; both layouts are covered by
-  the dashboard UI-test gate. DOCS now show how to find the exact Octopus Intelligent ids
+- Nothing to configure beyond the existing `charger_*` options. DOCS now show how to find the exact Octopus Intelligent ids
   (the id segment is your charger's serial, not your account).
 
 ## 1.11.0
@@ -623,13 +588,11 @@ Documentation only — no behaviour change.
 ## 1.8.0
 
 - **Reliability: the add-on now auto-reconnects to MQTT** if the broker drops (bounded
-  1–120 s backoff) — it previously relied on a single connection (parity with the R5 add-on).
+  1–120 s backoff) — it previously relied on a single connection.
 - **Privacy: the car's GPS is rounded before publishing.** The location now goes on the
   retained MQTT topic at a configurable precision (`gps_precision`, default **4 dp ≈ 11 m**)
   instead of full precision, coarsening the exact home coordinates. Raise it for a more
   precise map pin, lower it for more privacy.
-- **Internal: a contract test pins the renault-api fields the poller reads**, so a future
-  library bump that renames a model field fails CI instead of silently breaking a sensor.
 
 ## 1.7.0
 
@@ -645,8 +608,7 @@ Documentation only — no behaviour change.
 
 ## 1.6.0
 
-UX pass — a fresh product + design review of the current dashboards, acted on in lockstep
-with the R5 add-on.
+UX pass on the dashboards.
 
 - **The standard dashboard now deploys by default** (`deploy_dashboard: standard`). Most
   users want a dashboard on first boot; the old `none` default left a fresh install with no
@@ -685,18 +647,17 @@ with the R5 add-on.
   `capability` access so the supervision tree and bashio always boot), while still denying
   the escalation primitives that carry real value: **no mount, no ptrace, no raw packet
   sockets**, and a constrained outbound network. The Supervisor security rating is unchanged
-  (still **8/8**). CI now compiles the profile with `apparmor_parser` so a broken profile
-  can't ship again. (Reported on the R5 sibling add-on; fixed in lockstep here.)
+  (still **8/8**).
 
 ## 1.5.0
 
 - **Read-only status panel in the sidebar (ingress).** The add-on now serves a small
   **at-a-glance panel** — battery, range, charging, plug, climate, charge limits,
-  diagnostics — straight from the Home Assistant sidebar, no dashboard required. It'\''s
+  diagnostics — straight from the Home Assistant sidebar, no dashboard required. It's
   **read-only** (it shows the latest poll; it never changes anything) and **auth-gated by
-  Home Assistant** (ingress). Served by the poller'\''s own HTTP server, so it needs **no extra
+  Home Assistant** (ingress). Served by the poller's own HTTP server, so it needs **no extra
   Supervisor permissions** and stores **no credentials or raw GPS**. *(This also takes the
-  add-on'\''s Supervisor security rating from 6 to 8 — ingress is the legitimate way to reach
+  add-on's Supervisor security rating from 6 to 8 — ingress is the legitimate way to reach
   it.)* Config stays on the Configuration tab as before.
 
 ## 1.4.8
@@ -767,12 +728,7 @@ with the R5 add-on.
   on clean word breaks** instead of clipping, and the **font and sizes are now identical on
   every screen** — the responsive `@media` rules that swapped fonts / changed sizes between
   phone and desktop have been removed (that inconsistency was poor UX). See the
-  [mobile preview](docs/dashboards-on-mobile.md).
-- **Automated responsive UI testing in CI.** New `ui-tests/` harness renders the bundled
-  dashboards in a real Home Assistant (custom cards loaded) across the **top mobile device
-  sizes** (iPhone 15 Pro Max/Pro/15/SE, Pixel 8/7a, Galaxy S24/S23/A54, + a 360px narrow
-  bound) and **fails on any text truncation or broken card** — with a screenshot per device
-  saved as a CI artifact. Runs as the **UI Tests** workflow whenever the dashboards change.
+  [mobile preview](https://github.com/MatthewHobbs/a290-ha-addon/blob/main/docs/dashboards-on-mobile.md).
 
 ## 1.4.0
 
@@ -794,7 +750,7 @@ with the R5 add-on.
   documents what the A290 forbids too. The date-ranged ones (`charges`, `charge-history`) are
   probed over the last 30 days. Use it to see what `charges` returns before deciding whether to
   build a proper charge-history feature on it.
-- **`debug_dump` privacy hardened to match the R5 add-on.** The dump now **masks GPS and
+- **`debug_dump` privacy hardened.** The dump now **masks GPS and
   identifier keys** (lat/lon, gigyaId/personId/accountId, ICCID/IMEI, address/postcode/…) and
   numeric-id values; **drops the `location` / `contracts` / `notification-settings` endpoints**
   (location/contact/account PII with no telemetry value); runs **once per restart** instead of
@@ -826,44 +782,27 @@ with the R5 add-on.
 
 - Remove the dead **Start Charging** tile from the standard dashboard — charge-start is
   forbidden on the A290, so the tile pointed at an entity that's never published.
-- Add README badges (CI, version, license, Home Assistant add-on, architectures, and a
-  one-click "add repository" button).
-- Raise unit-test coverage from ~54% to **100%** (`poll_once`, command dispatch, endpoint
-  detection, MQTT wiring, the health server, account resolution, the `main()` loop, login,
-  and the deploy WebSocket client) and bump the CI coverage gate to **95%**.
-- Strip the verbose code comments — `main.py`/`deploy.py`/`catalog.py` now carry only the
-  functional `noqa`/`nosec`/`pragma` markers and short docstrings.
 
 ## 1.2.3
 
-- Complete the CI fix: the HA add-on linter flags the `watchdog` config option as obsolete,
-  so liveness is now a native Dockerfile **HEALTHCHECK** hitting the same `/healthz` endpoint
-  (the Supervisor marks the container unhealthy and restarts it if a deadlocked event loop
-  stops answering). Same behaviour, modern mechanism.
+- Liveness is now a native Dockerfile **HEALTHCHECK** hitting the same `/healthz` endpoint,
+  replacing the `watchdog` config option, which Home Assistant now flags as obsolete. Same
+  behaviour, modern mechanism.
 
 ## 1.2.2
 
-- Fix CI (was red since the dashboard bundle / health-server changes): yamllint now ignores
-  the bundled upstream dashboard YAML under `dashboards/`, and the watchdog health server's
-  `0.0.0.0` bind is marked `# nosec B104` (intentional — it's on HA's internal network only,
-  no exposed port). No runtime change.
+Internal changes only.
 
 ## 1.2.1
 
 - README: add an **Alpine A290 API support** table (which Renault endpoints work / are
   forbidden on the A290) and document the latest functionality.
-- Trim verbose code comments/docstrings across `main.py`, `deploy.py`, `catalog.py`. No
-  behaviour change.
 
 ## 1.2.0
 
 - **`deploy_dashboard: both`** — deploy *both* dashboards in one go. The standard dashboard
   lands at `dashboard_url_path` and the bubble one at `<dashboard_url_path>-bubble`, each
   create-once. `none`/`standard`/`bubble` behave exactly as before.
-- README rewritten for the merged repo: a proper **Requirements** section listing the
-  add-ons and the exact HACS frontend cards to install **first** (card-mod + Mushroom on
-  both, Button Card + Browser Mod for the standard dashboard's tiles/pop-ups, Bubble Card
-  for the bubble dashboard), plus install steps and what the add-on provides.
 
 ## 1.1.0
 
@@ -882,7 +821,7 @@ features from the 0.x line are present; the entries below are retained as docume
 
 ## 0.25.0
 
-- Add a **`debug_dump`** option (default off, ported from the R5 add-on). When enabled, each
+- Add a **`debug_dump`** option (default off). When enabled, each
   poll logs the decoded response of every readable API endpoint (`get_details`,
   `get_battery_status`, `get_charge_schedule`, …) to help diagnose what the A290 exposes —
   with your VIN, account id, username and identifier/contact fields (registration number,
@@ -892,26 +831,16 @@ features from the 0.x line are present; the entries below are retained as docume
 
 ## 0.24.0
 
-Polish from the architecture review (P2 tier). No behaviour change for the happy path.
+Polish. No behaviour change for the happy path.
 
 - **Crash-safe state writes:** `save_state` now writes to a temp file and `os.replace`s it,
   so a kill mid-write can't truncate `state.json` to garbage (which `load_state` would
   silently treat as empty, wiping all charge history). State is also persisted on the
   poll-failure path so plug baselines / session progress survive a restart.
-- **Unify the plug-state representation:** plug-suspect detection now derives its int code
-  from the already-decoded `PlugState` enum (single source of truth, JSON-safe) instead of
-  separately re-reading the raw attribute — removing a latent enum-vs-int footgun.
-- **Extract the entity catalog** (`SENSORS`/`BINARY_SENSORS`/`ICONS`/`OPTIONAL_ENDPOINTS`/
-  `ACTION_BUTTONS`/`RETIRED_SENSORS`) into `catalog.py` — the declarative per-model surface,
-  kept out of the polling/MQTT engine. No entity change.
-- **CI supply chain:** SHA-pin every third-party GitHub Action (was tag-pinned); add a
-  modest `--cov-fail-under=50` coverage gate.
-- **Tests:** cover the `_on_message` command dispatch (known → routed, unknown → ignored)
-  and the `detect_supported` startup-login-failure path (degrades to read-only, invalidates).
 
 ## 0.23.0
 
-Hardening from the architecture review (P1 tier).
+Hardening.
 
 - **Bound login storms during outages.** A failed poll no longer re-authenticates every
   cycle — the cached login is dropped only on an auth-class error (or every 3rd consecutive
@@ -926,14 +855,10 @@ Hardening from the architecture review (P1 tier).
 - **Watchdog.** A tiny `/healthz` server backs a Supervisor `watchdog`, so a deadlocked
   event loop now triggers an automatic container restart instead of going unnoticed.
 - **Timeout on button-press commands** too (`run_command` uses the same 60 s API timeout).
-- **Single-source the version** from `config.yaml` via the builder's `BUILD_VERSION` arg
-  (exposed as `A290_VERSION`) — no more hand-syncing a constant in `main.py`.
-- **Tests:** add `test_deploy.py` covering the CDN rewrite and the create-once/redeploy
-  branches of the dashboard deployer.
 
 ## 0.22.0
 
-Reliability fixes from the architecture review (P0 tier).
+Reliability fixes.
 
 - **Time-bound every Renault API call.** `aiohttp`'s default is no timeout, so a hung
   Kamereon socket could stall the single poll loop forever (the add-on stays "online" but
@@ -944,8 +869,6 @@ Reliability fixes from the architecture review (P0 tier).
   to the command topic and re-publishes discovery + availability on every (re)connect. paho
   doesn't replay subscriptions and a restarted Mosquitto can drop retained discovery, so
   previously a broker bounce silently killed the control buttons and could blank entities.
-- **Test:** assert the discovery `value_template` prefix-strip contract for `BINARY_SENSORS`
-  too (was only checked for `SENSORS` — the same bug class that once broke Last Charge).
 
 ## 0.21.0
 
@@ -960,12 +883,7 @@ Reliability fixes from the architecture review (P0 tier).
 
 ## 0.20.2
 
-- Pin `paho-mqtt==2.1.0` and `PyYAML==6.0.3` (were `>=`), completing the reproducible-build
-  goal from 0.17.0 — an unpinned rebuild could otherwise pull a new major silently.
-- Add a `pytest` unit-test suite (`alpine_a290/tests/`) and a CI **Tests** job. Covers the
-  discovery-template/data-key contract (the class of bug that broke the Last Charge tiles),
-  charge-session maths, plug stuck-detection, enum decoding, unit conversion, and the
-  action-button/command-map consistency. No runtime change.
+Internal changes only.
 
 ## 0.20.1
 
@@ -1000,11 +918,7 @@ Reliability fixes from the architecture review (P0 tier).
   request, so pressing it silently did nothing. It's now gated on
   `supports_endpoint("actions/charge-start")`: not published on the A290 (and any retained
   button from an older install is cleared), and it would reappear automatically if Renault
-  ever lifts the restriction. The R5 E-Tech, which *does* allow start via `ev/settings`,
-  keeps its button in the R5 port.
-- Audited every other `renault-api` call against the A290's per-model endpoint map: all
-  read endpoints resolve to supported endpoints, and the two forbidden ones (`pressure` /
-  TPMS and `charge-mode`) remain correctly gated, so no perpetually-empty entities ship.
+  ever lifts the restriction.
 
 ## 0.18.0
 
@@ -1021,9 +935,7 @@ Reliability fixes from the architecture review (P0 tier).
 
 ## 0.17.0
 
-- Pin `renault-api==0.5.12` for reproducible builds. The library's per-model endpoint
-  maps and method behaviour change between releases, so an unpinned `>=` could silently
-  alter behaviour on a rebuild. Bumps are now deliberate and re-verified.
+Internal changes only.
 
 ## 0.16.0
 
@@ -1032,7 +944,6 @@ Reliability fixes from the architecture review (P0 tier).
   "Charging" whenever that's true (incl. the power-based fallback) — so it can no longer
   contradict the `binary_sensor.alpine_a290_charging` state. Precise sub-states
   (Waiting/Charge Ended/Flap Open/…) still show when not actively charging.
-- Minor: decode the plug state once per poll (was decoded twice — label + charging flap).
 
 ## 0.15.0
 
@@ -1057,7 +968,7 @@ Reliability fixes from the architecture review (P0 tier).
 - Reverted the 0.12 attempt to set the map marker via the device_tracker's MQTT
   `entity_picture` — Home Assistant **blocks** `entity_picture`/`icon` from MQTT
   attributes, so it never applied. The car-coloured marker is instead set in the
-  dashboard via a `homeassistant: customize:` entity_picture (see the dashboard repo).
+  dashboard via a `homeassistant: customize:` entity_picture.
 
 ## 0.12.0
 
@@ -1106,7 +1017,6 @@ Reliability fixes from the architecture review (P0 tier).
 - Unsupported endpoints' discovery is now actively cleared on startup, so entities
   published by an earlier version (e.g. charge_mode / tyre pressure on A5E1AE) are
   removed rather than lingering as empty.
-- Version is logged from a single source; tidied the discovery log count.
 
 ## 0.6.3
 
@@ -1190,9 +1100,3 @@ Reliability fixes from the architecture review (P0 tier).
   charging status, mileage, last updated) via MQTT auto-discovery.
 - MQTT broker connection auto-discovered from the Mosquitto add-on.
 - Keeps running through API/auth hiccups and marks itself unavailable on failure.
-
-### Planned
-
-- Remaining endpoints (location, HVAC, charges history, EV settings, SoC levels).
-- Port the resilient charge-session tracking, plug/stuck detection and auto-reauth.
-- Kamereon account-id auto-discovery.
