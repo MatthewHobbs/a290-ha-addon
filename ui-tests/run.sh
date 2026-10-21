@@ -12,7 +12,7 @@ PY="${PYTHON:-python3}"
 # Pinned (not :stable) so the render is deterministic — a floating tag made the truncation
 # gate flake as HA/card versions moved under it. Renovate proposes this and the card pins below as
 # one grouped PR (.github/renovate.json); keep the image:tag and URL shapes its regexes expect.
-HA_IMAGE="${HA_IMAGE:-ghcr.io/home-assistant/home-assistant:2026.9.4}"
+HA_IMAGE="${HA_IMAGE:-ghcr.io/home-assistant/home-assistant:2026.10.2}"
 CONFIG="$(mktemp -d)"
 
 cleanup() {
@@ -35,7 +35,7 @@ curl -fsSL "https://github.com/custom-cards/button-card/releases/download/v7.0.1
 curl -fsSL "https://cdn.jsdelivr.net/gh/thomasloven/lovelace-card-mod@v4.2.1/card-mod.js" -o "$CONFIG/www/cards/card-mod.js"
 # Bubble Card is a single self-contained bundle at pinned releases — vendor it too (was loaded
 # live from jsDelivr @main, whose runtime fetch intermittently error-carded on the widest viewport).
-curl -fsSL "https://cdn.jsdelivr.net/gh/Clooos/Bubble-Card@v3.4.1/dist/bubble-card.js" -o "$CONFIG/www/cards/bubble-card.js"
+curl -fsSL "https://cdn.jsdelivr.net/gh/Clooos/Bubble-Card@v3.4.2/dist/bubble-card.js" -o "$CONFIG/www/cards/bubble-card.js"
 
 # Vendor the dashboards' background/render images so /local/backgrounds/<file> resolves
 # (the live add-on rewrites these to the CDN via deploy._cdnify; the harness serves them
