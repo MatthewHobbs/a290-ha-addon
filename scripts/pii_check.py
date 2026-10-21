@@ -49,8 +49,8 @@ VIN = re.compile(r"(?<![A-Za-z0-9])[A-HJ-NPR-Z0-9]{17}(?![A-Za-z0-9])", re.IGNOR
 VIN_PREFIX = re.compile(r"(?<![A-Za-z0-9])VYS[A-HJ-NPR-Z0-9]{3,}", re.IGNORECASE)
 # The TLD must be letters, so `pkg@1.2.3` and `uses: x@v4.1.0` are not addresses.
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})")
-EMAIL_OK_DOMAIN = re.compile(r"(?:example\.[a-z.]+|.+\.invalid|users\.noreply\.github\.com)", re.IGNORECASE)
-HOME_PATH = re.compile(r"(?<![A-Za-z0-9_.-])/(?:Users|home)/([A-Za-z0-9._-]+)/")
+EMAIL_OK_DOMAIN = re.compile(r"(?:example\.(?:com|org|net)|.+\.invalid|users\.noreply\.github\.com)", re.IGNORECASE)
+HOME_PATH = re.compile(r"(?<![A-Za-z0-9_.-])/(?:Users|home)/([A-Za-z0-9._-]+)/", re.IGNORECASE)
 HOME_OK = {"runner"}
 NUM = re.compile(r"(?<![\d.])[-+]?\d{1,3}\.\d{4,}(?![\d.])")
 # A trailing comment only: nothing quoted may follow it, or a string value could carry it.
@@ -72,7 +72,7 @@ def email_hits(lines):
     for i, line in enumerate(lines):
         for m in EMAIL.finditer(line):
             local = m.group(0)[: m.group(0).index("@")]
-            if local.lower() != "noreply" and not EMAIL_OK_DOMAIN.fullmatch(m.group(1)):
+            if local.lower() not in ("noreply", "git") and not EMAIL_OK_DOMAIN.fullmatch(m.group(1)):
                 hits.append(i)
                 break
     return hits
@@ -198,7 +198,8 @@ def self_test():
         ("email, github noreply", [f"1234+{name}{at}users.noreply.github.com"], False),
         ("email, noreply local part", [f"noreply{at}mail.org"], False),
         ("email, lookalike of example", [f"{name}{at}notexample.com"], True),
-        ("email, example only as a subdomain", [f"{name}{at}example.evil.com"], False),
+        ("email, example only as a subdomain", [f"{name}{at}example.evil.com"], True),
+        ("email, git ssh remote", [f"git{at}github.com:owner/repo.git"], False),
         ("email, second address on the line", [f"{name}{at}example.com and {name}{at}gmail.com"], True),
         ("email, version pin is not one", [f"uses: actions/checkout{at}v4.1.0", f"pkg{at}1.2.3"], False),
         ("email, no domain", [f"{name}{at}localhost"], False),
@@ -207,11 +208,12 @@ def self_test():
         ("path, CI runner", ["cd /home/runner/work/repo"], False),
         ("path, placeholder", ["/Users/<name>/Documents"], False),
         ("path, longer root", [f"/opt/Users/{name}/x"], False),
+        ("path, lower-case macOS home", [f"/users/{name}/x"], True),
         ("vin", [f"vin: {vin}"], True),
         ("vin stub with I/O/Q", ["vin: VF1STUBVIN0000000"], False),
         ("vin after an underscore", [f"car_{vin}"], True),
         ("vin inside a longer run", [f"X{vin}"], False),
-        ("digit run inside a hex hash", ["sha256:9f9a" + "f" + "1" * 17 + "f99"], False),
+        ("vin, digit run inside a hex hash", ["sha256:9f9a" + "f" + "1" * 17 + "f99"], False),
         ("pair, one line", [f"gpsLatitude={lat}, gpsLongitude={lon}"], True),
         ("pair, other keys between", [f'"latitude": {lat}, "gps_accuracy": 8, "source_type": "gps", "longitude": {lon}'], True),
         ("pair with an altitude between", [f"latitude: {lat}, altitude: 250.{'1234'}, longitude: {lon}"], True),

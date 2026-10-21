@@ -32,12 +32,16 @@ alpine_a290/                 the add-on (this is what HA installs)
     catalog.py               entity tables: SENSORS / BINARY_SENSORS / BUTTONS / NUMBERS,
                              endpoint constants, RETIRED_* cleanup lists
     deploy.py                optional dashboard auto-deploy via the HA core API
-    requirements.txt         pinned deps (see "Dependencies")
-  tests/                     pytest: conftest.py, test_main.py, test_runtime.py, test_deploy.py
+    panel.html               the read-only ingress status panel
+    requirements.in/.txt     pinned deps (see "Dependencies")
+  tests/                     pytest: runtime, MQTT, charge, config, deploy, dashboard
+                             conformance and the renault-api contract
   config.yaml                add-on manifest: version, options + schema
   Dockerfile                 alpine base, HEALTHCHECK, root user (# nosec B104 for 0.0.0.0 bind)
   run.sh                     bashio entrypoint (reads /data/options.json)
-  dashboards/                front-end.txt (standard) + front-end-bubble.txt (Bubble Card) + assets
+  apparmor.txt               the add-on's AppArmor profile
+  dashboards/                front-end.txt (standard) + front-end-bubble.txt (Bubble Card), assets,
+                             Packages/ (optional test mode), Templates/, INSTALLATION.md, USER-GUIDE.md
   DOCS.md / CHANGELOG.md     the add-on's HA docs page + changelog
 ui-tests/                    containerized HA + Playwright responsive/overflow gate
 docs/                        dashboards-on-mobile.md + screenshots (user docs)
@@ -46,13 +50,19 @@ ruff.toml / repository.yaml / README.md / LICENSE
 
 ## Dependencies
 
-`alpine_a290/app/requirements.txt` pins everything and keeps it pinned:
+`alpine_a290/app/requirements.txt` pins the Python dependencies and keeps them pinned:
 `renault-api`, `paho-mqtt` and `PyYAML`, at the versions in those two files. Each is pinned in BOTH
 `requirements.in` (the source) and `requirements.txt` (hash-locked). Bump both, or the next
 regeneration silently reverts the one you missed.
 
-**`renault-api` follows upstream.** Dependabot proposes it in its weekly python group like any
-other dependency. Review each bump against `renault_api/kamereon/models.py`
+**The shared core.** Most of the runtime (MQTT, discovery, parsing, redaction, the debug dump)
+lives in `renault-mqtt`, shared with the r5 add-on. The Dockerfile pins it by full commit SHA
+(`ARG CORE_REF`, with the release tag in the comment above it) and installs it with
+`--no-build-isolation`. Renovate proposes a new core release as its own PR; bump it like any
+runtime change, with the container boot.
+
+**`renault-api` follows upstream.** Dependabot proposes it weekly in a group of its own, so each
+bump is its own PR. Review each bump against `renault_api/kamereon/models.py`
 `_VEHICLE_ENDPOINTS` (the A290 is model `A5E1AE`, the R5 is `R5E1VE`), which
 `tests/test_api_contract.py` pins, and boot the container. That map, not the readthedocs pages,
 is the authoritative source for what each car exposes.
@@ -262,9 +272,10 @@ version literal in code (`main.py` reads `R5_VERSION`, which its release workflo
   `slug(device name + " " + friendly name)`. Derive ids (for dashboards and tests) from the
   *names*, not from `object_id`.
 - **Secrets never get logged.** The credentials (My Alpine username/password, VIN, account_id,
-  GPS) are sensitive. `debug_dump: true` logs decoded API responses but routes everything through
-  `_debug_redact` first. Never add a logging path that bypasses it, and never lift the
-  `renault_api` logger clamp in `main.py` (`setup_logging`). At DEBUG, renault-api 0.5.13 logs
+  GPS) are sensitive. `debug_dump: true` logs decoded API responses but masks them first (the core's
+  `renault_mqtt.debug` key masking plus `renault_mqtt.config.redact`, also applied to every log
+  line and traceback). Never add a logging path that bypasses it, and never lift the
+  `renault_api` logger clamp in `main.py` (`setup_logging`). At DEBUG, renault-api logs
   full, unredacted Kamereon request and response bodies (VIN, account ids, unrounded GPS) and
   the app's API-key config, but not access tokens, whose JWT is a header it never logs. The
   clamp keeps those records from ever being created; `debug_dump` is the redacted route.

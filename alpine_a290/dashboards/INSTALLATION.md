@@ -93,7 +93,8 @@ safe). To pull in a later layout update, set `redeploy_dashboard: true` and rest
 ## Manual install (advanced)
 
 Use this if you'd rather host the assets yourself (no CDN dependency) or want full local
-control. Do steps 1–2 of the recommended route first (app + HACS cards), then:
+control. Do steps 1–2 of the recommended route first (app + HACS cards), set
+`deploy_dashboard: none` in the app's configuration so it doesn't deploy its own copy, then:
 
 ### 3. Copy the assets to `/config/www/`
 

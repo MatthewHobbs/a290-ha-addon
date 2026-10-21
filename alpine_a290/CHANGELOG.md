@@ -815,8 +815,9 @@ Internal changes only.
 
 ## 1.0.0
 
-First stable release. Functionally identical to 0.25.0. All features from the 0.x line are
-present; the entries below are retained as documentation.
+First stable release. Functionally identical to 0.25.0 — the commit history was reset at
+this point (an early commit had contained secrets), so 1.0.0 is the new baseline. All
+features from the 0.x line are present; the entries below are retained as documentation.
 
 ## 0.25.0
 

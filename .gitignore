@@ -25,3 +25,6 @@ secrets.yaml
 
 # Local `just ci` virtualenv (uv)
 .venv/
+
+# Machine-local settings files (editor permission grants and the like) never belong in the repo.
+*.local.json

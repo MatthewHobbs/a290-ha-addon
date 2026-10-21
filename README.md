@@ -93,9 +93,9 @@ key needed.
    you have multiple accounts — it's auto-discovered otherwise), then **Start**. The
    `sensor.alpine_a290_*` / `binary_sensor.alpine_a290_*` entities and `button.alpine_a290_*`
    controls appear under an **Alpine A290** device within a minute.
-4. **Get a dashboard:** set `deploy_dashboard` to `standard`, `bubble`, or `both` and
-   restart the app (it installs the dashboard + assets via CDN, nothing to copy), **or**
-   copy `alpine_a290/dashboards/front-end*.txt` into a new dashboard's raw config manually.
+4. **Get a dashboard:** the standard dashboard deploys by default (`deploy_dashboard:
+   standard`, assets via CDN, nothing to copy). Choose `bubble` or `both` instead, or `none`
+   and copy `alpine_a290/dashboards/front-end*.txt` into a new dashboard's raw config yourself.
    With `both`, the standard dashboard lands at your `dashboard_url_path` and the bubble one
    gets a `-bubble` suffix (e.g. `alpine-a290` and `alpine-a290-bubble`).
 

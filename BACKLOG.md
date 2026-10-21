@@ -70,6 +70,13 @@ cycles, and `expire_after` on the tracker and volatile entities. `expire_after` 
 arrival, and the poller republishes the whole state document every cycle, so it only fires when
 publishing stops, which is the wedged case.
 
+## P2 — No recorded or fake Kamereon client for the container gate
+
+**Logged:** 2026-09 (restated 2026-10-21). a290 is observed on a real car; r5 can only ever be
+tested against fixtures, and the container boot proves only that Renault was refused. A small fake
+Kamereon server (or recorded responses) behind the blackholed hosts would let the boot test and the
+Supervisor pilot exercise a successful poll end to end.
+
 ## P2 — `/healthz` always answers `ok`; a wedged poller looks healthy
 
 **Component:** `alpine_a290` (`main.py`, Dockerfile `HEALTHCHECK`) · **Logged:** 2026-10-20
@@ -206,6 +213,13 @@ completeness condition (a known-good card count), as the pop-up gate has.
 Renault requires an emailed code. The add-on shows API Auth Failure and retries on its backoff; it
 cannot complete the flow unattended. Supporting it needs a way to enter the code (an option or a
 service call) and to store the remembered device ids.
+
+## P3 — The Dockerfile's HEALTHCHECK comment claims the Supervisor acts on it
+
+**Logged:** 2026-09 (restated 2026-10-21). The comment says the Supervisor monitors the HEALTHCHECK
+and restarts a deadlocked add-on. HA's add-on docs are silent on whether the Supervisor acts on a
+Docker HEALTHCHECK, and the `watchdog:` key is rejected by the add-on linter as obsolete. Disproving
+check: on a real HA host, wedge the event loop and watch whether the Supervisor restarts the add-on.
 
 ## P3 — CI tools are pinned by version only
 
