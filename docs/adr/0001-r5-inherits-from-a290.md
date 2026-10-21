@@ -5,7 +5,7 @@
   repository to the other. A read-only parity baseline on 2026-09-26 (a290 `bddda7f`,
   v1.28.1; r5 `6957d57`, v1.8.3) found 45 of about 85 shared files differing, 12 fixes r5 had
   that a290 lacked, 19 the other way, and 32 same-intent items that had diverged. I weighed the
-  options as "RFC: How r5 inherits from a290" (cited below).
+  options in "RFC: How r5 inherits from a290" (cited below).
 - **North star:** the shared runtime lives once, in the `renault-mqtt` core, with one set of
   tests covering both cars; both cars' entities carry the same descriptive names; each add-on
   holds only its catalog data, config, dashboards and docs, and nothing the two share drifts
@@ -14,7 +14,8 @@
 *Format per my ADR template, referenced rather than copied: the
 North star and the Decision table are THE PLAN and are kept current; Context, Alternatives,
 Consequences and Verification are THE RECORD and are dated, corrected but not revised. Each Open
-row is carried out in its named repository, under that repository's normal rules.*
+row is carried out by its Owner, in the repository it names, under that repository's normal
+rules.*
 
 ## Decision
 
@@ -27,11 +28,12 @@ descriptive as with the a290."
 
 Options C (generate r5 from a290) and D (one repository) are not adopted by this decision.
 
-**Naming, decided later the same day, replacing the RFC's "r5 keeps its legacy names".** I
-checked my caveat above: no revision of Topolino65's dashboards uses any r5 entity id, so the
-compatibility the legacy names were kept for never existed, and every visible r5 user runs
-r5's bundled dashboard. I then decided: r5 moves to descriptive, a290-style entity names, but only after the `renault-mqtt`
-core supports (1) `default_entity_id` (RFC 0005, accepted), so new ids do not get area
+**Naming, decided later the same day, replacing the RFC's "r5 keeps its legacy names".** My
+caveat above was investigated read-only, and the research reported that no revision of
+Topolino65's dashboards uses any r5 entity id, so the compatibility the legacy names were kept
+for never existed, and that every visible r5 user runs r5's bundled dashboard. I then decided:
+r5 moves to descriptive, a290-style entity names, but only after the `renault-mqtt` core
+supports (1) `default_entity_id` (RFC 0005, accepted), so new ids do not get area
 prefixes, and (2) retiring old button and number discovery topics (it already retires
 sensors). r5 then ships **one** migration release. Because `unique_id` is the object id, that
 release creates new entities; history stays under the old ids, and the CHANGELOG warns about
@@ -132,10 +134,10 @@ See the PR that lands row 1 for the commands and output; in summary:
   whose difference normalisation would otherwise hide.
 - It fails when a map rule rewrites nothing (stale), so the `legacy` rules cannot outlive r5's
   rename unnoticed.
-- **Not re-verified here:** the naming check (Topolino65 dashboards use no r5 entity id;
-  visible r5 users run the bundled dashboard) was done while coordinating the port, and was
-  not re-checked for this ADR. r5 later confirmed the
-  0-of-58 result independently on its own Topolino65 snapshot.
+- **Not re-verified here:** the naming research (Topolino65 dashboards use no r5 entity id;
+  visible r5 users run the bundled dashboard) reached me through the coordinating work and was
+  not re-checked for this ADR. r5 later confirmed the 0-of-58 result independently on its own
+  Topolino65 snapshot.
 - **Not verified:** the CI job itself, which runs only once the PR is open; and that the audit's
   item ids resolve anywhere a future reader can follow (the baseline report was a working
   artefact, summarised in the RFC).
