@@ -61,6 +61,11 @@ lives in `renault-mqtt`, shared with the r5 add-on. The Dockerfile pins it by fu
 `--no-build-isolation`. Renovate proposes a new core release as its own PR; bump it like any
 runtime change, with the container boot.
 
+**CI tools.** The workflows and the justfile pin pytest, pytest-cov, bandit, pip-audit, playwright
+and Trivy's version. Renovate proposes them together as one "CI tools" PR, at least 3 days after a
+release (Trivy 7). Workflow steps that need runtime packages install the hash-locked
+`requirements.txt`, never a hand pin, so runtime Python stays Dependabot's alone.
+
 **`renault-api` follows upstream.** Dependabot proposes it weekly in a group of its own, so each
 bump is its own PR. Review each bump against `renault_api/kamereon/models.py`
 `_VEHICLE_ENDPOINTS` (the A290 is model `A5E1AE`, the R5 is `R5E1VE`), which

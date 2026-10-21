@@ -88,7 +88,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
-          python3 -m pip install --quiet PyYAML==6.0.3
+          python3 -m pip install --quiet -r alpine_a290/app/requirements.txt
           python3 scripts/docs_sync_check.py --self-test
           python3 scripts/prepare_release.py --self-test
           python3 scripts/release_decision.py --self-test
@@ -175,6 +175,7 @@ jobs:
       # malicious v0.69.4 (CVE-2026-33634) reached runners.
       - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567  # v0.3.1
         with:
+          # renovate: datasource=github-releases depName=aquasecurity/trivy
           version: v0.76.0
       - name: Trivy filesystem scan (vulns, misconfig, secrets)
         run: |
