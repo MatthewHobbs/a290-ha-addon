@@ -58,16 +58,17 @@ API key to install.
 See the app's [DOCS](https://github.com/MatthewHobbs/a290-ha-addon/blob/main/alpine_a290/DOCS.md)
 for the full entity list.
 
-### 3. Turn on dashboard auto-deploy
+### 3. Dashboard auto-deploy
 
-Back in the app's **Configuration** tab, set:
+Auto-deploy is **on by default**: `deploy_dashboard` is `standard`. On the app's
+**Configuration** tab you can change these options:
 
 | Option | Value |
 | --- | --- |
-| `deploy_dashboard` | `standard` (closest to the original), `bubble`, or `both`. |
+| `deploy_dashboard` | `standard` (default), `bubble`, `both`, or `none` to manage dashboards yourself. |
 | `dashboard_url_path` | URL slug for the dashboard (default `alpine-a290`; with `both`, the bubble one is suffixed `-bubble`). |
 
-**Restart** the app. On start it reads the dashboard YAML **bundled in the app**,
+If you change them, **restart** the app. On start it reads the dashboard YAML **bundled in the app**,
 rewrites its images to the **jsDelivr CDN** (served from this repo), registers the **Zen
 Dots** Google font as a Lovelace resource, and creates the dashboard via the HA API — then
 it appears in your sidebar.
@@ -92,7 +93,9 @@ safe). To pull in a later layout update, set `redeploy_dashboard: true` and rest
 ## Manual install (advanced)
 
 Use this if you'd rather host the assets yourself (no CDN dependency) or want full local
-control. Do steps 1–2 of the recommended route first (app + HACS cards), then:
+control. Do steps 1–2 of the recommended route first (app + HACS cards), and set
+`deploy_dashboard: none` on the app's Configuration tab **before you first start it** (the default
+deploys the standard dashboard on start), then:
 
 ### 3. Copy the assets to `/config/www/`
 
@@ -101,7 +104,8 @@ Using the **File Editor** app or **Samba**:
 1. Create `/config/www/backgrounds/` and copy everything from this repo's `Images/`
    subfolders into it (the dashboards reference them as `/local/backgrounds/…`).
 2. Copy `CSS/zen-dots.css` to `/config/www/zen-dots.css`.
-3. Copy `Fonts/ZenDots-Regular.ttf` to `/config/www/` (the CSS references it).
+3. Copy `Fonts/ZenDots-Regular.ttf` to `/config/www/fonts/` (the CSS loads it from
+   `/local/fonts/`).
 
 ### 4. Wire up resources (and any extras)
 
