@@ -14,9 +14,9 @@ as panel.html. Here every tracked text file is scanned, and anything that stops 
 CI and `just ci` both run it, so a leak is caught before push rather than after publication.
 
 Rules, applied to every git-tracked text file:
-  VIN         a 17-character string over A-HJ-NPR-Z0-9, in either case. Real VINs never contain
-              I, O or Q, so a stub such as VF1STUBVIN0000000 does not match and needs no
-              exemption.
+  VIN         a 17-character string over A-HJ-NPR-Z0-9 with at least one digit, in either case.
+              Real VINs never contain I, O or Q, so a stub such as VF1STUBVIN0000000 does not
+              match and needs no exemption; a 17-letter identifier (matchPackageNames) is not one.
   VIN prefix  VYS followed by 3+ VIN characters, in either case: the start of a real VIN
               quoted in prose, where the full 17 characters are not.
   email       any address, except placeholders: a domain of example.<tld>, a domain ending
@@ -47,7 +47,7 @@ GAP = 80
 
 # Neighbours are any letter or digit, but not underscore: \b let `car_<VIN>` through, and
 # excluding lower case keeps digit runs inside hex hashes from matching.
-VIN = re.compile(r"(?<![A-Za-z0-9])[A-HJ-NPR-Z0-9]{17}(?![A-Za-z0-9])", re.IGNORECASE)
+VIN = re.compile(r"(?<![A-Za-z0-9])(?=[A-Za-z0-9]{0,16}\d)[A-HJ-NPR-Z0-9]{17}(?![A-Za-z0-9])", re.IGNORECASE)
 VIN_PREFIX = re.compile(r"(?<![A-Za-z0-9])VYS[A-HJ-NPR-Z0-9]{3,}", re.IGNORECASE)
 # The TLD must be letters, so `pkg@1.2.3` and `uses: x@v4.1.0` are not addresses.
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})")
@@ -198,6 +198,7 @@ def self_test():
     at, name = "@", "someone"
     cases = [
         ("vin, lower case", [f"vin: {vin.lower()}"], True),
+        ("vin needs a digit: a 17-letter identifier is not one", ['"matchPackageNames": ['], False),
         ("vin prefix in prose", ["the car VYS" + "P01 is parked"], True),
         ("vin prefix, lower case", ["vys" + "p01xyz"], True),
         ("vin prefix too short", ["VYS" + "01 is not enough"], False),
