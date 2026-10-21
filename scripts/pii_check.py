@@ -21,11 +21,12 @@ Rules, applied to every git-tracked text file:
               quoted in prose, where the full 17 characters are not.
   email       any address, except placeholders: a domain of example.<tld>, a domain ending
               .invalid, users.noreply.github.com, or the local part noreply or git (an SSH remote).
-  home path   /Users/<name>/ or /home/<name>/, in either case. /home/runner/ (the CI runner) is
-              allowed.
+  home path   /Users/<name> or /home/<name>, in either case, with or without a trailing
+              slash. /home/runner (the CI runner) is allowed.
   coordinates two numbers with 4+ decimals forming a valid latitude/longitude in either order,
-              within GAP characters of each other on one line or across two adjacent
-              lines (pretty-printed JSON/YAML puts them on consecutive lines). A key whose
+              within GAP characters of each other on one line, across two adjacent lines
+              (pretty-printed JSON/YAML puts them on consecutive lines), or across two lines
+              with one other `key: value` or `key=value` line between them. A key whose
               number sits alone on a deeper line (`latitude:` then `  51.5...`) is read as
               if it were on the key's line, so the split form is caught exactly where the
               one-line form would be; nested mappings and block scalars are not joined.
@@ -51,11 +52,13 @@ VIN_PREFIX = re.compile(r"(?<![A-Za-z0-9])VYS[A-HJ-NPR-Z0-9]{3,}", re.IGNORECASE
 # The TLD must be letters, so `pkg@1.2.3` and `uses: x@v4.1.0` are not addresses.
 EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})")
 EMAIL_OK_DOMAIN = re.compile(r"(?:example\.(?:com|org|net)|.+\.invalid|users\.noreply\.github\.com)", re.IGNORECASE)
-HOME_PATH = re.compile(r"(?<![A-Za-z0-9_.-])/(?:Users|home)/([A-Za-z0-9._-]+)/", re.IGNORECASE)
+HOME_PATH = re.compile(r"(?<![A-Za-z0-9_.-])/(?:Users|home)/([A-Za-z0-9._-]+)(?![A-Za-z0-9._-])", re.IGNORECASE)
 HOME_OK = {"runner"}
 NUM = re.compile(r"(?<![\d.])[-+]?\d{1,3}\.\d{4,}(?![\d.])")
 # A trailing comment only: nothing quoted may follow it, or a string value could carry it.
 MARKER = re.compile(r"(#|//)\s*synthetic-coords:[^\"'`]*$")
+# `key: value` or `key=value` with an inline value: not a comment, a bare key or a block scalar.
+KEY_VALUE = re.compile(r"""^\s*(?:-\s+)?(?:"[^"]*"|'[^']*'|[A-Za-z_][\w.-]*)\s*[:=]\s*(?![|>])[^\s#]""")
 # `key:` with nothing after the colon but a comment. A block scalar (`key: |`) has content there.
 KEY_ONLY = re.compile(r"""^(\s*)(?:-\s+)?(?:"[^"]*"|'[^']*'|[^\s#"'-][^#]*?)\s*:\s*(?:#.*)?$""")
 # A lone, optionally quoted number, as a split key's value. A mapping (`x: 1.2345`) is not one.
@@ -80,7 +83,7 @@ def email_hits(lines):
 
 
 def path_hits(lines):
-    return [i for i, line in enumerate(lines) if any(m.group(1) not in HOME_OK for m in HOME_PATH.finditer(line))]
+    return [i for i, line in enumerate(lines) if any(m.group(1).lower() not in HOME_OK for m in HOME_PATH.finditer(line))]
 
 
 def _pair_in(text):
@@ -129,6 +132,14 @@ def coord_hits(lines):
         # A pair split across this line and the next; either line may carry the marker.
         nxt = joined[k + 1][1] if k + 1 < len(joined) else ""
         if NUM.search(line) and NUM.search(nxt) and not MARKER.search(nxt) and _pair_in(line + " " + nxt):
+            hits.append(i)
+            continue
+        # A pair with one `key: value` or `key=value` line between (pretty-printed attributes),
+        # which may hold a number of its own (altitude). A bare `key:` between opens a nested
+        # mapping, whose numbers are not a pair.
+        far = joined[k + 2][1] if k + 2 < len(joined) else ""
+        if (NUM.search(line) and KEY_VALUE.match(nxt)
+                and NUM.search(far) and not MARKER.search(far) and _pair_in(line + " " + far)):
             hits.append(i)
     return hits
 
@@ -210,6 +221,9 @@ def self_test():
         ("path, placeholder", ["/Users/<name>/Documents"], False),
         ("path, longer root", [f"/opt/Users/{name}/x"], False),
         ("path, lower-case macOS home", [f"/users/{name}/x"], True),
+        ("path, no trailing slash", [f"cd /Users/{name}"], True),
+        ("path, quoted, no trailing slash", [f'HOME="/home/{name}"'], True),
+        ("path, CI runner in upper case", ["/HOME/Runner/work"], False),
         ("vin", [f"vin: {vin}"], True),
         ("vin stub with I/O/Q", ["vin: VF1STUBVIN0000000"], False),
         ("vin after an underscore", [f"car_{vin}"], True),
@@ -219,6 +233,13 @@ def self_test():
         ("pair, other keys between", [f'"latitude": {lat}, "gps_accuracy": 8, "source_type": "gps", "longitude": {lon}'], True),
         ("pair with an altitude between", [f"latitude: {lat}, altitude: 250.{'1234'}, longitude: {lon}"], True),
         ("pair, two lines", [f"latitude: {lat}", f"longitude: {lon}"], True),
+        ("pair, a key line between", [f'"latitude": {lat},', '"source_type": "gps",', f'"longitude": {lon}'], True),
+        ("pair, a key line between, marked", [f"latitude: {lat}", "source: gps", f"longitude: {lon}  # synthetic-coords: t"], False),
+        ("pair, a bare key between", [f"radius: {lat}", "zone_b:", f"radius: {lon}"], False),
+        ("pair, a blank line between", [f"latitude: {lat}", "", f"longitude: {lon}"], False),
+        ("pair, an altitude line between", [f"latitude: {lat}", f"altitude: 250.{'1234'}", f"longitude: {lon}"], True),
+        ("pair, a keyword argument between", [f"ns(gpsLatitude={lat},", 'gpsDirection="N",', f"gpsLongitude={lon})"], True),
+        ("pair, a block scalar between", [f"a: {lat}", "b: >", f"  {lon}"], False),
         ("marker, same line", [f"x = ({lat}, {lon})  # synthetic-coords: test"], False),
         ("marker, js comment", [f"f({lat}, {lon}); // synthetic-coords: test"], False),
         ("marker, second line of a split pair", [f"latitude: {lat}", f"longitude: {lon}  # synthetic-coords: t"], False),

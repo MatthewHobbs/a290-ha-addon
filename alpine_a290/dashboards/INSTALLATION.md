@@ -74,7 +74,9 @@ Dots** Google font as a Lovelace resource, and creates the dashboard via the HA 
 it appears in your sidebar.
 
 It is **create-once**: if the dashboard already exists it's left untouched (your edits are
-safe). To pull in a later layout update, set `redeploy_dashboard: true` and restart once.
+safe). To pull in a later layout update, or to switch an already-deployed `standard` to
+`bubble` at the same `dashboard_url_path`, set `redeploy_dashboard: true`, restart, then set
+it back to `false`: while it is on, every start overwrites the dashboard and your edits.
 
 ### 4. Control buttons + optional extras
 
@@ -164,6 +166,6 @@ install them):
   → Log). A `403` usually means wrong credentials/locale. Confirm Mosquitto is running.
 - **Entities show but the dashboard is blank/red:** a HACS card is missing — recheck
   the prerequisites and hard-refresh the browser. If you auto-deployed before installing
-  the cards, install them and set `redeploy_dashboard: true` for one restart.
+  the cards, install them, set `redeploy_dashboard: true`, restart, then set it back to `false`.
 - **Map empty:** confirm `device_tracker.alpine_a290_location` has a location (the
   app must have polled at least once with GPS data).
