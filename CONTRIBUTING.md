@@ -275,8 +275,8 @@ version literal in code (`main.py` reads `R5_VERSION`, which its release workflo
   GPS) are sensitive. `debug_dump: true` logs decoded API responses but masks them first (the core's
   `renault_mqtt.debug` key masking plus `renault_mqtt.config.redact`, also applied to every log
   line and traceback). Never add a logging path that bypasses it, and never lift the
-  `renault_api` logger clamp in `main.py` (`setup_logging`). At DEBUG, renault-api logs
-  full, unredacted Kamereon request and response bodies (VIN, account ids, unrounded GPS) and
+  `renault_api` logger clamp in `main.py` (`setup_logging`). At DEBUG, renault-api (checked at 0.5.13, not
+  re-checked since) logs full, unredacted Kamereon request and response bodies (VIN, account ids, unrounded GPS) and
   the app's API-key config, but not access tokens, whose JWT is a header it never logs. The
   clamp keeps those records from ever being created; `debug_dump` is the redacted route.
 - **Dashboards live in the add-on.** The old `a290-dashboard-view` repo is archived; all

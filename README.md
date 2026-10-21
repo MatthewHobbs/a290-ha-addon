@@ -95,7 +95,7 @@ key needed.
    controls appear under an **Alpine A290** device within a minute.
 4. **Get a dashboard:** the standard dashboard deploys by default (`deploy_dashboard:
    standard`, assets via CDN, nothing to copy). Choose `bubble` or `both` instead, or `none`
-   and copy `alpine_a290/dashboards/front-end*.txt` into a new dashboard's raw config yourself.
+   (set before the first start, as the default deploys on start) and copy `alpine_a290/dashboards/front-end*.txt` into a new dashboard's raw config yourself.
    With `both`, the standard dashboard lands at your `dashboard_url_path` and the bubble one
    gets a `-bubble` suffix (e.g. `alpine-a290` and `alpine-a290-bubble`).
 

@@ -20,8 +20,9 @@ Rules, applied to every git-tracked text file:
   VIN prefix  VYS followed by 3+ VIN characters, in either case: the start of a real VIN
               quoted in prose, where the full 17 characters are not.
   email       any address, except placeholders: a domain of example.<tld>, a domain ending
-              .invalid, users.noreply.github.com, or the local part noreply.
-  home path   /Users/<name>/ or /home/<name>/. /home/runner/ (the CI runner) is allowed.
+              .invalid, users.noreply.github.com, or the local part noreply or git (an SSH remote).
+  home path   /Users/<name>/ or /home/<name>/, in either case. /home/runner/ (the CI runner) is
+              allowed.
   coordinates two numbers with 4+ decimals forming a valid latitude/longitude in either order,
               within GAP characters of each other on one line or across two adjacent
               lines (pretty-printed JSON/YAML puts them on consecutive lines). A key whose
