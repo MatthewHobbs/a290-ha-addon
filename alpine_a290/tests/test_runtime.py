@@ -9,6 +9,7 @@ from pathlib import Path
 
 import main
 import pytest
+from renault_api.gigya.exceptions import PendingTwoFactorAuthenticationException
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.kamereon.exceptions import InvalidInputException, UnauthorizedException
 from renault_mqtt import charge, config, debug, mqtt
@@ -1124,6 +1125,16 @@ def test_kamereon_unauthorized_is_an_auth_failure(monkeypatch):
     assert published and all(d["api_auth_failure"] == "on" for d in published)
     assert main._LATEST["data"]["api_auth_failure"] == "on"
     assert invalidated == 1        # a rejected token is dropped at once, not on every third failure
+
+
+def test_two_factor_account_is_an_auth_failure(monkeypatch):
+    # Recognised by type: its text "(403101, ...)" matched the keyword list only by the accident of
+    # containing "403". The detail string here deliberately avoids every keyword.
+    err = PendingTwoFactorAuthenticationException(403101, "pending verification", reg_token="r")
+    err.args = ("pending verification",)
+    published, invalidated = _one_failed_poll(monkeypatch, err)
+    assert published and all(d["api_auth_failure"] == "on" for d in published)
+    assert invalidated == 1
 
 
 def test_other_kamereon_errors_are_not_auth_failures(monkeypatch):
