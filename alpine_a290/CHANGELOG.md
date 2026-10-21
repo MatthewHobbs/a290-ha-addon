@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.29.0
 
 - **renault-api 0.6.1.** No change in what the A290 exposes. Renault now requires two-factor
   sign-in for some accounts; the add-on cannot complete it, and such an account shows as API Auth
