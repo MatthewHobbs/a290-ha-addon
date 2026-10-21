@@ -71,7 +71,8 @@ ha-min:
 lint:
     yamllint -c .yamllint alpine_a290 repository.yaml
     shellcheck alpine_a290/run.sh scripts/supervisor-pilot.sh
-    ruff check alpine_a290/app alpine_a290/tests scripts ui-tests
+    # The ruff ruff.toml requires (required-version), so a local pass means what CI's pinned ruff means.
+    uvx "ruff$(sed -n 's/^required-version = "\(.*\)"$/\1/p' ruff.toml)" check alpine_a290/app alpine_a290/tests scripts ui-tests
 
 test: venv
     .venv/bin/python -m pytest alpine_a290/tests -q --cov=alpine_a290/app --cov-report=term-missing --cov-fail-under=95

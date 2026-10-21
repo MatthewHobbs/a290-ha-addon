@@ -199,6 +199,7 @@ def self_test():
     cases = [
         ("vin, lower case", [f"vin: {vin.lower()}"], True),
         ("vin needs a digit: a 17-letter identifier is not one", ['"matchPackageNames": ['], False),
+        ("vin, only digit last", ["vin: " + "WAU" + "B" * 13 + "7"], True),
         ("vin prefix in prose", ["the car VYS" + "P01 is parked"], True),
         ("vin prefix, lower case", ["vys" + "p01xyz"], True),
         ("vin prefix too short", ["VYS" + "01 is not enough"], False),

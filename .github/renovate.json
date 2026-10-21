@@ -84,7 +84,7 @@
       "commitMessageTopic": "the Supervisor pilot's images"
     },
     {
-      "description": "The five CI Python tools and nothing else: a runtime package pinned in a workflow would put Python under two bots, so anything else this manager finds is ignored.",
+      "description": "The CI Python tools and nothing else: a runtime package pinned in a workflow would put Python under two bots, so anything else this manager finds is ignored. A new tool is tracked only once its name is added here.",
       "matchManagers": [
         "custom.regex"
       ],
@@ -92,7 +92,7 @@
         "pypi"
       ],
       "matchPackageNames": [
-        "!/^(pytest|pytest-cov|bandit|pip-audit|playwright)$/"
+        "!/^(pytest|pytest-cov|bandit|pip-audit|playwright|ruff)$/"
       ],
       "enabled": false
     },
@@ -134,7 +134,7 @@
       "minimumReleaseAge": "7 days"
     },
     {
-      "description": "The workflows' Python is the add-on runtime's (the HA base image ships 3.14); it moves with the base image, by hand, never as a routine bump.",
+      "description": "The workflows' Python is the add-on runtime's (the HA base image ships 3.14); it moves with the base image, by hand, never as a routine bump. Move this bound in the same change.",
       "matchManagers": [
         "github-actions"
       ],
@@ -235,6 +235,20 @@
         "(?m)^[^#\\n]*pip install[^\\n]*",
         "(?<depName>[A-Za-z0-9][A-Za-z0-9._-]*)==(?<currentValue>[0-9][0-9A-Za-z.+!-]*)"
       ],
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "description": [
+        "ruff's required-version in ruff.toml, which just lint runs; it moves in the CI tools PR with the ruff-action pin."
+      ],
+      "managerFilePatterns": [
+        "/^ruff\\.toml$/"
+      ],
+      "matchStrings": [
+        "required-version = \"==(?<currentValue>[0-9][0-9A-Za-z.+!-]*)\""
+      ],
+      "depNameTemplate": "ruff",
       "datasourceTemplate": "pypi"
     }
   ]
