@@ -166,6 +166,6 @@ install them):
   → Log). A `403` usually means wrong credentials/locale. Confirm Mosquitto is running.
 - **Entities show but the dashboard is blank/red:** a HACS card is missing — recheck
   the prerequisites and hard-refresh the browser. If you auto-deployed before installing
-  the cards, install them and set `redeploy_dashboard: true` for one restart.
+  the cards, install them, set `redeploy_dashboard: true`, restart, then set it back to `false`.
 - **Map empty:** confirm `device_tracker.alpine_a290_location` has a location (the
   app must have polled at least once with GPS data).

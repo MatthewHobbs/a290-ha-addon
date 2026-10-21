@@ -134,8 +134,9 @@ def coord_hits(lines):
         if NUM.search(line) and NUM.search(nxt) and not MARKER.search(nxt) and _pair_in(line + " " + nxt):
             hits.append(i)
             continue
-        # A pair with one other `key: value` line between (pretty-printed attributes). A bare
-        # `key:` between opens a nested mapping, whose numbers are not a pair.
+        # A pair with one `key: value` or `key=value` line between (pretty-printed attributes),
+        # which may hold a number of its own (altitude). A bare `key:` between opens a nested
+        # mapping, whose numbers are not a pair.
         far = joined[k + 2][1] if k + 2 < len(joined) else ""
         if (NUM.search(line) and KEY_VALUE.match(nxt)
                 and NUM.search(far) and not MARKER.search(far) and _pair_in(line + " " + far)):

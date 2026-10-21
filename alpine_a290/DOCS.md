@@ -154,8 +154,8 @@ it's a good time to charge. Pick by what you care about:
   while Octopus is mid-dispatch (plugged in + charging), so the badge is green less often.
 
 Paste each id exactly — a stray trailing space shows as **"Entity not found"** on the card.
-The controls are added when the dashboard is deployed, so set `redeploy_dashboard: true`,
-restart, and set it back to `false` if you add the entities after the dashboard already exists.
+The controls are added when the dashboard is deployed. If you add the entities after the
+dashboard already exists, set `redeploy_dashboard: true`, restart, then set it back to `false`.
 
 ## Dashboard auto-deploy (optional)
 

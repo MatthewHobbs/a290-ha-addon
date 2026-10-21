@@ -154,8 +154,8 @@ Two things make a naive run fail:
   with `Missing required setting`. Bypass `run.sh` with `--entrypoint python3` and pass the
   `A290_*` env vars directly.
 - **The poller needs an MQTT broker.** With none, the core retries in the background and
-  `/healthz` still answers `ok`, so `/healthz` alone proves nothing: the two log lines below are
-  the signal.
+  `/healthz` still answers `ok`, and `Published discovery` is logged either way. Only the
+  `MQTT connected` line below proves the broker.
 
 There are no test credentials. `renault-api` has no sandbox and authenticates only against
 production Gigya/Kamereon, so blackhole the three real hosts and the boot test never reaches
