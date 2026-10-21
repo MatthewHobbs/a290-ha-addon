@@ -69,7 +69,7 @@ map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dash
 | `debug_dump` | `false` by default. When `true`, logs the decoded data from all readable API endpoints **once per restart**, to help diagnose what your car does/doesn't expose. Redaction is **best-effort**: it masks your VIN, account id, username/password, contact and identifier fields, GPS, vehicle delivery/registration dates, privacy-mode settings and the build-spec render URLs — but it can't guarantee every field is caught, so treat the whole dump as personal data and **do not paste it publicly** (share it privately if you need help). Turn off again once captured (it's verbose). Prefer this over `log_level: debug` for API diagnostics: the add-on suppresses the library's own debug logging, which would carry the raw, unredacted responses. |
 | `deploy_dashboard` | `standard` (default), `bubble`, `both`, or `none`. Auto-installs that dashboard — see below. `both` installs the standard dashboard at your `dashboard_url_path` and the bubble one with a `-bubble` suffix (e.g. `alpine-a290` and `alpine-a290-bubble`). Set `none` to skip dashboard deployment. |
 | `dashboard_url_path` | URL slug for the deployed dashboard (default `alpine-a290`; with `both`, the bubble one is suffixed `-bubble`). |
-| `redeploy_dashboard` | `true` re-pushes the dashboard config on next start (to pick up an update). Default `false` so your edits are never overwritten. |
+| `redeploy_dashboard` | `true` re-pushes the dashboard config on every start while it stays on (to pick up an update); set it back to `false` afterwards. Default `false` so your edits are never overwritten. |
 | `charger_smart_charge` | *(optional)* entity id of your EV charger's **smart-charge** switch — see [Smart Charging](#smart-charging-card) below. |
 | `charger_bump_charge` | *(optional)* entity id of your charger's **bump/boost-charge** switch — shown on the dashboard as **Charge Now** (your remote "charge now while away", e.g. for Octopus Intelligent). |
 | `charger_target_soc` | *(optional)* entity id of your charger's **charge-target %** number. |
@@ -154,8 +154,8 @@ it's a good time to charge. Pick by what you care about:
   while Octopus is mid-dispatch (plugged in + charging), so the badge is green less often.
 
 Paste each id exactly — a stray trailing space shows as **"Entity not found"** on the card.
-The controls are added when the dashboard is deployed, so set `redeploy_dashboard: true`
-(and restart once) if you add the entities after the dashboard already exists.
+The controls are added when the dashboard is deployed, so set `redeploy_dashboard: true`,
+restart, and set it back to `false` if you add the entities after the dashboard already exists.
 
 ## Dashboard auto-deploy (optional)
 
@@ -170,7 +170,8 @@ to copy into `/config/www`**. On start it:
    its config.
 
 It is **create-once** — if the dashboard already exists it is left untouched (your edits
-are safe). To pull in an updated layout, set `redeploy_dashboard: true` and restart once.
+are safe). To pull in an updated layout, set `redeploy_dashboard: true`, restart, then set it
+back to `false`; while it is on, every start overwrites your edits.
 
 **Still required (these can't be automated):** install the frontend cards via HACS —
 **card-mod** and **Mushroom** (both dashboards), **Button Card** (both dashboards),

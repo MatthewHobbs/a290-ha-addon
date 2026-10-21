@@ -153,8 +153,9 @@ Two things make a naive run fail:
   options file achieves nothing: `/run.sh` gets empty config and the add-on correctly exits
   with `Missing required setting`. Bypass `run.sh` with `--entrypoint python3` and pass the
   `A290_*` env vars directly.
-- **The poller needs an MQTT broker.** `/healthz` comes up first, but with no broker the add-on
-  never connects, publishes no discovery, and the checks below have nothing to read.
+- **The poller needs an MQTT broker.** With none, the core retries in the background and
+  `/healthz` still answers `ok`, so `/healthz` alone proves nothing: the two log lines below are
+  the signal.
 
 There are no test credentials. `renault-api` has no sandbox and authenticates only against
 production Gigya/Kamereon, so blackhole the three real hosts and the boot test never reaches

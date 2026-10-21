@@ -75,8 +75,8 @@ it appears in your sidebar.
 
 It is **create-once**: if the dashboard already exists it's left untouched (your edits are
 safe). To pull in a later layout update, or to switch an already-deployed `standard` to
-`bubble` at the same `dashboard_url_path`, set `redeploy_dashboard: true` and restart once;
-that overwrites any edits.
+`bubble` at the same `dashboard_url_path`, set `redeploy_dashboard: true`, restart, then set
+it back to `false`: while it is on, every start overwrites the dashboard and your edits.
 
 ### 4. Control buttons + optional extras
 

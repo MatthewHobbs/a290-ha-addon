@@ -97,7 +97,8 @@ key needed.
    standard`, assets via CDN, nothing to copy). Choose `bubble` or `both` instead, or `none`
    and copy `alpine_a290/dashboards/front-end*.txt` into a new dashboard's raw config yourself.
    Set this **before the first start**: deploy is create-once, so switching `standard` to
-   `bubble` later also needs `redeploy_dashboard: true` for one restart (it overwrites edits).
+   `bubble` later needs `redeploy_dashboard: true` and a restart, then set it back to `false`:
+   while it is on, every start overwrites the dashboard and your edits.
    With `both`, the standard dashboard lands at your `dashboard_url_path` and the bubble one
    gets a `-bubble` suffix (e.g. `alpine-a290` and `alpine-a290-bubble`).
 

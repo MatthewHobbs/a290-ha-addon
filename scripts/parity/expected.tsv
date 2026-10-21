@@ -198,4 +198,4 @@ pending	alpine_a290/app/deploy.py	both	py:DASHBOARD_DIR	2	A290_DASHBOARD_DIR was
 pending	alpine_a290/app/main.py	both	py:STATE_FILE	2	A290_STATE_FILE was set nowhere; a290 dropped the override. Target: r5 ports a290's dead-code removal
 pending	scripts/docs_sync_check.py	both	py:<docstring>	2	the docstring names CONTRIBUTING.md. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)
 pending	scripts/ha_minimum_check.py	both	py:<docstring>	2	the docstring states the rule without citing its source. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)
-pending	scripts/pii_check.py	both	*	101	a290 also catches emails, home paths and VIN prefixes, case-insensitively. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)
+pending	scripts/pii_check.py	both	*	103	a290 also catches emails, home paths and VIN prefixes, case-insensitively, and a coordinate pair with one key line between. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)

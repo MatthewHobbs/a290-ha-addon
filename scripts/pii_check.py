@@ -26,7 +26,7 @@ Rules, applied to every git-tracked text file:
   coordinates two numbers with 4+ decimals forming a valid latitude/longitude in either order,
               within GAP characters of each other on one line, across two adjacent lines
               (pretty-printed JSON/YAML puts them on consecutive lines), or across two lines
-              with one other `key: value` line between them. A key whose
+              with one other `key: value` or `key=value` line between them. A key whose
               number sits alone on a deeper line (`latitude:` then `  51.5...`) is read as
               if it were on the key's line, so the split form is caught exactly where the
               one-line form would be; nested mappings and block scalars are not joined.
@@ -57,9 +57,9 @@ HOME_OK = {"runner"}
 NUM = re.compile(r"(?<![\d.])[-+]?\d{1,3}\.\d{4,}(?![\d.])")
 # A trailing comment only: nothing quoted may follow it, or a string value could carry it.
 MARKER = re.compile(r"(#|//)\s*synthetic-coords:[^\"'`]*$")
+# `key: value` or `key=value` with an inline value: not a comment, a bare key or a block scalar.
+KEY_VALUE = re.compile(r"""^\s*(?:-\s+)?(?:"[^"]*"|'[^']*'|[A-Za-z_][\w.-]*)\s*[:=]\s*(?![|>])[^\s#]""")
 # `key:` with nothing after the colon but a comment. A block scalar (`key: |`) has content there.
-# `key: value` with an inline value: not a comment, a bare key or a block scalar (`|`, `>`).
-KEY_VALUE = re.compile(r"""^\s*(?:-\s+)?(?:"[^"]*"|'[^']*'|[A-Za-z_][\w.-]*)\s*:\s*(?![|>])[^\s#]""")
 KEY_ONLY = re.compile(r"""^(\s*)(?:-\s+)?(?:"[^"]*"|'[^']*'|[^\s#"'-][^#]*?)\s*:\s*(?:#.*)?$""")
 # A lone, optionally quoted number, as a split key's value. A mapping (`x: 1.2345`) is not one.
 # JSON may close its object or array on the same line (`<n>}]`, `<n>},`); nothing else may follow.
@@ -137,7 +137,7 @@ def coord_hits(lines):
         # A pair with one other `key: value` line between (pretty-printed attributes). A bare
         # `key:` between opens a nested mapping, whose numbers are not a pair.
         far = joined[k + 2][1] if k + 2 < len(joined) else ""
-        if (NUM.search(line) and not NUM.search(nxt) and KEY_VALUE.match(nxt)
+        if (NUM.search(line) and KEY_VALUE.match(nxt)
                 and NUM.search(far) and not MARKER.search(far) and _pair_in(line + " " + far)):
             hits.append(i)
     return hits
@@ -236,6 +236,8 @@ def self_test():
         ("pair, a key line between, marked", [f"latitude: {lat}", "source: gps", f"longitude: {lon}  # synthetic-coords: t"], False),
         ("pair, a bare key between", [f"radius: {lat}", "zone_b:", f"radius: {lon}"], False),
         ("pair, a blank line between", [f"latitude: {lat}", "", f"longitude: {lon}"], False),
+        ("pair, an altitude line between", [f"latitude: {lat}", f"altitude: 250.{'1234'}", f"longitude: {lon}"], True),
+        ("pair, a keyword argument between", [f"ns(gpsLatitude={lat},", 'gpsDirection="N",', f"gpsLongitude={lon})"], True),
         ("pair, a block scalar between", [f"a: {lat}", "b: >", f"  {lon}"], False),
         ("marker, same line", [f"x = ({lat}, {lon})  # synthetic-coords: test"], False),
         ("marker, js comment", [f"f({lat}, {lon}); // synthetic-coords: test"], False),
