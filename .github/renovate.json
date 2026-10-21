@@ -9,9 +9,9 @@
   ],
   "extends": [
     "config:recommended",
-    ":dependencyDashboard",
     ":semanticCommitTypeAll(build)"
   ],
+  "dependencyDashboard": false,
   "enabledManagers": [
     "github-actions",
     "dockerfile",

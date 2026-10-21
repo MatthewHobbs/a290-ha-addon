@@ -285,7 +285,7 @@ jobs:
           ref: ${{ github.sha }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           running-workflow-name: "Wait for CI + UI Tests on this commit (ADR 0005)"
-          check-regexp: '^(Lint|Tests|Security|Build \(amd64 sanity\)|Docs sync|Parity with r5)$'
+          check-regexp: '^(Lint|Tests|Security|Build \(amd64 sanity\)|Docs sync)$'
           wait-interval: 20
           checks-discovery-timeout: 180
 

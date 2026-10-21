@@ -31,8 +31,12 @@ on:
         type: choice
         options: [none, start, apparmor, dashboard]
         default: none
+  # Nightly is amd64 on Core stable only; Wednesday's run, a dispatch and a
+  # PR get all four legs. The matrix below keys on the nightly string, so if
+  # it changes there too: a miss runs the full matrix, never a smaller one.
   schedule:
-    - cron: "17 4 * * *"
+    - cron: "17 4 * * 0-2,4-6"
+    - cron: "17 4 * * 3"
 
 permissions:
   contents: read
@@ -44,20 +48,18 @@ concurrency:
 jobs:
   pilot:
     name: ${{ matrix.arch }} / Core ${{ matrix.core }}
-    runs-on: ${{ matrix.runner }}
+    # The runner follows the arch here rather than through matrix include:
+    # an include whose arch the nightly matrix lacks would add a leg of its
+    # own, with no Core version.
+    runs-on: ${{ matrix.arch == 'aarch64' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, aarch64]
+        arch: ${{ fromJSON(github.event.schedule == '17 4 * * 0-2,4-6' && '["amd64"]' || '["amd64", "aarch64"]') }}
         # "stable" is whatever stable.json names today; "minimum" pins Core to
         # config.yaml's homeassistant: under the same stable Supervisor.
-        core: [stable, minimum]
-        include:
-          - arch: amd64
-            runner: ubuntu-latest
-          - arch: aarch64
-            runner: ubuntu-24.04-arm
+        core: ${{ fromJSON(github.event.schedule == '17 4 * * 0-2,4-6' && '["stable"]' || '["stable", "minimum"]') }}
     env:
       CORE_VERSION: ${{ matrix.core }}
       PILOT_KEEP: "1"
