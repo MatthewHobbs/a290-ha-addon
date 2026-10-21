@@ -134,7 +134,7 @@ pending	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant
 pending	.github/workflows/ci.yaml	both	hunk:pip install --quiet (pytest|bandit|pip-audit)|setup-trivy|Pinned action and Trivy|malicious v0.69.4|version: v0\.|trivy/main/contrib	11	pinned CI tools and Trivy via setup-trivy. Target: r5 ports a290's CI-pinning PR (pins, setup-trivy, pilot cadence, minimum leg on releases, no dependency dashboard)
 pending	.github/workflows/ui-tests.yaml	both	hunk:NOT the prose in there|Decide whether this touches the render|needs: \[changes\]|Triggers unconditionally \(ADR 0005\)|the \`if:\` that skips a no-op run|if: needs\.changes\.outputs\.relevant|skipped outright on a no-op run|if: always\(\) && needs\.changes	31	r5 ported ADR 0005 (its ADR 0002). What remains is the path-filter comment, which names each repo's own user docs (USER-GUIDE.md/INSTALLATION.md vs CUSTOMISING.md) and the #115 incident a290 saw. Target: converge the comment wording Plus the render steps' if: conditions, which a290 now reads from env.RENDER (pending with the CI-pinning port).
 pending	.github/renovate.json	both	re:"Strict vX\.Y\.Z	4	rule descriptions worded differently for the same strict-tag rule. Target: converge, either way
-pending	.gitignore	both	*	21	section order differs; a290 ignores .bak* backups of settings.local.json; r5 ignores a local reference/ checkout. Target: port .bak* to r5, one section order
+pending	.gitignore	both	*	22	section order differs; a290 ignores .bak* backups of settings.local.json; r5 ignores a local reference/ checkout. Target: port .bak* to r5, one section order
 pending	.trivyignore	r5	*	3	r5 still ignores AVD-DS-0026 (no HEALTHCHECK) although its Dockerfile has one. Target: delete from r5
 pending	.yamllint	a290	*	4	a290 exempts dashboards/ because it bundles upstream YAML packages there. Target: follows the Packages/Templates decision
 
@@ -198,4 +198,4 @@ pending	alpine_a290/app/deploy.py	both	py:DASHBOARD_DIR	2	A290_DASHBOARD_DIR was
 pending	alpine_a290/app/main.py	both	py:STATE_FILE	2	A290_STATE_FILE was set nowhere; a290 dropped the override. Target: r5 ports a290's dead-code removal
 pending	scripts/docs_sync_check.py	both	py:<docstring>	2	the docstring names CONTRIBUTING.md. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)
 pending	scripts/ha_minimum_check.py	both	py:<docstring>	2	the docstring states the rule without citing its source. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)
-pending	scripts/pii_check.py	both	*	79	a290 also catches emails, home paths and VIN prefixes, case-insensitively. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)
+pending	scripts/pii_check.py	both	*	104	a290 also catches emails, home paths and VIN prefixes, case-insensitively, and a coordinate pair with one key line between. Target: r5 ports a290's docs scrub (CONTRIBUTING.md, PII checker)

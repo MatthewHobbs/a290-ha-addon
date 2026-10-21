@@ -457,6 +457,10 @@ Internal changes only.
 
 ## 1.17.0
 
+- **Build-provenance attestation and a hash-locked install.** Each release image carries a keyless
+  Sigstore attestation (`gh attestation verify oci://ghcr.io/matthewhobbs/alpine_a290:<version>
+  --owner MatthewHobbs`); the mutable `latest` tag is no longer published; dependencies install
+  from a hash-pinned `requirements.txt` with `pip --require-hashes`.
 - **Location is now fully opt-out — new `publish_location` option (default on).** Set
   `publish_location: false` and the add-on fetches no GPS, publishes no `device_tracker`, and
   **clears any previously-retained location** off the MQTT broker (the retained tracker config
