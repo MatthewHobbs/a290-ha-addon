@@ -2,12 +2,12 @@
 
 The poller reads specific attribute names + helper methods off renault-api's models
 (`batteryLevel`, `batteryAutonomy`, `totalMileage`, `gpsLatitude`, `get_plug_status()`, …).
-Those are pinned to `renault-api==0.5.12`, but a deliberate bump could rename a field or
+Those are pinned in requirements.txt, but a bump could rename a field or
 change a helper and silently break the matching sensor — the rest of the suite uses synthetic
 stubs that wouldn't notice. This loads a representative API response through the **library's
 own schemas** and asserts every field/method the poller depends on, so such a change fails CI
 instead of shipping a dead sensor. If this breaks after a renault-api bump, update the poller
-(and this contract) together. See CLAUDE.md "Do not bump renault-api casually".
+(and this contract) together. See CONTRIBUTING.md, "Dependencies".
 """
 import renault_api.kamereon.schemas as schemas
 from renault_api.kamereon.enums import ChargeState, PlugState

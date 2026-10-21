@@ -27,7 +27,7 @@
 #
 # Adding a rule here hides every difference it rewrites, in every file. A rule belongs here
 # only if the two names mean the same thing everywhere; anything narrower is an expected.tsv
-# entry, where it is counted. The audit that produced these rules (2026-09-26) checked they
+# entry, where it is counted. These rules were checked to
 # leave known real differences visible: MQTT_KEEPALIVE, PESSIMISTIC_ENDPOINTS, cabin
 # temperature, COMMAND_DEBOUNCE_S and r5's Cabin Temp card all still reach the diff.
 
@@ -95,8 +95,6 @@ identity	*	\bR5_	A290_	option environment-variable prefix
 identity	*	__r5AutoOpen	__alpineAutoOpen	dashboard JS global
 identity	*	#r5-	#alpine-	dashboard pop-up hash
 identity	*	#r5\b	#alpine	dashboard pop-up hash root
-identity	*	\br5-(verify|mqtt|local)\b	a290-\1	container-verify names (CLAUDE.md)
-identity	*	\br5v\b	a290v	container-verify network (CLAUDE.md)
 identity	*	\br5_(background|side)\b	alpine_a290_\1	background image basenames
 identity	*	\br5_pretty_location\b	alpine_pretty_location	location template sensor
 identity	*	<DOMAIN>\.r5_test_	\1.a290_test_	test-mode helper entities

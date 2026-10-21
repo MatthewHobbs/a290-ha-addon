@@ -4,7 +4,7 @@
 # dependency install, so a local pass means the same thing CI does.
 # NOT covered locally, and remaining remote-only gates: Hadolint, the HA add-on linter,
 # Bandit / pip-audit / Trivy, and the multi-arch image build. A runtime change still needs
-# the Tier-0 container boot - see CLAUDE.md.
+# the Tier-0 container boot - see CONTRIBUTING.md.
 
 # Local CI gate - the same commands remote CI runs, for the checks it covers.
 # `parity` itself is not in here: it needs the r5 twin (a sibling checkout or a clone), so
