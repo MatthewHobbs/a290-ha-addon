@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
       - name: yamllint
-        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3
+        uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c  # v3.1.1
         with:
           file_or_dir: alpine_a290 repository.yaml
           config_file: .yamllint
@@ -46,7 +46,7 @@ jobs:
           src: alpine_a290/app alpine_a290/tests scripts ui-tests
 
       - name: Home Assistant add-on linter
-        uses: frenck/action-addon-linter@b9cfd1bc62ba60d2c4fc96317b5f7ada5923f4a7  # v2
+        uses: frenck/action-addon-linter@b9cfd1bc62ba60d2c4fc96317b5f7ada5923f4a7  # v2.21.1
         with:
           path: ./alpine_a290
 
@@ -137,7 +137,7 @@ jobs:
         # already satisfied by the hash-locked requirements.txt above.
         run: |
           python3 -m pip install --quiet -r alpine_a290/app/requirements.txt
-          python3 -m pip install --quiet pytest pytest-cov
+          python3 -m pip install --quiet pytest==9.1.1 pytest-cov==7.1.0
           CORE_REF="$(sed -n 's/^ARG CORE_REF=//p' alpine_a290/Dockerfile)"
           echo "renault-mqtt pinned to ${CORE_REF}"
           python3 -m pip install --quiet --no-deps \
@@ -154,12 +154,12 @@ jobs:
 
       - name: Bandit (Python SAST)
         run: |
-          python3 -m pip install --quiet bandit
+          python3 -m pip install --quiet bandit==1.9.4
           bandit -r alpine_a290/app -ll
 
       - name: pip-audit (dependency CVEs)
         run: |
-          python3 -m pip install --quiet pip-audit
+          python3 -m pip install --quiet pip-audit==2.10.1
           pip-audit -r alpine_a290/app/requirements.txt
 
       # gitleaks/trivy have no rule for a VIN or a home location, and both have leaked into this
@@ -171,9 +171,13 @@ jobs:
           python3 scripts/pii_check.py --self-test
           python3 scripts/pii_check.py
 
+      # Pinned action and Trivy version: piping trivy's install.sh from main to sh is how the
+      # malicious v0.69.4 (CVE-2026-33634) reached runners.
+      - uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567  # v0.3.1
+        with:
+          version: v0.76.0
       - name: Trivy filesystem scan (vulns, misconfig, secrets)
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
           trivy fs --scanners vuln,misconfig,secret \
             --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed .
 
