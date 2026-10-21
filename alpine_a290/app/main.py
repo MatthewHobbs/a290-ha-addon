@@ -33,6 +33,7 @@ from catalog import (
     REFRESH_LOCATION_EP,
     SOC_ENDPOINT,
 )
+from renault_api.gigya.exceptions import PendingTwoFactorAuthenticationException
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.kamereon.exceptions import UnauthorizedException
 from renault_api.renault_client import RenaultClient
@@ -754,8 +755,9 @@ async def main():
             # back to the message text for gigya/library errors that aren't raised as one of those.
             # The text match cannot catch Kamereon's reply: str() of it is "('err.func.wired.
             # unauthorized', 'Not authorized')", none of the words below. Upstream says it can also
-            # mean a permissions problem, and it drops the session every poll while it lasts.
-            auth = isinstance(err, UnauthorizedException) or \
+            # mean a permissions problem, and it drops the session every poll while it lasts. An
+            # account Renault holds behind two-factor sign-in cannot sign in here at all.
+            auth = isinstance(err, (UnauthorizedException, PendingTwoFactorAuthenticationException)) or \
                 (isinstance(err, aiohttp.ClientResponseError) and err.status in (401, 403)) or \
                 any(s in str(err).lower() for s in ("login", "password", "credential", "401", "403"))
             if auth or fails % 3 == 0:

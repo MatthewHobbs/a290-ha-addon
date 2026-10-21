@@ -186,6 +186,12 @@ Leave `account_id` blank and the app auto-discovers your My Alpine/Kamereon
 account on login. Only set it if you have multiple accounts and need to pin a
 specific one.
 
+### If API Auth Failure turns on
+
+Renault refused the sign-in. Check `username` and `password` on the Configuration tab and
+restart. If they are right, Renault may require two-factor sign-in (an emailed code) for your
+account: the app cannot complete that, so it keeps showing API Auth Failure and retrying.
+
 ### If a redeployed dashboard shows "Entity not found"
 
 Since 1.28.5 every entity is published with a pinned id (`default_entity_id`), so this
