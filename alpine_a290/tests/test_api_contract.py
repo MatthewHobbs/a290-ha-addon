@@ -2,12 +2,12 @@
 
 The poller reads specific attribute names + helper methods off renault-api's models
 (`batteryLevel`, `batteryAutonomy`, `totalMileage`, `gpsLatitude`, `get_plug_status()`, …).
-Those are pinned to `renault-api==0.5.12`, but a deliberate bump could rename a field or
+Those are pinned in requirements.txt, but a bump could rename a field or
 change a helper and silently break the matching sensor — the rest of the suite uses synthetic
 stubs that wouldn't notice. This loads a representative API response through the **library's
 own schemas** and asserts every field/method the poller depends on, so such a change fails CI
 instead of shipping a dead sensor. If this breaks after a renault-api bump, update the poller
-(and this contract) together. See CONTRIBUTING.md "Do not bump renault-api casually".
+(and this contract) together. See CONTRIBUTING.md, "Dependencies".
 """
 import renault_api.kamereon.schemas as schemas
 from renault_api.kamereon.enums import ChargeState, PlugState
@@ -160,8 +160,8 @@ def test_soc_levels_model_contract():
 # What the library declares for the A290 (model A5E1AE): every key, including the ones set to
 # None. The add-on probes supports_endpoint() at startup and publishes only what this allows, and a
 # key that DISAPPEARS falls back to renault-api's default map, which reads as supported (that is
-# how hvac-settings was polled into 502000 errors). Dependabot proposes renault-api like any
-# dependency; this fails CI on any change to the map until someone has looked at it.
+# how hvac-settings was polled into 502000 errors). Dependabot proposes renault-api as its own
+# PR; this fails CI on any change to the map until someone has looked at it.
 _KCA = "/kca/car-adapter/v1/cars/{vin}"
 A5E1AE_MAP = {
     "actions/charge-set-mode": None,

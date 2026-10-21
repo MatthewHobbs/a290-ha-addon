@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """ha-minimum-check: the add-on's declared minimum Home Assistant must be a real, allowed floor.
 
-Global rule (the owner's config repo #165): every HA add-on declares the oldest HA it supports as
+Rule: every HA add-on declares the oldest HA it supports as
 `homeassistant:` in its config.yaml, and that minimum is never newer than the .1 release of the
 month before current stable (stable 2026.9.x allows 2026.8.1 or older; a January stable rolls back
 to the previous December). Current stable is read live from version.home-assistant.io, so a floor

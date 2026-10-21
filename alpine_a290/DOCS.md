@@ -65,7 +65,7 @@ map plugin or API key needed.) Don't want a dashboard deployed? Set `deploy_dash
 | `enable_refresh_location` | `false` by default, and you should usually leave it off. It shows the **Refresh Location** button, which asks the car for a fresh GPS fix. **On a parked car this is destructive:** the car is asleep and normally cannot get a fix, and its "no position" answer then *replaces* the last known position that Renault holds — with a current timestamp, so it looks like fresh data. Only completing a journey restores it, which for a car you drive occasionally can mean weeks. Your car is not harmed, and Home Assistant hides the bad value — but Renault's own app will show "unable to geolocate your vehicle" until you next drive. There is also little to gain: the car only commits its position when you switch it off, so a parked car has nothing newer to give. Turning this on requires `publish_location: true` as well. |
 | `gps_precision` | Decimal places the car's GPS is rounded to before publishing (1–6, default **4** ≈ 11 m). Coarsens the location on the retained MQTT topic for privacy; raise to 5–6 for a more precise map pin, lower to 2–3 for more privacy. Only relevant when `publish_location: true`. |
 | `precondition_temperature` | Target cabin temperature (°C, 16–27, default 20) used by the **Start Climate** button. |
-| `log_level` | `info` normally; `debug` for troubleshooting. |
+| `log_level` | `info` normally. `debug` adds more of the add-on's own messages but no API detail; use `debug_dump` to diagnose the API. |
 | `debug_dump` | `false` by default. When `true`, logs the decoded data from all readable API endpoints **once per restart**, to help diagnose what your car does/doesn't expose. Redaction is **best-effort**: it masks your VIN, account id, username/password, contact and identifier fields, GPS, vehicle delivery/registration dates, privacy-mode settings and the build-spec render URLs — but it can't guarantee every field is caught, so treat the whole dump as personal data and **do not paste it publicly** (share it privately if you need help). Turn off again once captured (it's verbose). Prefer this over `log_level: debug` for API diagnostics: the add-on suppresses the library's own debug logging, which would carry the raw, unredacted responses. |
 | `deploy_dashboard` | `standard` (default), `bubble`, `both`, or `none`. Auto-installs that dashboard — see below. `both` installs the standard dashboard at your `dashboard_url_path` and the bubble one with a `-bubble` suffix (e.g. `alpine-a290` and `alpine-a290-bubble`). Set `none` to skip dashboard deployment. |
 | `dashboard_url_path` | URL slug for the deployed dashboard (default `alpine-a290`; with `both`, the bubble one is suffixed `-bubble`). |
@@ -91,8 +91,11 @@ data. Here's what it handles, and where it lives:
   off clears it (see above).
 - **Telemetry** — SoC, mileage, plug/charging status, climate schedule, and similar car data.
 - **Where it's stored** — options in Supervisor; poll state in the app's `/data`; entity
-  state in Home Assistant and on the MQTT broker. Nothing leaves your own Home Assistant +
-  broker.
+  state in Home Assistant and on the MQTT broker. The add-on sends nothing anywhere except
+  Renault. The **deployed dashboards** do reach out from the browser of whoever views them: the
+  Zen Dots font loads from Google Fonts, and the dashboard images load from the jsDelivr CDN.
+  Those requests carry the viewer's IP address and no car data. Set `deploy_dashboard: none` and
+  host the font and images yourself to avoid them.
 - **Logs** — normal logs never contain credentials. API/HTTP error strings are **redacted**
   (VIN and account id masked) before they're logged or shown on the status panel.
   `debug_dump: true` logs full API responses through a best-effort redactor (see above) —
@@ -174,7 +177,7 @@ are safe). To pull in an updated layout, set `redeploy_dashboard: true` and rest
 **Browser Mod** (the standard dashboard's pop-ups), and **Bubble Card** (the bubble
 dashboard). The optional **pretty-location** and **test-mode** features are a small manual
 package under [dashboards/](https://github.com/MatthewHobbs/a290-ha-addon/tree/main/alpine_a290/dashboards/)
-(`Packages/`, `Templates/`, `Helpers/`).
+(`Packages/`, `Templates/`).
 
 ### Kamereon account id
 
@@ -221,16 +224,16 @@ polls Renault every `poll_interval` seconds, but the *car* does not report conti
 commits a batch of data when it is **powered off** and then goes to sleep. Polling a sleeping car
 returns the same trip-end values indefinitely.
 
-Measured on a real A290, parked after a drive that ended at 12:03 UTC — three separate endpoints
-all frozen within seconds of each other:
+Example of the pattern, on a car parked after a drive that ended at about 12:00 UTC (times
+illustrative) — three separate endpoints all frozen near the moment the car was switched off:
 
 | Reading | Last reported by the car |
 | --- | --- |
-| Battery, range, plug/charging state (`battery-status`) | 12:03:20 |
-| Location / GPS (`location`) | 12:02:41 |
-| Climate (`hvac-status`) | 11:46:00 |
+| Battery, range, plug/charging state (`battery-status`) | 12:00 |
+| Location / GPS (`location`) | 12:00 |
+| Climate (`hvac-status`) | a little earlier |
 
-Eight hours later, still parked, every one of those was unchanged.
+Eight hours later, still parked, every one of those is unchanged.
 
 **So a value that looks "stuck" on a parked car is almost always correct and simply
 trip-end-old.** It will not move until the car is driven again. Specifically:
@@ -305,7 +308,7 @@ won't see a control your A290 rejects):
 | **Start Climate** | Starts preconditioning to `precondition_temperature`. |
 | **Stop Climate** | Stops preconditioning. |
 | **Start Charging** | *Requests* an immediate charge by disabling any scheduled-charge programs. New via renault-api 0.5.13 — see note. |
-| **Refresh Location** | Forces a fresh GPS fix. *(May report forbidden on the A290 — see note.)* |
+| **Refresh Location** | Forces a fresh GPS fix. **Opt-in:** only shown when `enable_refresh_location: true` (default `false`). *(May report forbidden on the A290 — see note.)* |
 
 A second press of the **same** button is ignored while the first is still being sent (which can
 take up to a minute) and within 5 seconds of the first press; the add-on log says so. That way a
@@ -320,8 +323,7 @@ buttons are independent, and the charge-limit sliders are never ignored.
 > stays "Waiting to Charge"). For those setups, start a charge with the dashboard's **Charge Now**
 > button (your tariff's bump/boost — e.g. Octopus Bump Charge) or the car's physical charge-flap
 > timer button. Remote
-> charge-*stop* stays unavailable — stop at the charger. **Refresh Location** isn't explicitly
-> documented for the A290 in `renault-api`; it falls back to the default endpoint and may
+> charge-*stop* stays unavailable — stop at the charger. **Refresh Location** may
 > return *forbidden* when pressed — harmless if so, but it may simply not work.
 
 ### Last Charge

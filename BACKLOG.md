@@ -1,1150 +1,342 @@
 # Backlog
 
-Findings are logged with severity (P0 blocking / P1 this sprint / P2 later), the component
-that owns the fix, and the evidence that produced them. `renault-mqtt` items live in the
-shared engine repo but are tracked here because they surface as A290 add-on behaviour.
+Open findings only, with severity (P0 blocking / P1 this sprint / P2 later / P3 whenever), the
+component that owns the fix, and the evidence. Finished work is in `CHANGELOG.md` and git
+history. `renault-mqtt` items live in the shared engine repo but are tracked here because they
+surface as A290 add-on behaviour.
 
 ---
 
-## P2 — Evidence asymmetry: a290 is observed on a real car, r5 can never be
+## P1 — Three PII leaks reached the public repo
 
-**Component:** `alpine_a290` + `renault_5` (evidence base, not code) · **Logged:** 2026-09-08
+**Component:** repo-wide · **Logged:** 2026-09-08
 
-Worth stating once, because it silently weights every cross-repo decision and an audit pass
-overstated it in both directions.
+A real VIN in a test fixture, home coordinates in this file's prose, and the same coordinates in two
+fixtures. All three were fixed forward and found by greps, not by a scanner. The guard is
+`scripts/pii_check.py` (CI Security job and `just ci`); it now also refuses email addresses and
+home-directory paths. History was not rewritten and the scrub is still pending. The r5 twin needs
+the same fixture review. This file is public, so the values are not repeated here.
 
-**The a290 is well observed.** Four `Observed live:` findings in this file, `Established by
-testing on 2026-09-07`, refresh-location "verified, response in 12s" in CONTRIBUTING.md, the controlled
-press/no-press experiment published upstream in hacf-fr/renault-api#2250 §3, and the 68-hour
-observation that produced the v1.24.0 `data_stale` fix. Every material defect this quarter was
-found by watching a real car, not by a gate. What a290 lacks is an **automated** live test: the
-mandatory container verify blackholes the three Renault hosts, so it verifies process, not
-behaviour. Ad-hoc human observation is doing that work.
+## P1 — A failed poll blanks about 40 entities: the retained state document is replaced, not merged
 
-**The r5 has none, and structurally cannot.** The maintainer owns an A290. The R5 E-Tech and the
-A290 **share the CMF-BEV / KCM platform but are different models** with different endpoint tables
-(`R5E1VE` vs `A5E1AE`), and r5's own CONTRIBUTING.md is explicit that it is *ported from* the a290 and
-continues Topolino65's project for third-party R5 owners. r5 has no `BACKLOG.md`, no `observed`
-claims in its changelog, and no route to a live check.
+**Component:** `alpine_a290` (`main.py`, the `except` branch of the poll loop) · **Logged:** 2026-09-08
 
-**Consequences, which are the actionable part:**
+On any exception in `poll_once` the `except` branch publishes a short document (`api_auth_failure`,
+`last_successful_poll` and the freshness fields) to `mqtt.STATE_TOPIC` with `retain=True`. That
+replaces the retained state rather than merging into it. Every other sensor's `value_template` is
+`{{ value_json.<key> }}`, so an absent key renders as an empty string. Only two entities carry the
+compound availability that would save them (`catalog.py` `DATA_GATED_SENSORS`).
 
-- Every r5 change lands on a weaker evidence base than the equivalent a290 change, permanently.
-  Anything mirrored as "precautionary, not observed" should say so in r5's changelog — the
-  Refresh Location gate is the current example.
-- The standing rule "never assume A290 == R5" is not caution, it is the only control available.
-- **r5 has no backlog of its own**, so r5-specific findings are recorded here or nowhere. That is
-  how its missing `renault_api` logger clamp and missing aiohttp timeout went unrecorded for
-  releases.
-- **r5's CONTRIBUTING.md line 60 still says "unlike the A290, which forbids charge-start".** False since
-  v1.19.0 — the same stale claim corrected in a290's README, USER-GUIDE and module docstring on
-  2026-09-08. Fourth and fifth instances of one error, sitting in the twin. Fix when the r5 mirror
-  wave lands.
+The intent was the opposite: the comment there says the last known car timestamp "simply ages",
+and the status panel's `_LATEST["data"].update(...)` does merge, so the panel and MQTT disagree.
+HA renders a JSON `null` safely, so emitting every catalog key as `null` or publishing
+`{**last_data, **fresh}` both work.
 
-**Not a call to buy an R5.** The proportionate answers are: a fake/recorded Kamereon client so the
-container gate can verify behaviour without any car, and honest labelling of what is observed
-versus inferred.
+`test_main_failure_path_publishes_both_signals` asserts the partial document but would still pass
+after a merge fix, so the suite fails to detect the bug rather than encoding it.
 
----
+**Fix:** merge instead of replace, and add a test that `battery_level` survives a failed poll.
 
-## P1 — Three PII leaks reached the public repo, and none was found by a scanner or the panel
+## P1 — Endpoint support is probed once at startup and never re-probed
 
-**Component:** repo-wide (fixtures + findings prose) · **Logged:** 2026-09-08 · *all three fixed forward*
+**Component:** `alpine_a290` (`main.py`) · **Logged:** 2026-09-08 · **Re-confirmed:** 2026-10-20
 
-The only **demonstrated** privacy incidents this project has had. All three were committed to a public
-repository, all sat there for days, and none was found by tooling or by a fourteen-specialist
-audit — they surfaced from greps run for unrelated reasons.
+A transient boot-time login failure (HA restarting after a power cut, DNS not yet up) leaves
+`supported` nearly empty. `publish_discovery` then writes empty retained configs, which is how HA
+deletes an entity, so all six buttons and both numbers vanish. `_MQTT_CTX` re-publishes that
+degraded set on every reconnect and `/healthz` still returns `ok`, so nothing restarts it. The
+buttons stay hidden until someone restarts the add-on. A container booted with the Renault hosts
+blackholed shows it: `Endpoint-support detection failed (publishing sensors, hiding action
+buttons)`, then `buttons=none`.
 
-| What | Where | Public for | Found by |
-|---|---|---|---|
-| Real VIN `a real VIN` (4 occurrences) | `tests/test_runtime.py`, a test fixture | 2026-09-04 → 09-08 | a grep checking credentials hadn't leaked during container work |
-| Home coordinates, ~11 m, labelled "at home" | `BACKLOG.md` prose, this file | 2026-09-05 → 09-08 | the independent sign-off lane, independent |
-| The same coordinates, as a fixture | `tests/test_runtime.py`, two tests | 2026-09-06 → #135 | a grep run while fixing the row above |
+**Fix:** re-probe after N consecutive failures, or whenever `supported` lacks the action
+endpoints, and re-publish discovery. Never delete a button on a detection error, only on a
+definite negative.
 
-**Why nothing caught them.** gitleaks and trivy have no VIN or coordinate rule. The privacy review
-explicitly checked the committed *screenshots* for a leaked VIN and coordinates and correctly found
-none — the leaks were in a **fixture** and in **narrative text**, which is where nobody looks. The
-add-on's redaction net masks values at runtime and cannot see source.
+## P1 — A wedged poll loop is invisible: LWT catches process death, not a stalled producer
 
-**Fixed forward, with guards** (a290 #130 and this entry's PR): the VIN replaced with
-`VF1STUBVIN0000000` — deliberately invalid, since real VINs exclude I, O and Q, so it cannot match
-its own guard — and the coordinates redacted while keeping the finding's meaning. CI now fails on
-any VIN-shaped 17-character string and any high-precision coordinate pair. The first coordinate
-guard scanned prose only and missed the third row. Its replacement, `scripts/pii_check.py` (#135),
-scans every tracked text file. It runs in CI's Security job and in `just ci`, self-tests that each
-rule can fail, and exempts a synthetic fixture only through a same-line `# synthetic-coords:` comment.
-The inline version it replaced reported clean whenever `git grep` itself failed: inside `if`, a
-failed pipeline is indistinguishable from "no match", with or without pipefail. Reproduced
-locally on 2026-09-24 with an invalid pathspec, which exited 0 and printed the clean message.
+**Component:** `alpine_a290` + `renault-mqtt` · **Logged:** 2026-09-05
 
-**Accepted residual, stated rather than assumed.** Git history was **not** rewritten. Both values
-remain in the history of a public repo and may be mirrored by forks or caches; rewriting signed,
-linear history under `enforce_admins` was judged disruptive for limited benefit, and neither value
-can be rotated the way a token can. **This is a decision, not an oversight** — revisit it if the
-repo's visibility or the maintainer's threat model changes. The fixture copy (third row) is the
-same values in the same history, so the same decision covers it.
+The last-will message only fires when the broker connection drops. A process whose Kamereon poll
+loop has stopped succeeding keeps the socket open, so availability stays `online`. No stall has
+been observed; this is a gap, not a live defect.
 
-**The r5 twin needs the same fixture review and guard.** Handed to the r5 session on 2026-09-24.
-r5 has no backlog of its own, so this entry is the record until it does. Deliberately not more
-specific here: this file is public.
+`last_reported` is not a liveness signal for MQTT entities: HA does not write state when the
+payload is unchanged. Monitor a value the producer varies. `sensor.*_last_successful_poll`
+(v1.24.0) is that heartbeat.
 
-**Still unscanned:** history has been checked only for VIN, coordinate and email shapes. Nothing has
-scanned it for tokens, Kamereon account ids or Supervisor tokens.
+**Still open:** a producer-side watchdog that publishes `offline` to `AVAIL_TOPIC` after N failed
+cycles, and `expire_after` on the tracker and volatile entities. `expire_after` counts message
+arrival, and the poller republishes the whole state document every cycle, so it only fires when
+publishing stops, which is the wedged case.
 
-**The generalisable lesson, which is why this is P1 rather than closed:** the audit's blind spot was
-*category*, not depth — application code was reviewed exhaustively while fixtures, committed data
-and the findings file itself were not reviewed at all. Any future audit should sweep those first,
-because they are cheap to check and are where all three real incidents lived.
+## P2 — `/healthz` always answers `ok`; a wedged poller looks healthy
 
----
+**Component:** `alpine_a290` (`main.py`, Dockerfile `HEALTHCHECK`) · **Logged:** 2026-10-20
 
-## P1 — A failed poll blanks ~40 entities: the retained state document is replaced, not merged
+A wedged poller looks healthy to the image HEALTHCHECK and the Supervisor. Related to the entry
+above. **Fix (proposed):** fail `/healthz` when the last successful poll is too old.
 
-**Component:** `alpine_a290` (`main.py:704-708`) · **Logged:** 2026-09-08 (full panel audit)
-**Citations re-anchored to HEAD 2026-09-08** — the audit ran on the pre-#129 tree, so every
-a290 line number in the entries below was low by 3-10. The stale numbers landed on
-plausible-but-wrong code, which is the worst kind of wrong.
+## P2 — No recorded or fake Kamereon client for the container gate
 
-On **any** exception in `poll_once` — one network blip, one 401, a Gigya hiccup — the `except`
-branch publishes a **four-key** document to `mqtt.STATE_TOPIC` with `retain=True`:
-`api_auth_failure`, `last_successful_poll`, and the two freshness fields. That *replaces* the
-retained state document rather than merging into it.
-
-Every other sensor's discovery `value_template` is `{{ value_json.<key> }}` (`renault_mqtt/
-mqtt.py:154`), so an absent key renders as an **empty string** — the identical disease the
-climate-schedule entry above spent three releases fixing, except here it hits the whole catalog
-from the **first** failed poll. Only two entities carry the compound availability that would save
-them (`catalog.py` `DATA_GATED_SENSORS`).
-
-**The intent was the opposite.** The comment at `main.py:694-696` says "No new payload, so the
-last known car timestamp simply ages" — prior values were meant to persist. And `main.py:711-712`
-does `_LATEST["data"].update(...)`, which **merges**, so the status panel and MQTT disagree about
-what the add-on knows.
-
-**Raised independently by two reviewers** (principal-engineer, sre-reliability) with different
-reasoning, then verified by reading the source. One of them checked HA core 2026.7.1
-`mqtt/sensor.py` directly: an absent key renders `""`, while a JSON `null` renders `PAYLOAD_NONE`
-and is handled safely — so emitting every catalog key as `null` is a valid fix shape, as is
-publishing `{**last_data, **fresh}`.
-
-`tests/test_runtime.py` asserts the partial document, so **the suite currently encodes the bug**.
-
-**Correction:** "the suite encodes the bug" was overstated. `test_runtime.py` `test_main_failure_path_publishes_both_signals` asserts on the partial document, but since
-`_LATEST["data"]` starts `{}` the proposed merge fix still passes it — the suite fails to
-*detect* the bug rather than encoding it. Also "four-key" is three on a fresh install:
-`data_stale` is conditionally omitted.
-
-**Fix:** merge rather than replace, and add a test asserting `battery_level` survives a failed
-poll. This undercuts the freshness framework v1.24.0 shipped: instead of showing stale-but-plausible
-data, a single transient failure erases it.
-
----
+**Logged:** 2026-09 (restated 2026-10-21). a290 is observed on a real car; r5 can only ever be
+tested against fixtures, and the container boot proves only that Renault was refused. A small fake
+Kamereon server (or recorded responses) behind the blackholed hosts would let the boot test and the
+Supervisor pilot exercise a successful poll end to end.
 
 ## P2 — r5 logs raw API responses at `log_level: debug`; a290 does not
 
 **Component:** `renault_5` (`app/main.py`) · **Logged:** 2026-09-08
 
-`alpine_a290/app/main.py:123-124` clamps the `renault_api`, `renault_api.kamereon` and
-`renault_api.gigya` loggers to INFO, so the library's DEBUG records — which include full request
-URLs and response bodies — are never created. **r5 has no equivalent.** It attaches the redaction
-filter, but that scrubs *configured* secrets (username, password, VIN, account_id, Supervisor
-token), so the rest of a response passes straight through: unrounded GPS and account data.
-
-**Corrected 2026-09-24:** this entry and CONTRIBUTING.md said the library prints *access tokens*. It
-does not. At renault-api 0.5.13 its only three DEBUG calls log the API-key config response,
-Kamereon request bodies and full Kamereon response bodies; the Gigya JWT travels as a header and
-is never logged. Found by the r5 session, confirmed here by reading the library, the core and
-aiohttp. The clamp is still needed; the stated reason was wrong. a290 defends in code; r5 does not.
-
-Verified by reading both files. This is a live personal-data disclosure path in shipped code,
-and it is the one finding in this audit that should not wait behind the a290-first rule — that
-rule exists to keep features in step, not to delay a security fix on the twin.
-
----
-
-## P1 — Endpoint support is probed once at startup and never re-probed
-
-**Component:** `alpine_a290` (`main.py:650-655`) · **Logged:** 2026-09-08
-
-A transient boot-time login failure — HA restarting after a power cut, DNS not yet up — leaves
-`supported` nearly empty. `publish_discovery` then writes **empty retained configs**, which is how
-Home Assistant deletes an entity, so **all six buttons and both numbers vanish**. `_MQTT_CTX`
-re-publishes that degraded set on every reconnect, and `/healthz` still returns `ok`, so nothing
-restarts it. Automations referencing `button.alpine_a290_climate_start` break until someone
-restarts the add-on by hand.
-
-**Observed in this session, not merely reasoned about:** a container booted with the Renault hosts
-blackholed logged `Endpoint-support detection failed (publishing sensors, hiding action buttons)`
-and then `buttons=none`. That is the documented verify path behaving exactly as described here.
-
-**Fix:** re-probe after N consecutive failures, or whenever `supported` lacks the action
-endpoints, and re-publish discovery. Never delete a button on a *detection error* — only on a
-definite negative.
-
----
-
-## P1/P2 — "Lockstep" is a human promise with no enforcing artifact, and it has already failed both ways
-
-**Component:** `alpine_a290` + `renault_5` + CI · **Logged:** 2026-09-08
-
-Nothing in either repo's CI compares the twins. Three divergences confirmed by reading both trees:
-
-| | a290 | r5 |
-|---|---|---|
-| `renault_api` logger clamp | ✅ `main.py:123-124` | ❌ absent (own P1 above) |
-| aiohttp session timeout | ✅ `API_TIMEOUT` on all three sessions | ❌ none on `main.py:231,354,390` |
-| Signal handlers before startup I/O | ❌ registered at `main.py:658`, after `detect_supported`/`mqtt_connect`/`publish_discovery`/`run_deploy` | ✅ registered at `main.py:677`, before all four |
-
-Each repo carries a hardening fix the other already has. The drift runs in **both** directions,
-which is what makes it invisible: neither repo looks behind.
-
-**A fourth claimed divergence was refuted** and is recorded so it is not re-chased: r5's
-`deploy.py` was said to call `lovelace/config/save` unguarded. It does not — `RESERVED_URL_PATHS`
-and `_validate_url_path` are present at `deploy.py:445,451,458,476`.
-
-The shared-core extraction cannot fix this: `main.py` is deliberately per-model and outside it, so
-this drift class is structural, not an oversight. **Fix:** a CI job that token-normalises
-(`A290`↔`R5`, `alpine_a290`↔`renault_5`) and diffs `main.py`/`deploy.py`/`catalog.py` against the
-sibling, failing on any hunk not listed in a checked-in allowed-divergence file with a stated
-reason. That converts lockstep from intent into an artifact, and would have caught all three.
-
----
+`alpine_a290/app/main.py` clamps the `renault_api`, `renault_api.kamereon` and
+`renault_api.gigya` loggers to INFO, so the library's DEBUG records are never created. At
+renault-api 0.5.13 its only DEBUG calls log the API-key config response and full Kamereon
+request and response bodies (VIN, account ids, unrounded GPS). The Gigya JWT travels as a header
+and is never logged. r5 has no clamp; its redaction filter only masks configured secrets, so the
+rest of a response passes through. This is a live personal-data path on the twin and should not
+wait behind the a290-first rule.
 
 ## P2 — The Bubble dashboard has none of the alarm semantics the standard one has
 
 **Component:** `alpine_a290/dashboards/front-end-bubble.txt` · **Logged:** 2026-09-08
 
-Grep counts, bubble vs standard: `poll_failing` **0 / 3**, `auth_failure` **0 / 3**, `data_stale`
-**0 / 3**, "Not Polling" **0 / 2**, "Car Parked" **0 / 3**.
+Counts, bubble vs standard: `poll_failing` 0 / 3, `auth_failure` 0 / 3, `data_stale` 0 / 3, "Not
+Polling" 0 / 2, "Car Parked" 0 / 3. Its "Last Updated" tile is a static button with
+`tap_action: none` and a hard-coded `color:green !important`, bound to no entity. On one of the
+two dashboards a wedged poller or expired credential is permanently invisible. The v1.25.0 change
+(red pulsing card re-pointed from `data_stale` to `poll_failing`) reached only the standard one.
+**Fix:** port it, or add a test that diffs entity coverage between the two files.
 
-Its "Last Updated" tile is a static button with `tap_action: none` and a hard-coded
-`color:green !important`, bound to no entity at all. So on one of the two equally-promoted
-dashboards, a wedged poller or an expired credential is **permanently invisible** — the tile stays
-green while nothing is being fetched.
-
-This is direct evidence for the two-variant carrying cost: the safety-relevant change shipped in
-v1.25.0 (re-pointing the red pulsing card from `data_stale` to `poll_failing`) reached only one of
-them. Either port it, or add a test that diffs entity coverage between the two files.
-
----
-
-## P2 — The shipped image is scanned by nothing, and the shared core has no SAST at all
+## P2 — The shipped image is scanned by nothing, and the shared core has no SAST
 
 **Component:** CI (`.github/workflows/ci.yaml`) + `renault-mqtt` · **Logged:** 2026-09-08
 
-`trivy fs` scans the **repo**; the build job builds the image and does not scan it. So the artifact
-users actually pull is unscanned.
+`trivy fs` scans the repo; the build job builds the image and does not scan it. `renault-mqtt` is
+installed from a git SHA with `--no-deps` and is in no manifest, so `pip-audit` cannot see it, and
+its own CI is ruff + pytest only. The unscanned code is the redaction net (`config.py`,
+`debug.py`). `semgrep` is not run, so `bandit -ll` is the only SAST and misses what semgrep would
+catch.
 
-`renault-mqtt` is installed from a git SHA with `--no-deps` and appears in no manifest, so
-`pip-audit` cannot see it — and the core's own CI is ruff + pytest only, with no bandit, pip-audit
-or trivy in either workflow. **The unscanned code is the redaction net** (`config.py`, `debug.py`),
-which ships into two Tier-0 images.
-
-Also open: `semgrep` is not installed locally, so the audit's SAST lane was a **SKIP, not a pass** —
-`bandit -ll` reaches none of the classes semgrep would. (Bandit *does* run in CI, contrary to one
-review's premise; that part was wrong.)
-
----
-
-## P2 — Redistribution: an Alpine press render, a font with no licence, and no disclaimer anywhere
+## P2 — Redistribution: a press render, a font with no licence, no disclaimer
 
 **Component:** repo root + `alpine_a290/dashboards/` · **Logged:** 2026-09-08
 
-- `dashboards/Images/Background/alpine_a290_side.webp` is an official Alpine studio press render —
-  confirmed by inspection: seamless dark backdrop, reflective floor, Alpine "A" wing badge and
-  wheel centres, blue calipers, roof tricolore. `LICENSE` grants everyone the right to
-  "copy… distribute, sublicense, and/or sell" it. That is not ours to grant, and every downstream
-  user inherits the bad grant.
-- `dashboards/Fonts/ZenDots-Regular.ttf` ships with **no `OFL.txt`**. OFL-1.1 §2 requires the
-  licence travel with any redistribution, and `INSTALLATION.md` tells users to copy the file onward.
-- `LICENSE` carries only this repo's copyright — no NOTICE for the MIT-licensed upstream the README
-  credits.
-- A repo-wide grep for "not affiliated | trademark | no warranty | at your own risk" returns
-  **zero hits**. The product exists entirely at Renault's discretion and nothing tells users so,
-  nor states a kill criterion.
+- `dashboards/Images/Background/alpine_a290_side.webp` looks like an official Alpine studio press
+  render. `LICENSE` grants everyone the right to copy and sell it, which is not ours to grant.
+- `dashboards/Fonts/ZenDots-Regular.ttf` ships with no `OFL.txt`. OFL-1.1 §2 requires the licence
+  to travel with redistribution, and `INSTALLATION.md` tells users to copy the file onward.
+- `LICENSE` has no NOTICE for the MIT-licensed upstream the README credits.
+- Nothing says "not affiliated", "trademark" or "at your own risk", and nothing states what
+  happens if Renault changes or closes the API.
 
-Realistic worst case on the render is a takedown letter rather than damages, but it lands on a
-personal GitHub account. Roughly one evening closes all four.
-
----
-
-## P2 — 99.26% coverage, and the most defect-dense branch is unverified
+## P2 — Coverage is 99%, and the most defect-dense branch is unverified
 
 **Component:** `alpine_a290/tests` · **Logged:** 2026-09-08
 
-Thirteen tests across three files contain **zero assertions**. Several are legitimate "does not
-raise" smoke tests. One is not: `test_runtime.py` `test_main_handles_failing_poll` drives the
-entire poll-failure branch — availability, the auth heuristic, exponential backoff, **and the
-four-key state publish that is the P1 above** — and asserts nothing. The test immediately above it
-does assert, so this is inconsistency, not house style.
-
-Line coverage measures execution, not verification. That is how a retained-state wipe passed a 95%
-gate at 99.26%.
-
-**And the figure is narrower than it reads.** `ci.yaml:130` measures `--cov=alpine_a290/app`
-only, so `renault_mqtt` — which builds every discovery payload — is outside the number entirely.
-The core has its own 100% gate, but nothing measures the two together.
+Thirteen tests across three files contain no assertions. Several are fair smoke tests. One is not:
+`test_main_handles_failing_poll` drives the whole poll-failure branch (availability, the auth
+heuristic, backoff, and the state publish in the P1 above) and asserts nothing. Coverage
+measures execution, not verification. It also measures `alpine_a290/app` only, so `renault_mqtt`,
+which builds every discovery payload, is outside the number.
 
 **Fix:** assert `(AVAIL_TOPIC, "online")` is published, assert the auth flag for an auth-shaped
-error, and drive 2-3 consecutive failures to pin the backoff doubling and its cap.
+error, and drive two or three consecutive failures to pin the backoff doubling and its cap.
 
----
+## P2 — A navigation side effect is hidden inside a CSS hook
 
-## P2 — A navigation side effect is hidden inside a CSS hook, and is filed as a test flake
+**Component:** `alpine_a290/dashboards/front-end-bubble.txt` (bottom nav `styles:`) · **Logged:** 2026-09-08
 
-**Component:** `alpine_a290/dashboards/front-end-bubble.txt:937` · **Logged:** 2026-09-08
-
-The bottom nav bar's `styles:` field returns `""` — the CSS is a pretext. Its actual payload is
-`setTimeout(() => { location.hash = "#alpine"; }, 60)`.
-
-This is recorded elsewhere (and in the session memory) as a **harness** flake. It is not: it is
-shipped product behaviour. A real user tapping a tile within 60 ms of load can have the URL and
-open pop-up changed under them, with no request. `ui-tests/check_overflow.py:19-24` shows it was
-diagnosed and worked around with a retry rather than fixed, and its own comment describes the
-mechanism accurately.
-
-**Fix:** fire the auto-open once on element connect / first `hass` set, not from a computed-CSS
-return value on a `setTimeout` guess.
-
----
+The `styles:` field returns `""`; its real payload is `setTimeout(() => { location.hash =
+"#alpine"; }, 60)`. This is shipped product behaviour, not a test flake: a user tapping a tile
+within 60 ms of load can have the URL and open pop-up changed under them.
+`ui-tests/check_overflow.py` works around it with a retry. **Fix:** open once on element connect
+or on the first `hass` set, not from a computed-CSS return value on a timer.
 
 ## P2 — `stale_hours: 36` assumes a daily driver
 
 **Component:** `alpine_a290/config.yaml` · **Logged:** 2026-09-08
 
-Since v1.24.0 `data_stale` measures the age of the **car's own reading**, and the car only commits
-at power-off. A car is a tool used as required — weeks or months between journeys is ordinary
-ownership, and the only real consequence of a long park is the 12V battery discharging, not a
-fault.
+Since v1.24.0 `data_stale` measures the age of the car's own reading, and the car only commits at
+power-off. A car used as needed (weeks between journeys) sits at `data_stale: on` for much of its
+life, which trains people to ignore the alarm. `poll_failing` is the signal that means something
+is wrong. Open question: does `data_stale` earn a default-visible alarm at all? A longer
+threshold is unsettable today because the schema is `int(1,48)`. The premise is reasoned, not
+observed: there is no telemetry. Existing installs also keep their old value (the default moved
+6→36 in v1.25.0), so the installed base is split.
 
-So a normally-used car sits at `data_stale: on` for much of its life. The logic is correct; the
-**default** is calibrated for a commuter. An alarm that is on during normal ownership trains people
-to ignore it.
+## P2 — GPS staleness guard is blind on a process that has never had a usable fix
 
-`poll_failing` is the signal that means something is actually wrong, and v1.25.0 already re-pointed
-the red pulsing card at it. Open question: does `data_stale` earn a default-visible alarm at all?
+**Component:** `alpine_a290` (`poll_once`) · **Logged:** 2026-09-06
 
-**Correction:** an earlier draft of this entry proposed "a week-plus" threshold. That is
-**unsettable** — `config.yaml:57` constrains `stale_hours` to `int(1,48)`. Raising the ceiling is
-part of the change, not a detail. Note also this entry's premise is **reasoned, not observed**:
-there is no telemetry, and it reads in the same register as the observed entries, which it should
-not.
+`gps_last_activity` carries the last usable fix time forward when a location payload is rejected.
+Both fallbacks (persisted `state` and in-process `_LATEST`) are empty on the first poll of a fresh
+process, so if that poll returns a sentinel the key is omitted and `gps_stale` reads "not stale"
+until the first usable fix. Advancing the timestamp is the original bug and publishing a
+fabricated old one is dishonest. **Fix:** seed `state["gps_last_activity"]` at startup from the
+add-on's own retained state topic. Mitigated by a WARNING on every rejected fix and no tracker
+attributes being published. A retained payload from an older version is also not cleared by this
+fix; clear the attributes topic by hand.
 
-Related and unresolved: v1.25.0 changed the default 6→36 but existing installs keep their
-configured value, so the installed base is permanently split with no telemetry to tell which half
-a bug report came from.
+## P2 — Conformance test: the domain allowlist exempts more than it names
 
----
+**Component:** `alpine_a290/tests/test_dashboard_conformance.py` · **Logged:** 2026-09-27
 
-## P2 — Nothing verifies `requirements.in` against `requirements.txt`
+No effect while `_ALLOWED_DOMAINS` is empty. (1) `_allowed()` is domain-wide, so listing a domain
+also exempts a misspelt or nonexistent id in it; per-id scoping would close that. (2)
+`test_ui_gate_seeds_what_the_add_on_publishes` does not consult `_allowed()`, so a seeded id in a
+listed domain reads "not published": a false fail, never a false pass. a290 fixes first, r5
+mirrors.
 
-**Component:** CI · **Logged:** 2026-09-08
+## P2 — The dashboard render is not reproducible, so screenshots cannot be gated
 
-CONTRIBUTING.md warns that both files must be bumped or "the next regeneration silently reverts the one
-you missed" — but no check enforces it. CI installs from `requirements.txt` only, so a bump landing
-in `.in` alone passes every gate while the image keeps installing the old release.
+**Component:** `ui-tests/` · **Logged:** 2026-09-07
 
-This is why an approval-gated Renovate rule was rejected for `renault-api` (#131): its only
-available action edits `.in` alone. The watcher added there now compares both files and fails
-loudly when they disagree — but that only covers `renault-api`, not the rest of the file.
+Treat every file in `docs/screenshots/` as untested: a plausible picture, not a verified one. Two
+runs of identical code and seed differed as follows.
 
----
+| Class | Magnitude | Diagnosis |
+|---|---|---|
+| Rasterisation noise | 0.024–0.032% of pixels | identical DOM and size; anti-aliasing |
+| Pop-up visual diff | 1.3–3.1% | same cards and size, large regions differ |
+| Page size differs | 734x5002 vs 724x5454 | same 253 cards, different layout |
 
-## P3 — `config.yaml` declares no `watchdog`, and the Dockerfile comment overclaims
+A byte-exact gate cannot work. A tolerance near 0.5% separates noise from real change.
+**Untested hypothesis:** the size-differing pair is about 10px narrower, which is the signature of
+a scrollbar in one run only; `--hide-scrollbars` or `scrollbar-gutter: stable` would test it.
+**Do not** wait for stable scroll size, card count and images instead of a sleep: a blank page is
+stable, so the condition passed at once and captured an empty dashboard. Any retry needs a
+completeness condition (a known-good card count), as the pop-up gate has.
 
-**Component:** `alpine_a290/config.yaml` + `Dockerfile:84` · **Logged:** 2026-09-08
+## P2 — An account behind two-factor sign-in cannot use the add-on
 
-`config.yaml` has no `watchdog` key. `Dockerfile:84` says "Supervisor monitors this; a deadlocked
-event loop can't answer /healthz -> unhealthy".
+**Logged:** 2026-10-21. renault-api 0.6 raises `PendingTwoFactorAuthenticationException` when
+Renault requires an emailed code. The add-on shows API Auth Failure and retries on its backoff; it
+cannot complete the flow unattended. Supporting it needs a way to enter the code (an option or a
+service call) and to store the remembered device ids.
 
-**Unresolved, and deliberately recorded as unresolved.** HA's add-on docs define `watchdog` as a
-**URL string** (`watchdog: http://[HOST]:[PORT:8099]/healthz`), not the boolean one review
-proposed — and they are *silent* on whether Supervisor acts on a Docker `HEALTHCHECK` at all. One
-reviewer said the healthcheck makes the watchdog redundant; another said its absence means nothing
-restarts a wedged container. **Neither position is documented fact**, and this is only answerable
-on a real HA host. It decides whether the watchdog half of the wedged-poll P1 is necessary or
-redundant, so settle it before building that.
+## P3 — The Dockerfile's HEALTHCHECK comment claims the Supervisor acts on it
 
----
+**Logged:** 2026-09 (restated 2026-10-21). The comment says the Supervisor monitors the HEALTHCHECK
+and restarts a deadlocked add-on. HA's add-on docs are silent on whether the Supervisor acts on a
+Docker HEALTHCHECK, and the `watchdog:` key is rejected by the add-on linter as obsolete. Disproving
+check: on a real HA host, wedge the event loop and watch whether the Supervisor restarts the add-on.
+
+## P3 — CI tools are pinned by version only
+
+**Logged:** 2026-10-21. bandit, pip-audit, pytest, pytest-cov and the UI gate's pip installs are
+`name==version`, so their transitive dependencies resolve fresh on every run. A hash-locked
+`requirements-ci.txt` installed with `--require-hashes` would close that.
+
+## P3 — Trivy's binary is checked for integrity, not authenticity
+
+**Logged:** 2026-10-21. `setup-trivy` (pinned, v0.3.1) installs through `install.sh` at a pinned
+trivy commit, which checks the release's own `checksums.txt`. Verifying the release's cosign
+signature would also prove who built it.
+
+## P3 — UI gate flake: Bubble location pop-up measured mid-animation at 360x640
+
+**Logged:** 2026-10-21. On #235 (head c53f092) the minimum leg (HA 2026.8.1) reported
+`TRUNCATED <span> 224>92px` for the Bubble location pop-up on the 360x640 narrow bound; a re-run of
+the same commit passed. A 92px box for a 224px label fits a pop-up still sliding in. Disproving
+check: re-run that leg on the same commit until it fails again, then read whether the pop-up's
+completeness wait was satisfied before the scan.
+
+## P3 — No regression test for the map marker's dark circle
+
+**Logged:** 2026-10-21. The map card sets `--card-background-color` so its marker stays dark on the
+light theme; the light-text test covers the sections, not this line, and the UI gate checks
+truncation, not contrast. Assert the map card's style keeps the variable.
+
+## P3 — The visibility evaluator's `not` semantics are unverified
+
+**Logged:** 2026-10-21. `test_dashboard_conformance.py` models `not` as "none met"; the frontend's
+Lovelace `not` may be "not all met". No dashboard uses `not` today. Read
+`validate-condition.ts` before relying on it.
+
+## P3 — No test that a whole-number float charge limit (`"100.0"`) is accepted
+
+**Logged:** 2026-10-21. The code accepts it; nothing pins that against a stricter parser later.
+
+## P3 — Parity rows appended at the end of `expected.tsv` collide between PRs
+
+**Logged:** 2026-10-21. Two open PRs that both append rows at the end conflict, and each rebase
+costs a review round. Insert a new row beside the existing rows for the same path.
+
+## P3 — The UI gate no longer samples a 2.6 device scale
+
+**Logged:** 2026-10-21. Dropping Pixel 7a left 2, 2.625 and 3. No defect is known at 2.6.
+
+## P3 — CI "Build (amd64 sanity)" duplicates the release workflow's build
+
+**Component:** CI (`.github/workflows/ci.yaml`) · **Logged:** 2026-10-20
+
+`release.yaml` already builds the image. Removing the job needs the required-check list changed.
+
+## P3 — `home-assistant/actions/helpers/info` is pinned to a master SHA
+
+**Component:** CI workflows · **Logged:** 2026-10-20
+
+No upstream tag contains that commit, so the pin cannot carry an exact-tag version comment.
+
+## P3 — `log_level` accepts `trace` and `notice` but maps both to INFO
+
+**Component:** `alpine_a290/config.yaml` schema · **Logged:** 2026-10-20
+
+Both map to INFO. A schema change belongs in a release PR (see `CONTRIBUTING.md`, "What reaches
+users on merge").
+
+## P3 — Parity is a required check, so every dependency-bot PR is blocked
+
+**Component:** CI (`Parity with r5`) · **Logged:** 2026-10-20
+
+Every dependency-bot PR is blocked until a `pending` row is written by hand.
+
+## P3 — The comment above `DATA_GATED_SENSORS` describes renault-api 0.5.13
+
+**Component:** `alpine_a290/app/catalog.py` · **Logged:** 2026-09-08
+
+"A5E1AE advertises hvac-settings as supported..." is stale since 0.5.14 set it to `None`. The
+breaker still guards the server's `502000`. Correct it in the next change that touches
+`catalog.py` for a real reason (it is in the UI gate's path filter).
 
 ## P3 — Bubble's bottom bar draws two labels on top of each other, and the gate cannot see it
 
 **Component:** `alpine_a290/dashboards/front-end-bubble.txt` (bottom navigation) · **Logged:** 2026-09-24
 
-In every Bubble screenshot checked, the pill at the bottom of the main menu shows two labels
-("Test" and "Home") and two icons drawn over each other. That covers the committed
-`docs/screenshots/bubble-galaxy-s24.png` from 2026-09-07 and today's local gate run on
-iPhone 15 Pro. The same committed screenshot also clips "Smart Charging" to "Smart Chargin";
-today's run does not, so that one is intermittent or capture-timing.
-
-**Why nothing failed:** `ui-tests/check_overflow.py` fails on text *truncation* and on
-`hui-error-card`. Two complete labels stacked in the same box are neither, so the gate passes.
-
-**Not established:** the cause. The likely candidates are two buttons whose visibility conditions
-both hold under the seeded state, or a transition captured mid-animation. Neither has been checked.
-Not a regression from any change on 2026-09-24.
-
+In every Bubble screenshot checked, the main menu's bottom pill shows two labels ("Test" and
+"Home") and two icons drawn over each other, including the committed `bubble-galaxy-s24.png`. The
+gate fails on truncation and `hui-error-card`, not on two complete labels in one box. **Not
+established:** the cause. Candidates are two buttons whose visibility conditions both hold under
+the seeded state, or a transition captured mid-animation.
 
 ## P3 — Accessibility and client-performance cluster in the dashboards
 
 **Component:** `alpine_a290/dashboards/` + `app/panel.html` · **Logged:** 2026-09-08
 
-- **No `prefers-reduced-motion` guard anywhere** — confirmed zero matches repo-wide against ~17
-  infinite CSS animations. The UI harness has to force `reduced_motion="reduce"` precisely because
-  production never respects the OS setting.
-- `dashboards/CSS/zen-dots.css` has **no `font-display`**, risking FOIT on a slow connection.
-- `panel.html:39` updates auth-failure / data-stale status every 10s with **no `aria-live`** — the
-  one alert-worthy state is the one a screen reader never announces. No `<main>` landmark either.
-- `front-end-bubble.txt:9` uses `background-attachment: fixed`, a documented mobile scroll-jank
-  anti-pattern, in the bubble dashboard only.
-- Unavailable data renders identically to critically-low (e.g. `range` → `float(0)` → red band), so
-  sensor-offline and genuinely-critical look the same.
-
-None of these are correctness bugs; all are cheap. The reduced-motion guard is the one with a real
-inclusive-design cost.
-
----
-
-## P3 — `set_soc_level` accepts any integer; and the upstream watcher's sibling has a latent bug
-
-**Component:** `alpine_a290` (`main.py:313-322`) + `.github/workflows/ha-cadence-watch.yaml`
-**Logged:** 2026-09-08
-
-`set_soc_level` parses `int(float(payload))` and calls `set_battery_soc` with **no bounds check**
-against `catalog.NUMBERS` (`a290_soc_min` 15-45, `a290_soc_target` 55-100) and no `min <= target`
-check.
-
-**Rated P0 by one reviewer and deliberately downgraded**, because the refutation was decisive: an
-*in-range* `soc_target 55` halts charging just as effectively as `0`, so the missing check reduces
-the named threat by **zero**. The command topic is an already-documented, accepted trust boundary
-(`DOCS.md:195-199`) whose stated control is a broker ACL, and an actor there can already press
-Charge Start. It survives as **robustness**, not security: a user automation or a retained
-out-of-range message can still write a value the UI cannot produce. Whether Kamereon even accepts
-an out-of-range value is **unproven** — no test, changelog or backlog entry records it.
-
-Separately: `ha-cadence-watch.yaml:57` guards its dry-run with a bare truthiness test. Boolean
-`workflow_dispatch` inputs arrive as the **strings** `"true"`/`"false"` over the REST API, and a
-non-empty string is truthy in GitHub expressions, so a dispatch passing `dry_run=false` would be
-treated as a dry run. a290 #131 fixed this class in the new watcher by comparing both forms
-explicitly; the sibling still carries it.
-
----
-
-## P1 — the editor permission grants accumulate here forever, and will again
-
-**Component:** `local editor settings` (local, gitignored) · **Logged:** 2026-09-08 ·
-**Pruned again:** 2026-09-09 · **Changed, unlogged:** 2026-09-20
-
-the editor writes a "Yes, and don't ask again" Bash approval into this repo's
-`local editor settings` permanently. There is no session-only option for Bash approvals —
-only file-modification approvals expire at session end — so every one-off approval ever granted
-here stayed live for every future session. A cross-repo scan found 1,843 such rules across 13
-files; this repo held **169** of them.
-
-**Pruned 2026-09-08: 169 → 135.** Option (c) was chosen — drop the dangerous and the dead, keep
-the routine — over emptying the list entirely. Emptying matches the stated policy, but it taxes
-the workflow this repo actually runs (the `Read(…/r5-ha-addon/**)` rules are how the a290-first
-mirror reads the sibling), and it invites reflexive re-approval at *worse* granularity than the
-list it replaced.
-
-The 34 removed: 6 review invocations (bare and `/opt/homebrew/bin` forms), `docker run *`,
-`gh api *`, `git push *`, `git reset *`, 8 interpreter `-c`/`-e` forms, 2 `curl` rules, and 17
-rules pointing at `/tmp` or `/private/tmp` paths that no longer exist. (14 + 3 — three of the
-dead-path rules were also interpreter forms.)
-
-Backup: `~/.config/backups/a290-settings-local-20260908-170419.json`
-
-### Second prune, 2026-09-09: 135 → 73
-
-A second `/prune-grants` run one day later. The command's carried-over figure for this repo was
-still **169**; the measured count was **135**. That is not drift and not a wrong path — it is
-exactly the 34 the 2026-09-08 prune above removed. The carried-over table was captured before
-that prune and was never refreshed.
-
-**Option (c) again** — drop the dangerous and the dead, keep the routine — for the same reason
-as before: the surviving list is the `just ci` toolchain (`ruff`, `yamllint`, `hadolint`,
-`shellcheck`, `bandit`, `trivy`, `pip-audit`, `actionlint`, the pinned `ui-tests/run.sh`
-invocations) plus the `Read(…/r5-ha-addon/**)` rules the lockstep mirror depends on. Emptying
-those taxes the workflow and invites reflexive re-approval at worse granularity.
-
-**62 removed — 48 dead, 14 dangerous:**
-
-- *Dead (48):* 33 one-off `echo "…: $?"` status lines, several embedding PR numbers now closed
-  (a290 #7, #8, #15, #82, #83, #84; r5 #51, #52, #53) or the `v1.16.3` tag; 9 `[ -s "$d/…output" ]`
-  predicates naming temp files from sessions long gone; 6 malformed or meaningless fragments
-  (`Bash(break)`, `Bash(awk NR==296 || NR==301 …)`, bare `awk`/`xargs` pipe stages).
-- *Dangerous (14):* `git add *`, `git commit *`, `git rebase *`, `git config *`, `gh pr *`
-  (covers `gh pr merge`), `gh release *`, `gh workflow *`, `gh secret *`, `gh auth *`,
-  `docker rm *`, `pip install *`, `uv pip *`, and both `python3 *` forms (bare and the
-  `/Library/Frameworks/…/3.14/bin/` absolute path).
-
-**This closes a finding logged yesterday.** The 2026-09-08 entry recorded `Bash(gh auth *)` and
-`Bash(gh secret *)` as live allows in neither `deny` nor `ask` at user scope — `gh auth token`
-prints the GitHub token, `gh secret set` writes the secrets the release pipeline depends on.
-Both are now gone from this file. The user-scope gap they exposed is **not** closed by that:
-the next repo to be granted them is unprotected, so the tightening noted below still stands.
-
-**A wildcard allow subsumes the dangerous form it does not spell.** Yesterday's prune removed
-"8 interpreter `-c`/`-e` forms" and still left `Bash(python3 *)` behind, which grants
-`python3 -c '<anything>'` without containing the string `-c`. The first pass of this run
-repeated the error and reported *zero* interpreter rules, because the scan matched rule text
-literally. Classification has to consider what a pattern **permits**, not what it spells.
-The narrow `python3 -m pytest alpine_a290/tests …` grant was kept.
-
-**No backup was taken and this prune is irreversible.** That is deliberate and a change from
-the 2026-09-08 run: a copy of a permission list is itself a store of permission rules embedding
-internal hostnames and API paths, it sits inside the config directory, `review project purge`
-does not reach it, and it accumulates one file per repo per run. Verification used shell
-variables instead (`BEFORE`/`AFTER` over `del(.permissions.allow)`), which proved only
-`permissions.allow` changed and left nothing on disk. **The 2026-09-08 backup named above is
-already gone** — `~/.config/backups/` holds only the editor's own rolling `.review.json`
-snapshots, no per-repo permission copies. Checked, not assumed.
-
-Post-prune state verified: 73 rules, valid JSON, `permissions` still the only top-level key
-(no `hooks`/`env`/`mcpServers` were ever present here, so nothing else was at risk), file still
-present, still matched by `.gitignore:23`, still untracked. `just ci` green — lint clean,
-150 tests passed, coverage 99.27% against the 95% gate. Note `just ci` covers lint + test only;
-the `security` and `build` jobs were not run, and no repo file was touched by this prune.
-
-### Third change, 2026-09-20: 73 → 67, not logged at the time
-
-Found on 2026-09-24 by a review, not recorded by whoever made it. The file now holds **67** rules.
-The 6 removed are all r5-mirror rules: the three `Read(…/r5-ha-addon/…)` grants the 2026-09-09
-prune deliberately kept, plus three r5 one-off lint and read commands. Two byte-identical 73-rule
-copies were left beside it as `settings.local.json.bak-20260920T…Z`. That is the backup the
-2026-09-09 run chose not to take, for the reason given above. They were not gitignored, so a
-`git add -A` would have published them. `.gitignore` now covers `settings.local.json*`.
-
-**Not established:** whether this was a deliberate prune, which session made it, or why the
-r5 `Read` grants went. Nothing at user scope pre-approves reading the twin either, so a session
-here no longer has standing read access to it; whether that prompts depends on the session's mode.
-The two `.bak` files are still on disk. Deleting them is the owner's call, not a cleanup to do
-silently.
-
-**This will re-accumulate.** Nothing here prevents it: the file grows again the moment
-"don't ask again" is clicked. What actually neutralises the dangerous classes is the user-scope
-`deny`/`ask` block in `~/.config/settings.json` — permission rules resolve deny → ask → allow and
-a user-scope rule outranks a project-level allow, so those classes stay blocked no matter what
-this file accumulates. **Do not read a pruned list as a control.** The pruning is hygiene.
-
-**Two findings from the audit that outlive the cleanup, and are NOT fixed:**
-
-- **A deny rule is bypassable by absolute path.** `Bash(review *)` matches `review exec …` but not
-  `/opt/homebrew/bin/review exec …`, and this repo carried exactly that full-path allow. 46 of the
-  52 wildcard allows here were unshadowed by user scope, not 6 — the "already neutralised" framing
-  held only for the classes the block happens to name. Worth tightening at user scope, since a
-  per-repo prune does nothing for the next repo.
-- **`Bash(gh auth *)` and `Bash(gh secret *)` are in neither `deny` nor `ask`.** `gh auth token`
-  prints the GitHub token to stdout; `gh secret set` writes repository secrets, which this repo's
-  release pipeline depends on. Both were live allows here. Also uncovered: `curl`/`wget` were not
-  in `ask` at the time of the scan (they are now).
-
-## ~~P1 — Tracker discovery declares a `state_topic` that nothing ever writes~~ — DONE
-
-**Component:** `renault-mqtt` — `renault_mqtt/mqtt.py:165-172`
-**Logged:** 2026-09-05 · **Fixed:** 2026-09-05
-
-> **Resolved.** renault-mqtt#12 (v0.13.0), a290-ha-addon#99 (v1.21.0), r5-ha-addon#63 (v1.4.0),
-> all merged. The title was wrong in one respect worth recording: the topic was **not**
-> unwritten. Both add-ons published `"online"` to it on every successful poll — an earlier
-> draft claimed nothing wrote it, because the search covered only the shared engine and never
-> the add-ons' own `app/main.py`. review caught it in review. The fix therefore spanned three
-> repos: retire the topic from discovery, and stop both runtimes writing it.
-
-The `device_tracker` discovery payload sets `"state_topic": TRACKER_STATE_TOPIC`
-(`<NODE>/location/state`), but the normal publish path never writes a value to that topic —
-the only write is `client.publish(TRACKER_STATE_TOPIC, "", retain=True)` in the
-location opt-out branch.
-
-In Home Assistant's MQTT device tracker, the state-topic payload becomes `location_name`,
-and `TrackerEntity.state` returns `location_name` whenever it is not `None`, only falling
-back to computing the zone from `latitude`/`longitude` when it is `None`. So *any* value
-retained on that topic — including one left by an older build — permanently masks the GPS
-coordinates.
-
-**Observed live:** `device_tracker.alpine_a290_location` read `online` while its own
-attributes carried a valid fix at home (coordinates redacted; accuracy 11 m) and
-`in_zones` correctly resolved `[garage, parking, home]`. The entity could never report
-`home` regardless of where the car was.
-
-**Fix:** drop `state_topic` from the tracker discovery payload entirely and rely on
-`json_attributes_topic` + `source_type: gps`, letting HA resolve the zone. That is the
-correct shape for a position proxy, it inherits zone renames for free, and it is immune to
-a stale retained value. If the topic must be kept, publish the reset payload (the literal
-string `None`) alongside every location update so `location_name` is cleared each cycle.
-
----
-
-## P2 — UNTESTED: the dashboard render is not reproducible, so screenshots cannot be gated
-
-**Component:** `ui-tests/` · **Logged:** 2026-09-07 · *updated with instrumented measurements*
-
-**Marker: treat every committed file in `docs/screenshots/` as UNTESTED.** They are a plausible
-picture of the dashboards, not a verified one.
-
-Run `UI_TESTS_DIAG=1 bash ui-tests/run.sh` to write a `.diag.json` beside each screenshot
-recording card count, scroll dimensions, pending images and `readyState` **at the moment of
-capture**. Everything below came from that; the two fixes attempted before it existed were
-guesses, and one of them made things worse.
-
-### FIXED: the pop-up wrote blank screenshots over good ones
-
-The worst class, and a real bug rather than flakiness. The smart-charging pop-up capture wrapped
-its `wait_for_selector` in a bare `except: pass` and then screenshotted regardless — so when the
-pop-up failed to open, an **empty page** was written as the documentation screenshot. Measured at
-**24 cards on one run and 0 on the next**, identical page dimensions, **99.89% of pixels
-different**. Fixed with a completeness gate: reopen once, and if it still renders nothing, skip
-the capture and keep the committed file. Verified over two runs — zero-card captures went to 0,
-and the pop-up genuinely needed the retry (once, then twice).
-
-### The hypothesis that was WRONG
-
-`JS_RENDERED` returns true as soon as ONE card exists, so it looked like the main captures were
-firing early and catching a half-built page. They were not: `alpine-standard__iphone_15` shows
-**253 cards in both runs**. The main dashboard is fully rendered at capture. Do not spend time
-there again.
-
-### What remains, measured (two runs, identical code and seed)
-
-| Class | Shots | Magnitude | Diagnosis |
-|---|---|---|---|
-| Rasterisation noise | 3 | **0.024–0.032%** (240–3072 px) | identical DOM *and* dimensions — anti-aliasing. Not fixable by waiting. |
-| Pop-up visual diff | 3 | **1.3–3.1%** (34k–111k px) | 24/24 cards, same size, yet large regions differ |
-| Page size differs | 2 | 734x5002 vs 724x5454 | **253/253 cards** — same content, different layout |
-
-**Next hypothesis, untested:** the size-differing pair is ~450px taller *and ~10px narrower*.
-Same content at a different width is the signature of a **scrollbar** appearing in one run and
-not the other, reflowing everything below it. `--hide-scrollbars` on the Chromium launch, or
-`scrollbar-gutter: stable`, would test it cheaply. Measure before believing it — the last two
-plausible fixes did not survive contact with the numbers.
-
-### Consequence for the drift gate
-
-A byte-exact gate (the `gotoad` model) **cannot work** while the rasterisation class exists: it
-would fail on 240 changed pixels out of a million. A **tolerance-based** comparison is the only
-viable form, and the numbers now say where to draw the line — genuine differences are >=1.3%,
-noise is <=0.032%. Two orders of magnitude apart, so a threshold near 0.5% separates them
-cleanly. That is why `refresh-screenshots` reports drift with an artifact rather than failing.
-
-### Do NOT retry this as written
-
-Waiting for stable scroll dimensions + card count + image completion instead of a fixed sleep is
-the obvious idea and it **made things worse**: a blank page is *stable*, so the condition was
-satisfied instantly and captured an empty dashboard. `alpine-bubble__pixel_8.png` had been
-byte-identical at 169,749 bytes across two runs; with the wait it captured at 17,255. Any retry
-needs a **completeness** condition (a known-good card count), which is what the pop-up gate now
-does.
-
----
-
-## P1 — A wedged poll loop is invisible: LWT catches process death, not a stalled producer
-
-**Component:** `alpine_a290` + `renault-mqtt`
-**Logged:** 2026-09-05
-
-`client.will_set(AVAIL_TOPIC, "offline", retain=True)` (`mqtt.py:114`) is correct and
-already in place, but it only fires when the **broker connection drops**. A process that is
-alive with a healthy socket, but whose Kamereon poll loop has stopped succeeding, keeps the
-connection open — so the LWT never fires and availability stays `online`.
-
-**No stall has been observed.** This is a theoretical gap, not a live defect. An earlier
-draft of this file claimed the add-on had stalled for two hours; that was wrong, and the
-correction is worth recording because the faulty reasoning is easy to repeat:
-
-> Every `alpine_a290_*` entity showed a `last_reported` frozen at the 09:13 restart, which
-> was read as "the publisher is dead". It was not. The add-on's own log shows 163
-> uninterrupted publishes at 5-minute intervals across exactly that window, and a clean
-> `Logged in to the Renault API` with no auth or rate-limit errors. Home Assistant's MQTT
-> integration uses `write_state_on_attr_change`, so an unchanged payload produces **no state
-> write at all** — and therefore no `last_reported` update. The car had sat at 55%, plugged
-> in and not charging all morning, so nothing changed.
-
-**`last_reported` is not a liveness signal for MQTT entities.** Anything built to monitor
-this add-on from the Home Assistant side must compare a value the producer actually varies
-(a heartbeat counter or a publish timestamp), not entity metadata.
-
-**Half of this shipped in v1.24.0 (a290 #115).** `sensor.alpine_a290_last_successful_poll`
-now publishes the poll clock on every successful cycle, which is exactly the heartbeat this
-entry asked for — a consumer can now distinguish "nothing changed" from "nothing published" by
-watching that timestamp rather than entity metadata. **Still open: the producer-side watchdog.**
-Nothing yet publishes `offline` to `AVAIL_TOPIC` after N failed cycles, so a wedged loop is
-visible only to something actively watching the heartbeat, not to HA's own availability.
-
-**`expire_after` is the other half of this, merged in from its own entry (logged 2026-09-05).**
-Nothing currently bounds the age of a published value, so a value from a wedged producer renders
-exactly like a fresh one. Setting `expire_after` on the tracker and the volatile state entities
-makes them go `unavailable` on their own, without depending on the add-on being well enough to
-notice.
-
-Worth being precise about why it belongs here rather than as a separate concern: `expire_after`
-counts **message arrival**, not value change, and the poller republishes the whole state document
-every cycle whether or not anything changed. So it cannot fire for a car that is merely parked —
-it fires only when publishing actually stops, which is exactly the wedged-producer case above. An
-earlier reading of it as "bounds data age" was wrong; `data_stale` does that, and has done it
-from the car's own timestamp since v1.24.0.
-
-**Fix (original wording, heartbeat half now done):** publish a monotonic heartbeat or
-`last_publish` timestamp on each successful poll,
-so a consumer can distinguish "nothing changed" from "nothing published". A producer-side
-watchdog that publishes `offline` to `AVAIL_TOPIC` after N failed cycles would then make a
-stall visible the same way a crash is.
-
----
-
-## P3 — Retained discovery: document the manual clear (the routine already exists)
-
-**Component:** `renault-mqtt` (documentation + cleanup routine)
-**Logged:** 2026-09-05
-
-Discovery messages are published with `retain=True`, so an entity outlives the add-on that
-created it: the broker replays the discovery config and Home Assistant faithfully recreates
-the entity on every restart, frozen at whatever was last published.
-
-**No confirmed instance.** An earlier draft cited `device_tracker.r5_car_location_raw` as an
-example. That was wrong: it turned out to be a hand-written YAML entity in the user's
-`mqtt/renault-5.yaml`, not a retained discovery message, and its `unique_id`
-(`r5_location_raw_tracker`) never matched this code's `{prefix}car_location` scheme — which
-should have been the clue. The risk below is real in principle; the evidence offered for it
-was not.
-
-**Related and confirmed, in that same legacy YAML:**
-
-```yaml
-- device_tracker:
-    unique_id: r5_location_raw_tracker
-    state_topic: "r5/location_raw"
-    json_attributes_topic: "r5/location_raw"
-```
-
-A `state_topic` declared on a GPS tracker — the identical anti-pattern to P1 above, which
-this add-on inherited from the hand-built setup it replaced. Worth fixing in both places, and
-worth remembering that the pattern propagates by copying.
-
-**The cleanup routine this entry proposed already exists** — checked 2026-09-07.
-`renault_mqtt/mqtt.py:135-136` publishes a zero-length retained payload for every retired and
-every unsupported sensor on **each** discovery publish, so an object-id the running catalog no
-longer declares is cleared automatically. That is why this drops from P2 to P3.
-
-**What is actually left:** documenting the *manual* clear for an entity that predates the
-catalog's knowledge of it (publish a zero-length retained payload to its discovery topic), since
-the automatic sweep only covers ids the catalog still lists.
-
----
-
-## ~~P1 — Climate schedule sensors publish empty strings, not `unavailable`~~ — DONE
-
-**Component:** `alpine_a290` · **Logged:** 2026-09-05 · **Fixed:** 2026-09-07 (a290 #126, v1.26.0;
-r5 #82, v1.6.0; core renault-mqtt #26, v0.16.0)
-
-> **Resolved**, and the fix was not where three attempts looked for it. It needed **no poller
-> change at all**: the breaker already omits the keys, so declaring the two sensors in
-> `DATA_GATED_SENSORS` gives them a compound MQTT availability (the add-on's own online/offline
-> topic AND a key-presence test on the state topic, `availability_mode: all`) and the template
-> resolves to `offline` on its own. Everyone reached for the poller; the answer was in discovery.
->
-> Not verifiable by container boot on the a290: with the Renault hosts blackholed, detection
-> fails and `hvac-settings` is PESSIMISTIC, so the two sensors are withheld from discovery
-> entirely and the gating is unreachable. Verified at the discovery layer instead, and the
-> identical core path was container-verified live on r5 where they are always published.
-
-`sensor.alpine_a290_climate_schedule_mode` and `…_climate_ready_time` are fed by `hvac-settings`,
-which returns `502000` on every call for this model. When the v1.23.1 circuit breaker trips, the
-poller simply stops writing those two keys — so the retained state document omits them and both
-entities render as **empty strings** rather than `unavailable`.
-
-Empty is worse than unavailable: a card shows a blank value as though the car reported nothing,
-instead of HA marking the entity unavailable and letting a dashboard hide or grey it.
-
-**Fix:** withhold or explicitly mark the two entities unavailable when the breaker is tripped.
-
-**Why this is its own entry now.** It was a paragraph inside the `hvac-settings` 502 entry above,
-and was missed twice because of it — once when v1.23.0 shipped a gate that changed nothing, and
-again when v1.23.1 shipped the breaker and stopped at the log spam. It is the oldest unfinished
-item in this file: specified 2026-09-05, still not done across three releases.
-
----
-
-## P3 — Three concurrent Kamereon clients coexist without apparent harm
-
-**Component:** `alpine_a290` (documentation only)
-**Logged:** 2026-09-05 · *tested and refuted; kept for the evidence*
-
-Three independent clients polled the same Kamereon account on this installation: the legacy
-R5 `command_line` sensors (~5 min), the core `renault` integration (~20 min), and this
-add-on (5 min).
-
-An earlier draft of this file asserted that this was starving the add-on's session. **That
-was tested and did not hold.** The add-on's log shows uninterrupted 5-minute publishes and a
-clean `Logged in to the Renault API (session cached for reuse)` right through the period of
-supposed contention, with no auth failures and no rate limiting — while both other clients
-were polling. Disabling the legacy pollers changed nothing, because nothing was wrong.
-
-Kamereon *can* invalidate tokens on concurrent login, so the risk is real in principle and
-worth a line in the README. On the evidence here, three clients coexisted fine and the
-session caching in `renault-api` appears to absorb it.
-
-**Standing recommendation, on its own merits rather than as a fix:** decide whether the
-add-on should publish location at all when core `renault` already provides a correct, fresh
-`device_tracker` — the add-on's distinct value is climate, charge control and the dashboards.
-
----
-
-## ~~P3 — Undocumented `actions/refresh-location` endpoint for model A5E1AE~~ — DONE
-
-> **Resolved 2026-09-08.** [#2254](https://github.com/hacf-fr/renault-api/pull/2254) merged
-> 08:03Z and [#2255](https://github.com/hacf-fr/renault-api/pull/2255) merged 08:06Z; both changes
-> verified live on upstream `main` (`actions/refresh-location` present, `hvac-settings: None`).
-> §4 was withdrawn by matt on 2026-09-07 17:50Z after further testing — this entry previously
-> recorded that correction as still owed, which was itself out of date. All three fork branches
-> deleted (`a5e1ae-refresh-location-and-hvac-settings`, `a5e1ae-refresh-location`,
-> `a5e1ae-hvac-settings`), each checked for dependents first.
->
-> **Released in renault-api v0.5.14 (2026-10-01); taken in the add-on's next release (under `Unreleased`).** Both changes
-> confirmed in the v0.5.14 `models.py` diff against v0.5.13. `PESSIMISTIC_ENDPOINTS` and the
-> v1.23.1 breaker stay: the breaker guards a Renault **server** 502, which no library release
-> fixes — confirm on the car before removing it. The weekly watcher (a290 #131) reports new
-> releases rather than relying on someone remembering to look.
->
-> **Left stale on purpose:** the comment above `DATA_GATED_SENSORS` in
-> `catalog.py` ("A5E1AE advertises hvac-settings as supported ...") describes 0.5.13. It is not
-> edited here because `catalog.py` is in the UI render's path filter and that gate is red on
-> `main` (#201). Correct it in the next change that touches `catalog.py` for a real reason.
-**Component:** upstream `renault-api`
-**Logged:** 2026-09-05
-
-Logged on every start:
-
-```
-WARNING Endpoint actions/refresh-location for model A5E1AE is not documented,
-using default endpoints.
-```
-
-The add-on falls back to default endpoints and works, so this is cosmetic for users — but it
-is a standing upstream gap, and this installation has the model in hand to close it.
-Contribute the A5E1AE endpoint mapping to
-[hacf-fr/renault-api#1747](https://github.com/hacf-fr/renault-api/issues/1747), then drop the
-pin once a release carries it.
-
-**Status 2026-09-07 — DONE: both PRs are open upstream.**
-
-Filed upstream as [hacf-fr/renault-api#2250](https://github.com/hacf-fr/renault-api/issues/2250);
-maintainer `epenet` replied *"Feel free to create a PR"*. The work is **pushed to the fork** as
-`MatthewHobbs/renault-api` branch `a5e1ae-refresh-location-and-hvac-settings` (`add7a95`, signed,
-authored as matt@matthobbs.net) making exactly two changes to `kamereon/models.py`:
-
-- `"actions/refresh-location": _DEFAULT_ENDPOINTS[...]` — verified working on the car: the
-  vehicle answered 12s after invocation. `R5E1VE`, from which this entry was derived, already
-  declares it; the line was missed in the copy.
-- `"hvac-settings": None` — see the persistence evidence below.
-
-Upstream test suite passes (363 passed, 30 skipped, 1 snapshot updated).
-
-**DONE 2026-09-07 — both PRs are open upstream.** The bundled branch was split, as `epenet`
-asked twice (*"separate PR for each issue mentionnned above"*), rebased onto current upstream
-`main` (`42e92ab`), and the `.ambr` snapshot regenerated by the suite rather than hand-edited:
-
-| PR | Change | Diff |
-|---|---|---|
-| [#2254](https://github.com/hacf-fr/renault-api/pull/2254) | adds `actions/refresh-location` | +5/-0 |
-| [#2255](https://github.com/hacf-fr/renault-api/pull/2255) | sets `hvac-settings` to `None` | +2/-5 |
-
-Both cut independently from `main`, so neither blocks the other. Verified before opening: full
-suite 366 passed / 30 skipped with the same warning count as a clean `main`, upstream `ruff`
-lint + format clean, commits signed, no PII in messages or diffs. Upstream titles follow *their*
-house style (`Add … to A5E1AE (Alpine A290)`), not Conventional Commits — that rule is ours and
-does not travel.
-
-A durable clone now lives at `~/Documents/GitHub/renault-api`; the original was under
-`/private/tmp`, which was the real fragility.
-
-**Housekeeping, still outstanding — do this only once #2254 and #2255 have both merged:**
-delete the superseded bundled branch `a5e1ae-refresh-location-and-hvac-settings` from the fork
-(`git push origin --delete a5e1ae-refresh-location-and-hvac-settings`). It is kept until then in
-case a maintainer wants the combined view. Nothing depends on it; both PRs use their own
-branches.
-
-**Correction still owed on #2250 — a wrong claim is standing publicly.** §4 of the issue claims
-`hvac-history` and `hvac-sessions` are absent from the `A5E1AE` entry and need setting to
-`None`. Both were **already `None` upstream** before this branch was cut (confirmed by reading
-`add7a95^:src/renault_api/kamereon/models.py`); the finding was made against the 0.5.12
-installed locally rather than upstream `main`. The commit correctly does not touch them, so only
-the issue text is wrong. §3 was already corrected in the thread on 2026-09-07; §4 was not.
-
-Also seen in the same log, and worth watching rather than fixing here:
-
-```
-WARNING hvac-settings unavailable: err.tech.vcps.ev.hvac-settings.error
-  errorCode 502000 "something went wrong"
-```
-
-That is a Renault-side 502 on the HVAC settings endpoint, not an add-on fault. If it proves
-persistent rather than transient, degrade the affected entities to `unavailable` instead of
-logging a warning each cycle.
-
-**Persistence established 2026-09-07: it is not transient.** ~94 consecutive failures over
-7h35m at a 5-minute interval, zero successes, across four distinct `error_reference` prefixes —
-so not one unhealthy backend node.
-
-**Partially actioned.** v1.23.1 ships a circuit breaker: three consecutive failures pause the
-call for the session, it retries every 12 polls (~hourly) and re-enables itself on recovery.
-That stops the log spam. It does **not** degrade the entities — see the entry below, which was
-split out of this one because it kept being missed while buried here.
-
-Note also that gating on advertised support does not work here — `supports_endpoint()` reads a
-static per-model table which returns True for this endpoint, so v1.23.0 shipped a gate that
-changed nothing. Only the call's behaviour is a usable signal.
-
----
-
-## ~~P1 — r5 has the `data_stale` defect a290 fixed in v1.24.0~~ — DONE
-
-**Component:** `renault_5` · **Logged:** 2026-09-07 · **Fixed:** 2026-09-07 (r5 #82, v1.6.0)
-
-> **Resolved.** `freshness_fields()` ported, `r5_poll_failing` + `r5_last_successful_poll` added,
-> the `or iso(now_ts())` fabrication on `battery_last_activity` removed, and `stale_hours`
-> defaulted to 36. Entity names stayed r5's own for forked-view compatibility. Container-verified:
-> 41 sensors / 8 binary_sensors (was 40/7), and the retained state document omits `data_stale`
-> when no car timestamp has been seen rather than asserting a confident "off".
-
-`renault_5/app/main.py` still sets `data["data_stale"] = "off"` unconditionally on every
-successful poll, so an R5 that stops reporting reads as healthy indefinitely — the identical
-defect described (and fixed for the a290) below. It also carries the same
-`or iso(now_ts())` fabrication on `battery_last_activity`.
-
-The a290 side is complete and released, so per the a290-first rule this is now mirrorable:
-port `freshness_fields()`, add `r5_poll_failing` + `r5_last_successful_poll` to the catalog, and
-drop the fabricated timestamp fallback. **Entity names must stay r5's own** (forked-view
-backward compatibility), so this is not a copy-paste.
-
----
-
-## ~~P1 — `data_stale` measures the poll, not the car, so three days of silence read as healthy~~ — DONE
-
-**Component:** `alpine_a290` (`main.py`)
-**Logged:** 2026-09-07 · **Fixed:** 2026-09-07 (a290 #115, v1.24.0)
-
-> **Resolved.** `data_stale` now compares the timestamp inside the **battery-status** payload
-> against `stale_hours`. The poll-success signal moved to a new
-> `binary_sensor.*_poll_failing` carrying the identical old rule, so no alerting was lost, plus
-> a `sensor.*_last_successful_poll` heartbeat. Two corrections to the fix as specified below:
->
-> - **Not `cockpit`.** The entry says "`cockpit`/`battery-status`", but cockpit commits only at
->   power-off, so keying on it would mark every parked car stale — the very mistake the
->   `gps_last_activity` entry describes. battery-status is the source.
-> - **`last_updated` was fabricating freshness.** `getattr(battery, "timestamp", None) or
->   iso(now_ts())` stamped a timestamp-less payload as arriving that instant, which would have
->   made staleness permanently unfireable. Removed; it now reads `unknown`.
->
-> Note the consequence, since it looks like a regression and is not: a car parked longer than
-> `stale_hours` now reads `data_stale: on`, because the reading genuinely is that old. Paired
-> with `poll_failing: off` that means "working fine, car simply parked". Documented in v1.24.1.
-> **r5 has the identical defect and is NOT yet mirrored.**
-
-`binary_sensor.alpine_a290_data_stale` is derived from `state["last_success"]`, which records
-when the **poll** last succeeded — not when the **car** last reported. `main.py:624` sets it
-`"off"` unconditionally on every successful poll.
-
-Observed on this installation: the vehicle last reported at **2026-09-04T15:50Z**; ~68 hours
-later, with `stale_hours` at 6:
-
-| Entity | Value |
-|---|---|
-| `sensor.alpine_a290_last_updated` | `2026-09-04T15:50:04Z` — correct |
-| `binary_sensor.alpine_a290_data_stale` | **`off`** — "healthy" |
-
-The add-on polled Renault successfully every five minutes throughout, received the same
-three-day-old payload each time, and reported it as fresh. Battery showed 55% while the car was
-actually at 83% — a 28-point error presented as current.
-
-This is the same defect as the `gps_last_activity` entry below, inverted: that one measures the
-car where it should measure the feed; this one measures the feed where it should measure the
-car. Both should key off the timestamp **inside the payload**.
-
-Fix: compare the payload timestamp (`cockpit`/`battery-status` `timestamp`) against
-`stale_hours`, and keep the poll-success signal as a separate concern — a failed poll and stale
-data are different conditions and deserve different entities.
-
----
-
-## ~~P2 — `Refresh Location` should be opt-in, not published by default~~ — DONE
-
-> **Resolved 2026-09-08** — a290 #129, v1.27.0; shared core renault-mqtt #27, v0.17.0. The
-> button now needs `enable_refresh_location` as well as `publish_location`, defaulting to off
-> including when the variable is unset, so an upgraded install withholds it rather than keeping
-> it. The gate covers the inbound MQTT **command** as well as discovery — the entity is pressable
-> from voice, automations and any dashboard, so hiding it alone would have left every other path
-> working — and a refused press is rejected before the login, so it never authenticates.
-> Withholding rides the existing zero-length retained publish, so an upgrade removes the button
-> rather than leaving a dead one behind.
->
-> **Two corrections to this entry's own reasoning, worth keeping.** A review round argued the harm
-> was unestablished N=1 with no pre-press control, and that reading was accepted for a while. It
-> was wrong: the controlled experiment exists, in matt's own §3 comment on
-> [hacf-fr/renault-api#2250](https://github.com/hacf-fr/renault-api/issues/2250) — a valid fix
-> survived days parked, the press replaced it, the next journey restored it. The apparent
-> self-contradiction between "replaces the cached position" and "a parked car keeps its last
-> committed fix" is not one: those are the press arm and the control arm of the same experiment.
-> Both the reviewer and the session that accepted it had read only this repo. **The decisive
-> evidence was upstream.**
->
-> Second: "persists 18 hours" is not a bound. It persists **until the next completed journey**,
-> which for a car used as needed rather than daily may be weeks. A car parked for a week is not
-> broken — but its recorded position stays wrong for that week.
->
-> r5 mirror still outstanding: same default, but precautionary rather than observed on that model.
-**Component:** `alpine_a290` + `renault_5` (catalog / config schema) · **Logged:** 2026-09-07
-
-The button is destructive on a parked car and has no established upside on this platform. It
-should be gated behind a new `enable_refresh_location` option defaulting to **`false`**.
-
-**Why it is destructive.** Invoking it on a vehicle that cannot obtain a fix replaces the last
-valid cached position with `gpsLatitude 91` / `gpsLongitude 181` on a *current* timestamp, and
-that state persists until the next completed journey — 18 hours, observed. There is no call that
-restores it; only driving does.
-
-**Why it is now WORSE than before the v1.23.0 fix, which is the part worth understanding.** That
-release made the add-on reject the sentinel, so the tracker keeps its last known position and
-Home Assistant looks perfectly healthy. But rejection only protects *our* entity — the Kamereon
-data is still overwritten, which is why Renault's own app reported "We are unable to geolocate
-your vehicle" for those 18 hours. The damage did not go away; it went **silent**. A user now
-presses the button, sees nothing wrong in HA, and has a broken position in the official app.
-
-**Why there is no upside to weigh against it.** `location` commits at power-off together with
-`cockpit` — it is a trip-end event, not live telemetry (see the update-cadence section in
-`DOCS.md`). A parked car has nothing newer to fetch, and the one tested invocation returned the
-sentinel. On a moving car `location` was observed not to update at all during an 18-minute drive.
-
-**Fix:**
-
-- New option `enable_refresh_location`, default `false`, with the warning in its description.
-- Gate BOTH the discovery publish and the inbound command on it, exactly as `publish_location`
-  already gates them (`mqtt.py` publishes the button only when the endpoint is supported and
-  `PUBLISH_LOCATION`; `main.py` ignores the command via `LOCATION_CMDS`). Gating at the source
-  matters because the entity is pressable from voice, automations and any dashboard — a
-  confirmation on the bundled dashboard would only cover one path.
-- Prominent CHANGELOG entry: existing installs lose the button until they opt in. That is a
-  visible change and should not be a quiet line.
-
-**Open question for r5.** The harm mechanism is platform-level — a sleeping car cannot obtain a
-fix — and the R5 is the same CMF-BEV / KCM platform, so it very likely applies. But it is
-**untested there**, and the standing rule is not to assume A290 behaviour holds for R5. Suggested:
-default `false` in both for consistency, and say plainly in r5's changelog that it is
-precautionary rather than observed.
-
-Runtime change in both add-ons: needs container verification and a release each.
-
----
-
-## ~~P2 — `actions/refresh-location` is destructive on a parked vehicle~~ — DONE
-
-> **Resolved 2026-09-08** by the entry above (a290 #129 / core #27). This is the evidence entry
-> for that fix; the remedy it proposed — withhold the button rather than filter its output —
-> shipped in v1.27.0. Documented upstream in hacf-fr/renault-api#2250 §3.
-**Component:** `alpine_a290` (Refresh Location button) + upstream docs
-**Logged:** 2026-09-07
-
-Invoking it on a car that cannot obtain a fix **replaces the last valid cached position** with
-`gpsLatitude 91` / `gpsLongitude 181` and a *current* timestamp. There is no call that restores
-it; only completing a journey does. Observed here: the marker persisted **18 hours** until the
-next drive, during which the vehicle reported `not_home` while parked on the drive, and Renault's
-own app showed "We are unable to geolocate your vehicle."
-
-The fresh timestamp is what makes it dangerous — a staleness check passes while the coordinates
-are unusable, so the bad data looks *more* current than the good fix it replaced.
-
-Established by testing on 2026-09-07: `location` and `cockpit` commit together at **power-off**
-with an identical timestamp; they are trip-end events, not continuous telemetry. `battery-status`
-and `hvac-status` refresh independently while parked. So `91/181` means "no fix available right
-now", **not** a fault — a parked car simply keeps serving its last committed fix.
-
-v1.23.1 already rejects `91/181` rather than publishing it, which protects our entity but **not
-the car's data** — Renault's own app still showed no position for 18 hours. See the entry above,
-which proposes the actual remedy: make the button opt-in behind `enable_refresh_location`,
-defaulting to off, rather than documenting a hazard and leaving it enabled.
-
----
-
-## ~~P2 — `gps_last_activity` measures the car, not the feed~~ — ADD-ON SIDE DONE
-
-**Component:** `alpine_a290` (and any consumer of `binary_sensor.a290_gps_stale`)
-**Logged:** 2026-09-05
-
-`binary_sensor.a290_gps_stale` compares `sensor.alpine_a290_gps_last_activity` against a
-26-hour threshold. But that timestamp is the **car's** last GPS activity as reported by
-Kamereon — and a stationary car generates none. So the sensor fires for any vehicle left
-still for more than a day, which for a car parked at home is most of the time.
-
-**Observed live:** the sensor read `on` with the car on its own driveway, plugged in and
-charging normally, because `gps_last_activity` was 2026-09-02 and the car had not moved
-since. The Home dashboard card consequently rendered
-`GPS stale 72.5h · last: Home · 55%` for a car that was fine.
-
-This is the same confusion as the `last_reported` mistake recorded in P1 above: **data
-freshness and subject activity are different quantities.** "The car has not moved" and
-"we have not heard from the car" look identical if you only look at the car's own
-timestamps.
-
-**Workaround already applied** (display layer, not a fix): the dashboard card now tests
-`Home` before `stale`, so a car at home never shows a staleness warning. The underlying
-sensor is still wrong for any parked-away-from-home case.
-
-> **The add-on half is complete (v1.24.0, #115).** This entry asked for a
-> `last_successful_poll` timestamp published on every completed cycle, keyed off instead of the
-> car's own activity — that is exactly `sensor.alpine_a290_last_successful_poll`, which now
-> exists alongside `binary_sensor.*_poll_failing`.
->
-> What remains is **not in this repo.** `binary_sensor.a290_gps_stale` is not published by the
-> add-on at all — it appears only in a code comment and a test here. It is a user-side template
-> sensor, so re-pointing it at `last_successful_poll` is a Home Assistant config change, not an
-> add-on change. Kept only as a note to whoever owns that template.
-
-**Original fix (now shipped):** derive staleness from **when the add-on last successfully fetched**, not from when
-the car last moved. Publish a `last_successful_poll` timestamp on each completed cycle
-(this is the same heartbeat proposed in P1 — one field satisfies both), and key the
-staleness binary sensor off that. Then "stale" means "we have not heard from Kamereon",
-which is the thing worth alerting on, and a parked car reads as healthy.
-
-## P2 — GPS staleness guard is blind on a process that has never had a usable fix
-
-**Component:** `alpine_a290` (`poll_once`) · logged 2026-09-06
-
-`gps_last_activity` carries the last USABLE fix time forward when a location payload is
-rejected, so `binary_sensor.*_gps_stale` stays armed. Both fallbacks — persisted `state` and
-the in-process `_LATEST` — are empty on the first poll of a freshly started process, so if that
-poll returns a sentinel the key is omitted from the retained state document and the guard reads
-"not stale" until the first usable fix arrives.
-
-Surfaced by dual review across three separate rounds; not fixed because every cheap option is
-wrong (advancing the timestamp is the original bug; publishing a fabricated old one is
-dishonest). The correct fix is to seed `state["gps_last_activity"]` at startup by reading the
-add-on's own retained state topic before the first publish, which is real MQTT work rather than
-a tweak.
-
-Mitigations already in place: a WARNING on every rejected fix, and no tracker attributes
-published, so nothing asserts a false position. Self-corrects permanently on the first usable
-fix.
-
-**Separate operational note:** a retained payload published by an OLDER version is not cleared
-by this fix. An install that already retained sentinel coordinates keeps showing them until a
-usable fix replaces them, or until the attributes topic is cleared by hand.
-
-## P2 — Bubble: a wrapped separator heading loses its yellow line at 360px
-
-**Component:** `alpine_a290/dashboards/front-end-bubble.txt` · logged 2026-09-27, from the r5 twin's #116 run
-
-With the 1.28.6 wrap (#170), a separator heading that wraps onto a second line at 360px squeezes
-out its `.bubble-line` (the yellow rule): no overlap, the row just grows and the line goes.
-Observed by the r5 session rendering its mirror of the Bubble dashboard through the all-pop-ups
-harness; the separators are identical here, so it is expected on a290 too, **not yet observed on
-a290's own gate**. A dashboard fix goes a290 first, r5 mirrors it.
-
-## P2 — Conformance test: the domain allowlist exempts more than it names
-
-**Component:** `alpine_a290/tests/test_dashboard_conformance.py` · logged 2026-09-27, from the r5 twin's #111 review
-
-Two low findings, no effect while `_ALLOWED_DOMAINS` is empty: (1) `_allowed()` is domain-wide,
-so listing a domain also exempts a misspelt or nonexistent id in that domain from the existence
-and wrong-domain checks, and the escape-hatch test asserts exactly that; per-id or per-reason
-scoping would close it. (2) `test_ui_gate_seeds_what_the_add_on_publishes` does not consult
-`_allowed()`, so a seeded id in a listed domain reads "not published": a false fail, never a
-false pass. a290 fixes first, r5 mirrors.
+- No `prefers-reduced-motion` guard against about 17 infinite CSS animations. The UI harness
+  forces `reduced_motion="reduce"` because production never respects the OS setting.
+- `dashboards/CSS/zen-dots.css` has no `font-display`, risking FOIT on a slow connection.
+- `panel.html` updates auth-failure and data-stale status every 10s with no `aria-live`, and has no
+  `<main>` landmark.
+- `front-end-bubble.txt` uses `background-attachment: fixed`, a known mobile scroll-jank pattern.
+- Unavailable data renders like critically-low (`range` → `float(0)` → red band).
+
+## P3 — Retained discovery: document the manual clear
+
+**Component:** `renault-mqtt` (documentation) · **Logged:** 2026-09-05
+
+Discovery is retained, so an entity outlives the add-on that created it. The code already clears
+every retired and unsupported object id on each discovery publish (`renault_mqtt/mqtt.py`). What
+is left is documenting the manual clear for an entity the catalog no longer knows (publish a
+zero-length retained payload to its discovery topic). No confirmed instance of the risk.
+
+## P3 — Three concurrent Kamereon clients coexisted without harm
+
+**Component:** `alpine_a290` (documentation only) · **Logged:** 2026-09-05
+
+A legacy `command_line` poller (~5 min), the core `renault` integration (~20 min) and this add-on
+(5 min) polled one account together with no auth failures or rate limiting, and disabling the
+others changed nothing. Kamereon can invalidate tokens on concurrent login, so the risk is real in
+principle and worth a line in the README. Open question: should the add-on publish location at all
+when core `renault` already provides a fresh `device_tracker`? Its distinct value is climate,
+charge control and the dashboards.

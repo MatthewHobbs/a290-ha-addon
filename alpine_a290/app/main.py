@@ -152,9 +152,9 @@ def freshness_fields(state, payload_iso, stale_secs, last_ok):
     `data_stale` answers "has the CAR reported within stale_hours", from the timestamp inside
     the battery-status payload. `poll_failing` answers "can WE reach Kamereon", from our own
     poll clock. Before v1.24.0 one entity carried the second meaning and was forced "off" on
-    every successful poll, so the first was never asked: a vehicle silent since 2026-09-04 was
-    polled successfully every five minutes for 68 hours and reported as healthy, showing 55%
-    while the car was at 83%.
+    every successful poll, so the first was never asked: a vehicle silent for days was
+    polled successfully every five minutes and reported as healthy, showing a stale charge
+    level while the car was well above it.
 
     battery-status is the right source and `cockpit` is not: cockpit commits at power-off, so
     keying on it would mark every parked car stale — the same mistake `gps_last_activity` makes.
@@ -601,7 +601,7 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
             # build_location_attrs returns None when the payload carries no usable fix, which
             # Kamereon signals with an out-of-band sentinel rather than a null: this car returned
             # 91/181 on a fresh timestamp and the old `is not None` check published it as a real
-            # position, flipping the car to not_home while parked at home.
+            # position, flipping the car to not_home while it was parked.
             location_attrs = build_location_attrs(loc, GPS_PRECISION)
             if location_attrs is None:
                 # gps_last_activity must be neither ADVANCED nor DROPPED here, and both failure
