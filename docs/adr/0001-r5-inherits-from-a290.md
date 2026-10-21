@@ -4,23 +4,23 @@
 - **Context:** Every change is ported between `a290-ha-addon` and `r5-ha-addon` by hand, from one
   repository to the other. A read-only parity baseline on 2026-09-26 (a290 `bddda7f`,
   v1.28.1; r5 `6957d57`, v1.8.3) found 45 of about 85 shared files differing, 12 fixes r5 had
-  that a290 lacked, 19 the other way, and 32 same-intent items that had diverged. Put to the owner
-  as "RFC: How r5 inherits from a290" (cited below).
+  that a290 lacked, 19 the other way, and 32 same-intent items that had diverged. I weighed the
+  options in "RFC: How r5 inherits from a290" (cited below).
 - **North star:** the shared runtime lives once, in the `renault-mqtt` core, with one set of
   tests covering both cars; both cars' entities carry the same descriptive names; each add-on
   holds only its catalog data, config, dashboards and docs, and nothing the two share drifts
   unnoticed.
 
-*Format per the owner's ADR template, referenced rather than copied: the
+*Format per my ADR template, referenced rather than copied: the
 North star and the Decision table are THE PLAN and are kept current; Context, Alternatives,
-Consequences and Verification are THE RECORD and are dated, corrected but not revised. Accepting
-this ADR is the approval to carry out its Open rows in their named repos, each in that repo itself
-and within its standing rules.*
+Consequences and Verification are THE RECORD and are dated, corrected but not revised. Each Open
+row is carried out by its Owner, in the repository it names, under that repository's normal
+rules.*
 
 ## Decision
 
 Stage A, a mechanical parity check with hand-porting, is the short-term solution. Stage B,
-growing the shared `renault-mqtt` core, is the correct long-term solution. In the owner's words
+growing the shared `renault-mqtt` core, is the correct long-term solution. In my words at the time
 (2026-09-26): "A is the short term solution. The overhead of maintenance of both is too great. B
 is the correct solution, with a caveat that the r5 users are using the Topolini65 dashboards, if
 they are using the dashboards bundled here surely the point is moot and entities can be
@@ -28,17 +28,17 @@ descriptive as with the a290."
 
 Options C (generate r5 from a290) and D (one repository) are not adopted by this decision.
 
-**Naming, decided later the same day, replacing the RFC's "r5 keeps its legacy names".** The
-owner's caveat above was investigated read-only. The research reported that no revision of
+**Naming, decided later the same day, replacing the RFC's "r5 keeps its legacy names".** My
+caveat above was investigated read-only, and the research reported that no revision of
 Topolino65's dashboards uses any r5 entity id, so the compatibility the legacy names were kept
-for never existed, and that every visible r5 user runs r5's bundled dashboard. The owner then
-decided: r5 moves to descriptive, a290-style entity names, but only after the `renault-mqtt`
-core supports (1) `default_entity_id` (RFC 0005, accepted), so new ids do not get area
+for never existed, and that every visible r5 user runs r5's bundled dashboard. I then decided:
+r5 moves to descriptive, a290-style entity names, but only after the `renault-mqtt` core
+supports (1) `default_entity_id` (RFC 0005, accepted), so new ids do not get area
 prefixes, and (2) retiring old button and number discovery topics (it already retires
 sensors). r5 then ships **one** migration release. Because `unique_id` is the object id, that
 release creates new entities; history stays under the old ids, and the CHANGELOG warns about
 both. A stub-HA experiment confirms the registry behaviour first. r5's docs claiming its
-entities "bind straight to" Topolino65 are corrected now, and the owner posts a
+entities "bind straight to" Topolino65 are corrected now, and I post a
 dashboard-usage survey on r5 before the rename release.
 
 After that release the shim no longer needs the legacy-rename table: the `legacy` rules in
@@ -50,15 +50,15 @@ nothing fails as stale, as an expected entry does.
 | --- | --- | --- | --- | --- |
 | 1 | Stage A in a290: `scripts/parity_check.py`, its normalisation map and expected-differences list under `scripts/parity/`, `just parity`, and the `Parity with r5` CI job | a290-ha-addon | Done | `c85bfea` (#158, merged 2026-09-26). This row was left Open in the table long after landing; corrected 2026-09-27 |
 | 2 | Stage A in r5: copy `scripts/parity_check.py` byte-for-byte and its own copies of `scripts/parity/map.tsv` and `expected.tsv`; add `just parity` and a CI job that checks out a290's main; then delete the `pending` entry for `scripts/parity_check.py` in both lists | r5-ha-addon | Open | Confirmed still not done (2026-09-27): no `parity` recipe in r5's justfile, no parity step in its `ci.yaml`. Row 3 is blocked on this |
-| 3 | Decide whether `Parity with r5` becomes a required check, in each repo, once row 2 has landed and the list has held for a week | owner | Blocked | Owner decided yes for both (2026-09-27), and a290's half is done: its check has run in CI since row 1 landed and is now a required status check (`gh api .../branches/main/protection`, verified against the repo's merge invariant with `repo-protect.sh`). Row stays Blocked because r5 has no check to require until row 2 lands |
+| 3 | Decide whether `Parity with r5` becomes a required check, in each repo, once row 2 has landed and the list has held for a week | me | Blocked | I decided yes for both (2026-09-27), and a290's half is done: its check has run in CI since row 1 landed and is now a required status check (`gh api .../branches/main/protection`, verified against the repo's merge invariant with `repo-protect.sh`). Row stays Blocked because r5 has no check to require until row 2 lands |
 | 4 | Work the `pending` entries down: each is a port or a decision with a named Target. The list is the backlog; an entry is deleted when its difference is gone, and the check fails until it is | both add-on repos | Open | `scripts/parity/expected.tsv` |
-| 5 | Decide the RFC's open behaviour differences (MQTT keepalive, re-login policy, hvac-settings, cabin temperature, plug-suspect input, coverage floor); each is a `pending` entry until then | owner | Open | Decided 2026-09-27: **keepalive** stays a290's 60s, r5 bumps from 30s. **Re-login** stays a290's policy (auth error or every 3rd failure), r5 changes to match. **Plug-suspect** ports r5's decoded `PlugState` into a290 (r5's approach is better). **Coverage floor**: r5 raises to 95 (it already measures 98, so this is free). Still open, pending real-car evidence from r5: **hvac-settings** (does an R5 actually answer the endpoint, unlike the A290's `502000`?) and **cabin temperature** (does an R5 actually return it?) — for r5 to establish before either is decided |
+| 5 | Decide the RFC's open behaviour differences (MQTT keepalive, re-login policy, hvac-settings, cabin temperature, plug-suspect input, coverage floor); each is a `pending` entry until then | me | Open | Decided 2026-09-27: **keepalive** stays a290's 60s, r5 bumps from 30s. **Re-login** stays a290's policy (auth error or every 3rd failure), r5 changes to match. **Plug-suspect** ports r5's decoded `PlugState` into a290 (r5's approach is better). **Coverage floor**: r5 raises to 95 (it already measures 98, so this is free). Still open, pending real-car evidence from r5: **hvac-settings** (does an R5 actually answer the endpoint, unlike the A290's `502000`?) and **cabin temperature** (does an R5 actually return it?) — for r5 to establish before either is decided |
 | 6 | B1: move the verbatim duplicates into the core, starting with `resolve_account`, `VehicleSession`, `freshness_fields` and the breaker. Exit: both add-ons on the new core, container boot passing | renault-mqtt | Open | |
 | 7 | B2: make `poll_once` catalog-driven, so the per-car data keys are catalog data, not code. Exit: `main.py` in each add-on shrinks to configuration | renault-mqtt | Open | |
 | 8 | Core: `default_entity_id` in discovery (RFC 0005), so new ids get no area prefix | renault-mqtt | Open | |
 | 9 | Core: retire old button and number discovery topics, as it already does for sensors | renault-mqtt | Open | |
 | 10 | Correct r5's docs where they say its entities "bind straight to" Topolino65 | r5-ha-addon | Open | |
-| 11 | Post a dashboard-usage survey on r5 before the rename release | owner | Blocked | Owner confirmed yes, 2026-09-27. Nothing to post yet: the rename release is itself `Blocked` (rows 12-13) behind core rows 6-9, none of which have started, so there is no release date to survey ahead of |
+| 11 | Post a dashboard-usage survey on r5 before the rename release | me | Blocked | I confirmed yes, 2026-09-27. Nothing to post yet: the rename release is itself `Blocked` (rows 12-13) behind core rows 6-9, none of which have started, so there is no release date to survey ahead of |
 | 12 | Stub-HA experiment: confirm the registry behaviour of the rename (new entities, since `unique_id` is the object id; history stays under the old ids) before anything ships | r5-ha-addon | Blocked | awaits rows 8 and 9 in a core release |
 | 13 | r5's single naming migration release: a290-style descriptive names, the CHANGELOG warning about the new entities and the history left under the old ids; then delete the `legacy` rules and entries from both repos' parity map and list | r5-ha-addon | Blocked | awaits rows 8, 9, 11 and 12 |
 
@@ -74,7 +74,7 @@ Topolino65-compatible legacy names (14 renames, 136 references), cabin temperatu
 never returns it), hvac-settings (the A290 answers `502000`; R5 behaviour unobserved), and car
 renders and branding. Everything else is duplication that drifts.
 
-Already settled by the owner on 2026-09-26 before the RFC's options were weighed: a290 is
+Already settled by me on 2026-09-26 before the RFC's options were weighed: a290 is
 upstream and r5 inherits, with model nuances in shims; r5 keeps its legacy names through a
 rename table (replaced the same day by the naming decision above); Start Climate keeps
 `precondition_temperature` but defaults to the car's own setting; the user docs keep saying
@@ -90,7 +90,7 @@ RFC doc stays editable.
 | C. Generate r5 from a290 (not adopted in this decision) | a290 is the only hand-edited tree; a generator applies the shim map and overlays and opens a PR on r5 per change. | Medium. | A generator bug mis-renames r5 entities; hand edits on r5 must be blocked; a bot token is a new write credential. |
 | D. One repository (not adopted in this decision) | Both add-ons in one repo. | Medium to large. | High: r5's install URL changes and existing users stop getting updates until they re-add it. |
 
-The RFC recommended A now, then B for code and C for everything else, and ruled out D. The owner
+The RFC recommended A now, then B for code and C for everything else, and ruled out D. I
 adopted A and B; C was not taken up, so dashboards, docs, the UI harness and CI stay
 hand-ported under A's check for now.
 
@@ -109,7 +109,7 @@ hand-ported under A's check for now.
   CHANGELOG, `DOCS.md`, the root `README.md` and the contributor notes. Drift inside them is not caught.
 - An entry excuses a count of differences, not their content. A change inside an already-excused
   block that keeps the count (a rewrite inside the listed `poll_once` symbol, say) passes. Found
-  in review and accepted by the owner on 2026-09-26: pinning each difference's content would fail
+  in review and accepted by me on 2026-09-26: pinning each difference's content would fail
   on every harmless edit to a pending area. Revisit once r5 has adopted the check and the pending
   entries have shrunk.
 
@@ -135,15 +135,15 @@ See the PR that lands row 1 for the commands and output; in summary:
 - It fails when a map rule rewrites nothing (stale), so the `legacy` rules cannot outlive r5's
   rename unnoticed.
 - **Not re-verified here:** the naming research (Topolino65 dashboards use no r5 entity id;
-  visible r5 users run the bundled dashboard) reached this ADR's author through the
-  coordinating work; it was not re-checked for this ADR. r5 later confirmed the
-  0-of-58 result independently on its own Topolino65 snapshot.
+  visible r5 users run the bundled dashboard) reached me through the coordinating work and was
+  not re-checked for this ADR. r5 later confirmed the 0-of-58 result independently on its own
+  Topolino65 snapshot.
 - **Not verified:** the CI job itself, which runs only once the PR is open; and that the audit's
   item ids resolve anywhere a future reader can follow (the baseline report was a working
   artefact, summarised in the RFC).
 
 ## References
 
-- RFC: How r5 inherits from a290, unnumbered, to be listed in the owner's RFC index.
+- RFC: How r5 inherits from a290, unnumbered, to be listed in my RFC index.
 - `scripts/parity_check.py`, `scripts/parity/map.tsv`, `scripts/parity/expected.tsv`.
-- RFC 0005, pinning MQTT entity ids with `default_entity_id` (the owner's RFC index).
+- RFC 0005, pinning MQTT entity ids with `default_entity_id` (my RFC index).
