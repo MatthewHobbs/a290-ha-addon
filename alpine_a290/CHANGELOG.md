@@ -29,11 +29,12 @@
   package is installed. With the package, nothing changes.
 - **Section headings on the standard dashboard wrap again on Home Assistant 2026.10**, which draws
   their titles differently and was cutting long ones short on narrow phones.
-- **To get the three dashboard fixes above, redeploy the dashboard**: an existing dashboard is
-  never overwritten on its own. Set `redeploy_dashboard: true` and restart (this replaces your
-  edits), then set it back to `false`; or paste `front-end.txt` / `front-end-bubble.txt` again.
-- **The image no longer ships the base image's unused `tempio` binary**, which security scanners
-  flagged; it was previously rebuilt from source.
+- **To get the dashboard fixes above, update your dashboard**: an existing one is never
+  overwritten on its own. If the app deployed it, set `redeploy_dashboard: true` and restart (this
+  replaces your edits), then set it back to `false`. If you pasted it yourself, paste
+  `front-end.txt` / `front-end-bubble.txt` again.
+- **The image no longer ships the base image's unused `tempio` binary.** It used to be rebuilt from
+  source to clear scanner findings; nothing uses it, so it is now removed. No change in behaviour.
 
 ## 1.28.13
 
