@@ -74,7 +74,9 @@ Dots** Google font as a Lovelace resource, and creates the dashboard via the HA 
 it appears in your sidebar.
 
 It is **create-once**: if the dashboard already exists it's left untouched (your edits are
-safe). To pull in a later layout update, set `redeploy_dashboard: true` and restart once.
+safe). To pull in a later layout update, or to switch an already-deployed `standard` to
+`bubble` at the same `dashboard_url_path`, set `redeploy_dashboard: true` and restart once;
+that overwrites any edits.
 
 ### 4. Control buttons + optional extras
 

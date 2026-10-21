@@ -38,7 +38,7 @@ alpine_a290/                 the add-on (this is what HA installs)
                              conformance and the renault-api contract
   config.yaml                add-on manifest: version, options + schema
   Dockerfile                 alpine base, HEALTHCHECK, root user (# nosec B104 for 0.0.0.0 bind)
-  run.sh                     bashio entrypoint (reads /data/options.json)
+  run.sh                     bashio entrypoint (options via bashio::config)
   apparmor.txt               the add-on's AppArmor profile
   dashboards/                front-end.txt (standard) + front-end-bubble.txt (Bubble Card), assets,
                              Packages/ (optional test mode), Templates/, INSTALLATION.md, USER-GUIDE.md
@@ -116,7 +116,7 @@ home-directory paths). Keep test data synthetic.
 
 The `ui-tests/` gate (its own `ui-tests.yaml` workflow, path-filtered to dashboards and
 ui-tests) is run with `ui-tests/run.sh`. It boots a throwaway HA container, seeds entities, and
-uses Playwright across about 10 phone viewports to fail on any text truncation or
+uses Playwright across seven phone viewports to fail on any text truncation or
 `hui-error-card`. Run it whenever you touch `alpine_a290/dashboards/` or `ui-tests/`.
 
 The harness **pins its render inputs** in `ui-tests/run.sh` so the gate is deterministic: the HA
@@ -131,7 +131,8 @@ pinned. Keep them identical to the r5 twin's `ui-tests/run.sh` and Renovate rule
 The gate has **two legs**: that stable pin, and the declared minimum (`homeassistant:` in
 `alpine_a290/config.yaml`, currently 2026.8.1), read from the manifest so the test cannot drift
 from the claim. The minimum leg renders only for a release PR, a change to `version:` or
-`homeassistant:`, or a manual dispatch; otherwise it reports success with every step skipped. The stable leg warns (does not fail) while its pin lags current stable; the fix
+`homeassistant:`, or a manual dispatch; otherwise it reports success with every step skipped.
+The stable leg warns (does not fail) while its pin lags current stable; the fix
 is merging Renovate's render-inputs PR. `scripts/ha_minimum_check.py` (CI Lint job,
 `just ha-min`) fails if the minimum is missing or newer than the `.1` of the month before
 current stable, read live from `version.home-assistant.io/stable.json`, or is not a published
@@ -152,8 +153,8 @@ Two things make a naive run fail:
   options file achieves nothing: `/run.sh` gets empty config and the add-on correctly exits
   with `Missing required setting`. Bypass `run.sh` with `--entrypoint python3` and pass the
   `A290_*` env vars directly.
-- **The poller needs an MQTT broker** or it dies on `ConnectionRefusedError` before it ever
-  serves `/healthz`.
+- **The poller needs an MQTT broker.** `/healthz` comes up first, but with no broker the add-on
+  never connects, publishes no discovery, and the checks below have nothing to read.
 
 There are no test credentials. `renault-api` has no sandbox and authenticates only against
 production Gigya/Kamereon, so blackhole the three real hosts and the boot test never reaches
@@ -202,7 +203,8 @@ Exceptions (CI is enough): docs-only, CI-YAML-only, or test-only changes.
 add-on under a real **stable-channel Supervisor** in the official add-on devcontainer, on amd64
 and aarch64. It runs two Core legs: current stable, and the `homeassistant:` minimum read from
 `config.yaml`. Nightly it runs amd64 on Core stable only; on Wednesdays, on demand, and on PRs
-that touch the pilot or what the Supervisor runs, it runs all four legs. It is **not a required check** yet (ADR row 5). It checks that versions match
+that touch the pilot or what the Supervisor runs, it runs all four legs. It is **not a required
+check** yet (ADR row 5). It checks that versions match
 `stable.json`, that the running image is this checkout's build (provenance label), `/healthz`,
 the image HEALTHCHECK, the retained MQTT discovery and availability topics, that Renault was
 tried and refused, and that the dashboard the default options deploy (`deploy_dashboard:
@@ -275,8 +277,9 @@ version literal in code (`main.py` reads `R5_VERSION`, which its release workflo
   GPS) are sensitive. `debug_dump: true` logs decoded API responses but masks them first (the core's
   `renault_mqtt.debug` key masking plus `renault_mqtt.config.redact`, also applied to every log
   line and traceback). Never add a logging path that bypasses it, and never lift the
-  `renault_api` logger clamp in `main.py` (`setup_logging`). At DEBUG, renault-api (checked at 0.5.13, not
-  re-checked since) logs full, unredacted Kamereon request and response bodies (VIN, account ids, unrounded GPS) and
+  `renault_api` logger clamp in `main.py` (`setup_logging`). At DEBUG, renault-api (checked
+  at 0.5.13, not re-checked since) logs full, unredacted Kamereon request and response bodies
+  (VIN, account ids, unrounded GPS) and
   the app's API-key config, but not access tokens, whose JWT is a header it never logs. The
   clamp keeps those records from ever being created; `debug_dump` is the redacted route.
 - **Dashboards live in the add-on.** The old `a290-dashboard-view` repo is archived; all
