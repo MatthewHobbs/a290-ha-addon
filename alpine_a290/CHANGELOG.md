@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.29.1
 
 - **Security: the image moves to Alpine 3.24.3**, with security fixes in musl (1.2.6-r3,
   CVE-2026-107891), OpenSSL (3.5.9) and zlib (1.3.2-r1, CVE-2026-85091). No change in behaviour.
