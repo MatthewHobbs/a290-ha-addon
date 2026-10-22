@@ -115,10 +115,11 @@ jobs:
           # Match the add-on runtime (HA base 3.24 → Python 3.14); the harness imports app/deploy.py.
           python-version: "3.14"
 
-      - name: Install deps (aiohttp + PyYAML + Playwright/Chromium + Pillow)
+      - name: Install deps (runtime lock + Playwright/Chromium)
         if: env.RENDER == 'true'
         run: |
-          python3 -m pip install --quiet aiohttp==3.14.5 PyYAML==6.0.3 playwright==1.64.0 pillow==13.0.0
+          python3 -m pip install --quiet -r alpine_a290/app/requirements.txt
+          python3 -m pip install --quiet playwright==1.64.0
           python3 -m playwright install --with-deps chromium
 
       - name: Pick the Home Assistant image for this leg

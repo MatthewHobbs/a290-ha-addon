@@ -5,7 +5,8 @@
     "Python is deliberately left to Dependabot. requirements.txt is a hash-locked pip-compile output installed with --require-hashes, and it carries no pip-compile header, so Renovate cannot regenerate the hashes and would leave the lock inconsistent.",
     "renault-api is Dependabot's too, in its own group; tests/test_api_contract.py pins the A290's endpoint map, so a release that changes it fails CI.",
     "It also tracks the UI gate's render inputs in ui-tests/run.sh - the Home Assistant image and the four custom cards - which are pinned for a deterministic render, so without a bot they only move when someone remembers, and the gate drifts behind the Home Assistant users actually run.",
-    "And the Supervisor pilot's devcontainer and registry images in scripts/supervisor-pilot.sh, pinned by digest so a run is reproducible; without a bot the pilot would keep booting an old devcontainer."
+    "And the Supervisor pilot's devcontainer and registry images in scripts/supervisor-pilot.sh, pinned by digest so a run is reproducible; without a bot the pilot would keep booting an old devcontainer.",
+    "And the CI tools: pytest, pytest-cov, bandit, pip-audit and playwright pinned inline in the workflows and the justfile, plus ruff and Trivy, whose versions the built-in Actions manager reads from their setup actions. Runtime Python packages are never pinned there: those steps install the hash-locked requirements.txt, so Python stays Dependabot's."
   ],
   "extends": [
     "config:recommended",
@@ -81,6 +82,66 @@
       ],
       "groupName": "Supervisor pilot images",
       "commitMessageTopic": "the Supervisor pilot's images"
+    },
+    {
+      "description": "The CI Python tools and nothing else: a runtime package pinned in a workflow would put Python under two bots, so anything else this manager finds is ignored. A new tool is tracked only once its name is added here.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDatasources": [
+        "pypi"
+      ],
+      "matchPackageNames": [
+        "!/^(pytest|pytest-cov|bandit|pip-audit|playwright|ruff)$/"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "The CI tools move together, on the repo's Saturday schedule, so the CI run on that PR tests the set it pins. A release waits 3 days before it is proposed; strict, so no branch exists (and no CI runs it) before then.",
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "matchDatasources": [
+        "pypi"
+      ],
+      "groupName": "CI tools",
+      "commitMessageTopic": "the CI tool pins",
+      "minimumReleaseAge": "3 days",
+      "internalChecksFilter": "strict"
+    },
+    {
+      "description": "ruff and Trivy are versions the built-in Actions manager reads from their setup actions; they join the CI tools PR rather than the actions group.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDepNames": [
+        "ruff",
+        "aquasecurity/trivy"
+      ],
+      "groupName": "CI tools",
+      "commitMessageTopic": "the CI tool pins",
+      "minimumReleaseAge": "3 days",
+      "internalChecksFilter": "strict"
+    },
+    {
+      "description": "Trivy waits a week: a malicious Trivy release (v0.69.4) is why it is pinned at all.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDepNames": [
+        "aquasecurity/trivy"
+      ],
+      "minimumReleaseAge": "7 days"
+    },
+    {
+      "description": "The workflows' Python is the add-on runtime's (the HA base image ships 3.14); it moves with the base image, by hand, never as a routine bump. Move this bound in the same change.",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDepNames": [
+        "python"
+      ],
+      "allowedVersions": "<3.15"
     }
   ],
   "customManagers": [
@@ -159,6 +220,36 @@
         "\"(?<depName>(?:ghcr\\.io|docker\\.io)/[a-z0-9._/-]+):(?<currentValue>[A-Za-z0-9._-]+)@(?<currentDigest>sha256:[a-f0-9]{64})\""
       ],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": [
+        "CI tools pinned inline as name==version on pip install lines in the workflows and the justfile. Recursive: first a non-comment line with pip install, then each pin on it; one line only, so keep pins off continuation lines. requirements.txt is not in these files and stays Dependabot's."
+      ],
+      "managerFilePatterns": [
+        "/^\\.github/workflows/[^/]+\\.ya?ml$/",
+        "/^justfile$/"
+      ],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "(?m)^[^#\\n]*pip install[^\\n]*",
+        "(?<depName>[A-Za-z0-9][A-Za-z0-9._-]*)==(?<currentValue>[0-9][0-9A-Za-z.+!-]*)"
+      ],
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "customType": "regex",
+      "description": [
+        "ruff's required-version in ruff.toml, which just lint runs; it moves in the CI tools PR with the ruff-action pin."
+      ],
+      "managerFilePatterns": [
+        "/^ruff\\.toml$/"
+      ],
+      "matchStrings": [
+        "required-version = \"==(?<currentValue>[0-9][0-9A-Za-z.+!-]*)\""
+      ],
+      "depNameTemplate": "ruff",
+      "datasourceTemplate": "pypi"
     }
   ]
 }

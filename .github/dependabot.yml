@@ -1,7 +1,8 @@
 # Dependabot — Python only. GitHub Actions, the Dockerfile images, and the CORE_REF core pin
 # moved to Renovate (.github/renovate.json), which can see the SHA pin that no manifest declares.
 #
-# Python stays here: requirements.txt is a hash-locked pip-compile output installed with
+# Runtime Python stays here (the CI tool pins in the workflows and justfile are Renovate's,
+# and no workflow pins a runtime package): requirements.txt is a hash-locked pip-compile output installed with
 # --require-hashes, and Dependabot understands the requirements.in/.txt pair. renault-api
 # gets its own PR: tests/test_api_contract.py fails if a release changes the A290's endpoint map.
 version: 2
