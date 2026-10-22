@@ -5,7 +5,7 @@
 # Pinned by digest as well as tag so the base can't be repointed under a rebuild — the tag is
 # kept for readability; the @sha256 is the immutable manifest-list (index) digest. Bump both
 # together (resolve with `docker buildx imagetools inspect ghcr.io/home-assistant/base:<tag>`).
-FROM ghcr.io/home-assistant/base:3.24@sha256:8fde4170393bdf7a121ea4d6e34b417e1d0b90125948459f9f9f70cdf5d77c16
+FROM ghcr.io/home-assistant/base:3.24@sha256:992dc6a5727b97a30da8dd259b489739299c324407557df540165e2f0dbb7763
 
 # Single source of truth for the version: the HA builder passes BUILD_VERSION from
 # config.yaml's `version:`. Exposed to the app as A290_VERSION (see main.py).

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Security: the image moves to Alpine 3.24.3**, with security fixes in musl (1.2.6-r3,
+  CVE-2026-107891), OpenSSL (3.5.9) and zlib (1.3.2-r1, CVE-2026-85091). No change in behaviour.
+
 ## 1.29.0
 
 - **renault-api 0.6.1.** No change in what the A290 exposes. Renault now requires two-factor
