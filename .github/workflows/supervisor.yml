@@ -2,28 +2,14 @@ name: Supervisor pilot
 
 # ADR 0002: install, configure and run the add-on under a real stable-channel
 # Supervisor and Core, in the official add-on devcontainer, on both arches,
-# with AppArmor enforced by the runner's kernel. Not a required check yet
-# (ADR row 5). All of the logic is in scripts/supervisor-pilot.sh, which runs
-# the same way locally.
+# with AppArmor enforced by the runner's kernel. Required on every PR since
+# row 5 was closed. All of the logic is in scripts/supervisor-pilot.sh.
 
 on:
-  # A PR that changes the pilot or what the Supervisor runs gets the pilot,
-  # so the change is proven on the real runners before it merges.
+  # Unconditional, as ui-tests.yaml is (ADR 0005): a required check on a
+  # path-filtered workflow never starts, so it stays "Expected" and blocks the
+  # merge button. The `changes` job decides relevance inside instead.
   pull_request:
-    paths:
-      - .github/workflows/supervisor.yml
-      - scripts/supervisor-pilot.sh
-      # Everything the Supervisor installs, runs or deploys: the image ships
-      # app/, run.sh and the dashboards, which the pilot's default options
-      # deploy through Core and the probe reads back from Core's Lovelace
-      # API. An allow-list missed dashboards/ once, so it is the whole add-on
-      # minus what cannot change a run: prose and the unit tests, which the
-      # image does not contain. Both .md patterns, as in ui-tests.yaml:
-      # whether `**/` matches zero directories is not assumed.
-      - alpine_a290/**
-      - "!alpine_a290/*.md"
-      - "!alpine_a290/**/*.md"
-      - "!alpine_a290/tests/**"
   workflow_dispatch:
     inputs:
       break:
@@ -46,8 +32,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Decide whether this touches what the Supervisor runs
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.filter.outputs.relevant || 'false' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: github.event_name == 'pull_request'
+
+      # The patterns the trigger used to filter on, moved here so the workflow
+      # (and so every required check-run) always exists. An allow-list missed
+      # dashboards/ once, so it is the whole add-on minus what cannot change a
+      # run: prose and the unit tests, which the image does not contain.
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          predicate-quantifier: some-with-excludes
+          filters: |
+            relevant:
+              - '.github/workflows/supervisor.yml'
+              - 'scripts/supervisor-pilot.sh'
+              - 'alpine_a290/**'
+              - '!alpine_a290/*.md'
+              - '!alpine_a290/**/*.md'
+              - '!alpine_a290/tests/**'
+
   pilot:
     name: ${{ matrix.arch }} / Core ${{ matrix.core }}
+    needs: [changes]
     # The runner follows the arch here rather than through matrix include:
     # an include whose arch the nightly matrix lacks would add a leg of its
     # own, with no Core version.
@@ -64,18 +78,24 @@ jobs:
       CORE_VERSION: ${{ matrix.core }}
       PILOT_KEEP: "1"
       PILOT_BREAK: ${{ inputs.break != 'none' && inputs.break || '' }}
+      # Every leg runs and reports under its own name — the required checks —
+      # even when nothing relevant changed. Skipping steps, not the job: a job
+      # `if:` that is false stops the matrix expanding (ui-tests.yaml, ADR 0005).
+      PILOT_RUN: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.relevant == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: env.PILOT_RUN == 'true'
         with:
           persist-credentials: false
 
       - name: Run the add-on under the stable Supervisor
+        if: env.PILOT_RUN == 'true'
         env:
           PILOT_WORKDIR: ${{ runner.temp }}/pilot
         run: scripts/supervisor-pilot.sh all
 
       - name: Collect diagnostics
-        if: failure()
+        if: failure() && env.PILOT_RUN == 'true'
         env:
           PILOT_WORKDIR: ${{ runner.temp }}/pilot
         run: scripts/supervisor-pilot.sh diagnostics "$PILOT_WORKDIR/diagnostics"
@@ -83,13 +103,13 @@ jobs:
       # The kernel's AppArmor verdict is the evidence ADR 0002 row 6 turns on,
       # so it goes in the log itself, not only in the artifact.
       - name: Show AppArmor denials
-        if: failure()
+        if: failure() && env.PILOT_RUN == 'true'
         env:
           PILOT_WORKDIR: ${{ runner.temp }}/pilot
         run: cat "$PILOT_WORKDIR/diagnostics/apparmor.txt" || true
 
       - name: Upload diagnostics
-        if: failure()
+        if: failure() && env.PILOT_RUN == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: supervisor-pilot-${{ matrix.arch }}-${{ matrix.core }}
@@ -98,5 +118,5 @@ jobs:
           if-no-files-found: ignore
 
       - name: Tear down
-        if: always()
+        if: always() && env.PILOT_RUN == 'true'
         run: scripts/supervisor-pilot.sh down
