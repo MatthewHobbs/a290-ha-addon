@@ -155,6 +155,7 @@ local	.github/renovate.json	both	hunk:Supervisor pilot	4	both carry the pilot's 
 # listed below; the rest of it is identical, and ADR 0002 row 11 is docs/adr/* (local).
 # ---------------------------------------------------------------- Supervisor pilot as mirrored by r5 (#108, 4dd52bf, ADR 0002 row 10)
 local	.github/workflows/supervisor.yml	both	hunk:ADR 0002	9	each repo's header names its own decision record: a290's ADR 0002, r5's "the a290 twin's ADR 0002, mirrored"
+local	.github/workflows/supervisor.yml	both	hunk:missed|deploy_dashboard: standard because	6	r5's relevance-filter comment carries a per-car fact this add-on does not need: its pilot deploys the dashboards with deploy_dashboard: standard because r5's default is none. It also attributes the missed-allow-list incident here
 local	scripts/supervisor-pilot.sh	both	re:the a290 twin's ADR 0002|devcontainer \(ADR 0002\)	3	same provenance line in the script's header
 local	scripts/supervisor-pilot.sh	both	re:must install what GHCR serves \(ADR 0002 row 5\)	1	each copy names its own decision record for the published-image build: a290's ADR 0002 row 5, r5's the a290 twin's
 model	scripts/supervisor-pilot.sh	both	re:a290-supervisor|r5-supervisor|local_alpine_a290|local_renault_5|pilot-registry|pilot-build|pilot-no-egress	16	the pilot's container, registry, provenance-label and egress-rule names carry each add-on's own short name
