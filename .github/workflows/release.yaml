@@ -42,6 +42,7 @@ jobs:
     outputs:
       architectures: ${{ steps.info.outputs.architectures }}
       build_matrix: ${{ steps.matrix.outputs.matrix }}
+      pilot_matrix: ${{ steps.pilotmatrix.outputs.matrix }}
       image_name: ${{ steps.normalize.outputs.image_name }}
       registry_prefix: ${{ steps.normalize.outputs.registry_prefix }}
       version: ${{ steps.normalize.outputs.version }}
@@ -129,6 +130,19 @@ jobs:
           architectures: ${{ steps.info.outputs.architectures }}
           image-name: ${{ steps.normalize.outputs.image_name }}
           registry-prefix: ${{ steps.normalize.outputs.registry_prefix }}
+
+      # The pilot's legs are the build matrix with both Core ends each, so the
+      # published image names come from the same source the build pushes to.
+      - name: Prepare the pilot matrix
+        id: pilotmatrix
+        env:
+          BUILD_MATRIX: ${{ steps.matrix.outputs.matrix }}
+        run: |
+          matrix="$(jq -c '{include: [.include[] as $m | ("stable", "minimum") as $c | $m + {core: $c}]}' \
+            <<<"$BUILD_MATRIX")"
+          [[ "$(jq '.include | length' <<<"$matrix")" == 4 ]] ||
+            { echo "::error::expected 4 pilot legs, got $(jq '.include | length' <<<"$matrix")"; exit 1; }
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build ${{ matrix.arch }} image
@@ -257,6 +271,58 @@ jobs:
           subject-digest: ${{ steps.digest.outputs.digest }}
           push-to-registry: true
 
+  pilot:
+    name: Published image (${{ matrix.arch }}, Core ${{ matrix.core }})
+    needs: [prepare, build]
+    # ADR 0002 row 5: the artefact that ships is the one GHCR serves, booted under a
+    # real stable Supervisor on both arches and both Core ends. Runs on the bump PR —
+    # which is where the image is published — so a merge cannot ship an unbooted one.
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.pilot_matrix) }}
+    env:
+      CORE_VERSION: ${{ matrix.core }}
+      PILOT_KEEP: "1"
+      PILOT_IMAGE: ${{ matrix.image }}:${{ needs.prepare.outputs.version }}
+      # Condition on the steps, not the job: a false job-level `if:` stops the
+      # matrix expanding, so the legs report under an unexpanded template name
+      # (ui-tests.yaml, ADR 0005). A fork bump PR cannot push, so it has no image.
+      PILOT_RUN: ${{ needs.prepare.outputs.publish == 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+    steps:
+      # The PR head, not the merge ref: the image was built from this commit.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        if: env.PILOT_RUN == 'true'
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Install the published image under the stable Supervisor
+        if: env.PILOT_RUN == 'true'
+        env:
+          PILOT_WORKDIR: ${{ runner.temp }}/pilot
+        run: scripts/supervisor-pilot.sh all
+
+      - name: Collect diagnostics
+        if: failure() && env.PILOT_RUN == 'true'
+        env:
+          PILOT_WORKDIR: ${{ runner.temp }}/pilot
+        run: scripts/supervisor-pilot.sh diagnostics "$PILOT_WORKDIR/diagnostics"
+
+      - name: Upload diagnostics
+        if: failure() && env.PILOT_RUN == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: release-pilot-${{ matrix.arch }}-${{ matrix.core }}
+          path: ${{ runner.temp }}/pilot/diagnostics
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Tear down
+        if: always() && env.PILOT_RUN == 'true'
+        run: scripts/supervisor-pilot.sh down
+
   validated:
     name: Wait for CI + UI Tests on this commit (ADR 0005)
     # The image itself is already live by this point (published from the version-bump PR,
@@ -291,7 +357,7 @@ jobs:
 
   tag:
     name: Tag release
-    needs: [prepare, manifest, validated]
+    needs: [prepare, manifest, validated, pilot]
     if: ${{ github.event_name == 'push' && needs.prepare.outputs.publish == 'true' }}
     runs-on: ubuntu-latest
     permissions:

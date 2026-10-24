@@ -33,6 +33,9 @@
 #   PILOT_EXPECT_SUPERVISOR / PILOT_EXPECT_CORE / PILOT_EXPECT_NODE /
 #   PILOT_EXPECT_DASHBOARD  override what is expected; only for showing a
 #                  check can fail.
+#   PILOT_IMAGE    a published per-arch image (release.yaml's pilot job): it is
+#                  pulled and installed instead of building the checkout, and
+#                  provenance becomes the image id the registry served.
 
 set -euo pipefail
 
@@ -176,39 +179,61 @@ checkout_revision() {
 
 # --- build: the image that would ship, built the way release.yaml builds it -
 cmd_build() {
-  local arch platform version tag nonce provenance
+  local arch platform version tag nonce provenance id
   arch="$(docker_arch)"
   platform="linux/$([[ $arch == aarch64 ]] && echo arm64 || echo amd64)"
   version="$(config_value version)"
   [[ -n "$version" ]] || fail "could not read version: from config.yaml"
   tag="${LOCAL_REGISTRY}/alpine_a290:${version}"
-  # Revision plus a per-build nonce: a published image built from this very
-  # commit still cannot carry it.
-  nonce="${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$(date +%s)-$RANDOM"
-  provenance="$(checkout_revision)/${nonce}"
 
-  # The Dockerfile pins its own FROM, so, as in release.yaml, the only build
-  # argument is the version.
-  log "Building $tag for $platform"
-  docker buildx build \
-    --platform "$platform" \
-    --build-arg "BUILD_VERSION=$version" \
-    --label "io.hass.type=addon" \
-    --label "io.hass.arch=$arch" \
-    --label "io.hass.version=$version" \
-    --label "${PROVENANCE_LABEL}=${provenance}" \
-    --tag "$tag" \
-    --load \
-    "$REPO_ROOT/$ADDON_DIR"
+  if [[ -n "${PILOT_IMAGE:-}" ]]; then
+    # The artefact that ships, not a rebuild of it: the release's own pilot
+    # must install what GHCR serves (ADR 0002 row 5).
+    log "Pulling published image ${PILOT_IMAGE}"
+    docker pull --platform "$platform" --quiet "$PILOT_IMAGE" >/dev/null ||
+      fail "could not pull ${PILOT_IMAGE}"
+    id="$(docker image inspect -f '{{.Id}}' "$PILOT_IMAGE")" ||
+      fail "no image ${PILOT_IMAGE} after the pull"
+    docker tag "$PILOT_IMAGE" "$tag"
+    provenance="published/${id}"
+    {
+      echo "PILOT_TAG=$tag"
+      echo "PILOT_PROVENANCE=$provenance"
+      echo "PILOT_PUBLISHED=1"
+      echo "PILOT_IMAGE_ID=$id"
+    } >"$WORKDIR/build.env"
+    log "OK pulled ${PILOT_IMAGE} as ${tag}, image id ${id}"
+  else
+    # Revision plus a per-build nonce: a published image built from this very
+    # commit still cannot carry it.
+    nonce="${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}-$(date +%s)-$RANDOM"
+    provenance="$(checkout_revision)/${nonce}"
+
+    # The Dockerfile pins its own FROM, so, as in release.yaml, the only build
+    # argument is the version.
+    log "Building $tag for $platform"
+    docker buildx build \
+      --platform "$platform" \
+      --build-arg "BUILD_VERSION=$version" \
+      --label "io.hass.type=addon" \
+      --label "io.hass.arch=$arch" \
+      --label "io.hass.version=$version" \
+      --label "${PROVENANCE_LABEL}=${provenance}" \
+      --tag "$tag" \
+      --load \
+      "$REPO_ROOT/$ADDON_DIR"
+
+    {
+      echo "PILOT_TAG=$tag"
+      echo "PILOT_PROVENANCE=$provenance"
+      echo "PILOT_PUBLISHED=0"
+    } >"$WORKDIR/build.env"
+  fi
 
   docker pull --quiet "$REGISTRY_IMAGE" >/dev/null
   docker tag "$REGISTRY_IMAGE" "$REGISTRY_TAG"
   docker save "$tag" "$REGISTRY_TAG" -o "$WORKDIR/images.tar"
-  {
-    echo "PILOT_TAG=$tag"
-    echo "PILOT_PROVENANCE=$provenance"
-  } >"$WORKDIR/build.env"
-  log "OK built $tag, provenance label ${provenance}"
+  log "OK ${tag} staged for the registry, provenance ${provenance}"
 }
 
 # --- up: devcontainer, add-on copy, Supervisor, Core -------------------------
@@ -539,11 +564,22 @@ cmd_provenance() {
   [[ -s "$WORKDIR/build.env" ]] || fail "no build.env in $WORKDIR (run 'build' first)"
   # shellcheck source=/dev/null
   source "$WORKDIR/build.env"
-  want_rev="$(checkout_revision)"
   got="$(dc docker inspect -f "{{index .Config.Labels \"$PROVENANCE_LABEL\"}}" "$ADDON_CONTAINER")" ||
     fail "no container $ADDON_CONTAINER"
   image="$(dc docker inspect -f '{{.Config.Image}}' "$ADDON_CONTAINER")"
   log "Add-on container image=$image"
+  if [[ "${PILOT_PUBLISHED:-0}" == 1 ]]; then
+    # Content addressing, not a label: the container's image id must equal the
+    # one the registry served, which is the whole claim of this mode.
+    got="$(dc docker inspect -f '{{.Image}}' "$ADDON_CONTAINER")"
+    log "Published image expected=${PILOT_IMAGE_ID} observed=${got}"
+    [[ "$got" == "$PILOT_IMAGE_ID" ]] ||
+      fail "the add-on runs ${got}, not the published image ${PILOT_IMAGE_ID}"
+    [[ "$image" == "$PILOT_TAG" ]] || fail "the add-on runs $image, not $PILOT_TAG"
+    log "OK the running add-on is the published image ${PILOT_IMAGE}"
+    return 0
+  fi
+  want_rev="$(checkout_revision)"
   log "Provenance expected=$PILOT_PROVENANCE observed=${got:-<none>} checkout=$want_rev"
   [[ "$got" == "$PILOT_PROVENANCE" ]] ||
     fail "the running add-on was not built by this run from the checkout under test"
