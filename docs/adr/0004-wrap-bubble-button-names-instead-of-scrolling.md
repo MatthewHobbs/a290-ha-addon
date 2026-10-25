@@ -55,7 +55,7 @@ Copied from RFC 0012, with the chosen options marked. The detector fix was not i
 
 **Watch**
 
-- A Bubble release that changes the marquee's DOM (a different container, text no longer doubled) changes what the detector sees; the pinned render inputs and Renovate's grouped bump are where that surfaces.
+- A Bubble release that changes the marquee's DOM (a different container, text no longer doubled) changes what the detector sees; the pinned render inputs and the one hand-made bump are where that surfaces.
 - `scrolling_effect: false` is a per-card Bubble option; a new button added without it scrolls again and is caught by the gate, not by review.
 
 ## Amendment (2026-09-27)

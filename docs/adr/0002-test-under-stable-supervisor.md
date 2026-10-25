@@ -44,7 +44,7 @@ polygonal-zones ADR 0001 decided among four options: the official devcontainer (
 
 ## Consequences
 
-**Accepted:** four privileged jobs of about two minutes each (warm) per run, and two more digests for Renovate (grouped as "Supervisor pilot images"). The pilot is not required until row 5, so a release can still ship without it. It enforces AppArmor on a newer parser and kernel than HA OS ships, so it can fail on breakage HA OS users have not hit yet; that is the point.
+**Accepted:** four privileged jobs of about two minutes each (warm) per run, and two more digests to bump by hand. The pilot is not required until row 5, so a release can still ship without it. It enforces AppArmor on a newer parser and kernel than HA OS ships, so it can fail on breakage HA OS users have not hit yet; that is the point.
 
 **Watch:** local add-on discovery is known to be fragile (supervisor#3976). The floor-Core seed relies on the Supervisor's internal `homeassistant.json`, and the version check is what catches a change there. The Mosquitto add-on is unpinned.
 

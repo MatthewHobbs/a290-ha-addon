@@ -52,7 +52,7 @@ Copied from RFC 0011, with the chosen option marked. The table is the record of 
 
 - The manifest grows: every pop-up carries every static card text, so a change to a card's `name` in the dashboard file changes what the gate waits for. That is the point; the gate reads the same file a regression would edit, as `write_manifest`'s own comment already says of the pass-driven labels.
 - A broken pop-up costs one label timeout per device before it fails, instead of failing on the first scan. A healthy pop-up costs the time for its cards to be laid out, which they mostly already are by the time `_open_popup` returns.
-- A Bubble release that changes how a card's `name` reaches the DOM (a different element, a transformed text node) will show up as `not-rendered` across every pop-up. That is a gate failure with a cause the log names, not a silent pass, and it is what the render-input pins and Renovate's grouped bump exist to catch before the pin moves.
+- A Bubble release that changes how a card's `name` reaches the DOM (a different element, a transformed text node) will show up as `not-rendered` across every pop-up. That is a gate failure with a cause the log names, not a silent pass, and it is what the render-input pins and the one hand-made bump exist to catch before the pin moves.
 
 **Watch**
 
