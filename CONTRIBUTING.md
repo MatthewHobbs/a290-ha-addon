@@ -97,13 +97,14 @@ What is known about the A290 endpoints:
 
 ## Local checks: run the full suite before pushing
 
-CI (`.github/workflows/ci.yaml`) has four jobs: **lint, test, security, build**. Run all of them
+CI (`.github/workflows/ci.yaml`) has six jobs: **lint, test, security, build, docs-sync and
+parity** — the last two compare this repo against its twin and against `DOCS.md`. Run all of them
 locally before pushing, not just ruff and pytest. macOS and Linux behave differently (the UI gate
 has caught Linux-only font truncations a local macOS run missed), so a green local partial run is
 not a green CI. `just ci` runs the static gates.
 
 ```sh
-# lint
+# lint — `just lint` runs exactly this, with the pinned ruff
 ruff check alpine_a290/app
 yamllint -c .yamllint alpine_a290 repository.yaml
 hadolint -c .hadolint.yaml alpine_a290/Dockerfile
@@ -156,7 +157,7 @@ Ruff config (`ruff.toml`): line-length 120, target py314, `select = E,F,W,B,I`,
 This add-on's image is pulled by tag (`config.yaml` `version`), so build and boot it locally and
 observe the changed behaviour before merging any runtime PR.
 
-Two things make a naive run fail:
+Two things make a naive run mislead or fail:
 
 - **`bashio::config` reads the Supervisor API, not `/data/options.json`.** Mounting a stub
   options file achieves nothing: `/run.sh` gets empty config and the add-on correctly exits
@@ -293,7 +294,7 @@ version literal in code (`main.py` reads `R5_VERSION`, which its release workflo
   `renault_mqtt.debug` key masking plus `renault_mqtt.config.redact`, also applied to every log
   line and traceback). Never add a logging path that bypasses it, and never lift the
   `renault_api` logger clamp in `main.py` (`setup_logging`). At DEBUG, renault-api (checked
-  at 0.5.13, not re-checked since) logs full, unredacted Kamereon request and response bodies
+  at 0.5.13) logs full, unredacted Kamereon request and response bodies
   (VIN, account ids, unrounded GPS) and
   the app's API-key config, but not access tokens, whose JWT is a header it never logs. The
   clamp keeps those records from ever being created; `debug_dump` is the redacted route.

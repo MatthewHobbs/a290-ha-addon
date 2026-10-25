@@ -23,9 +23,6 @@ secrets.yaml
 .vscode/
 .idea/
 
-# Local `just ci` virtualenv (uv)
-.venv/
-
 # Machine-local *.local.json files never belong in the repo.
 *.local.json
 *.local.json.bak*
