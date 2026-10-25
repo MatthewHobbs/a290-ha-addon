@@ -14,8 +14,10 @@ surface as A290 add-on behaviour.
 A real VIN in a test fixture, home coordinates in this file's prose, and the same coordinates in two
 fixtures. All three were fixed forward and found by greps, not by a scanner. The guard is
 `scripts/pii_check.py` (CI Security job and `just ci`); it now also refuses email addresses and
-home-directory paths. History was not rewritten and the scrub is still pending. The r5 twin needs
-the same fixture review. This file is public, so the values are not repeated here.
+home-directory paths, a pair split by a blank line (#259), and exercises `scan()` itself so a rule
+dropped from its loop fails. The history was rewritten on 2026-10-21 (owner-approved) and a re-scan
+finds nothing left; r5 runs the same file byte-for-byte. This file is public, so the values are
+not repeated here.
 
 ## P1 — A failed poll blanks about 40 entities: the retained state document is replaced, not merged
 
@@ -285,12 +287,6 @@ No upstream tag contains that commit, so the pin cannot carry an exact-tag versi
 
 Both map to INFO. A schema change belongs in a release PR (see `CONTRIBUTING.md`, "What reaches
 users on merge").
-
-## P3 — Parity is a required check, so every dependency-bot PR is blocked
-
-**Component:** CI (`Parity with r5`) · **Logged:** 2026-10-20
-
-Every dependency-bot PR is blocked until a `pending` row is written by hand.
 
 ## P3 — The comment above `DATA_GATED_SENSORS` describes renault-api 0.5.13
 

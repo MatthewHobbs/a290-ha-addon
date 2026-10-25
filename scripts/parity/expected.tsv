@@ -122,7 +122,7 @@ pending	.github/workflows/ci.yaml	both	hunk:declared minimum HA must	2	comment w
 pending	.github/workflows/ci.yaml	both	hunk:a VIN in a test fixture|pair of public add-on repos	5	PII-step comment wording. Target: converge, either way
 pending	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant/base	4	the same comment on the build step, in a different place. Target: one place in both
 pending	.github/workflows/ui-tests.yaml	both	hunk:NOT the prose in there|Decide whether this touches the render|needs: \[changes\]|Triggers unconditionally \(ADR 0005\)|the \`if:\` that skips a no-op run|if: needs\.changes\.outputs\.relevant|skipped outright on a no-op run|if: always\(\) && needs\.changes	21	r5 ported ADR 0005 (its ADR 0002). What remains is the path-filter comment, which names each repo's own user docs (USER-GUIDE.md/INSTALLATION.md vs CUSTOMISING.md) and the #115 incident a290 saw. Target: converge the comment wording
-pending	.gitignore	both	*	16	section order differs; r5 ignores a local reference/ checkout. Target: one section order
+pending	.gitignore	both	*	18	section order differs; r5 ignores a local reference/ checkout. Target: one section order
 pending	.trivyignore	r5	*	3	r5 still ignores AVD-DS-0026 (no HEALTHCHECK) although its Dockerfile has one. Target: delete from r5
 pending	.yamllint	a290	*	4	a290 exempts dashboards/ because it bundles upstream YAML packages there. Target: follows the Packages/Templates decision
 
@@ -160,3 +160,4 @@ model	scripts/supervisor-pilot.sh	both	re:a290-supervisor|r5-supervisor|local_al
 local	scripts/supervisor-pilot.sh	both	hunk:deploy_dashboard	15	the same default difference in cmd_install (sets deploy_dashboard: standard) and the dashboard-probe comment (r5's deliberate choice, confirmed on r5 2026-09-27)
 local	scripts/supervisor-pilot.sh	both	hunk:poll-success line is|addon_log_has "Published	4	r5's poll-success log line is "Published in <s>s" where a290's is "Published: ", so each pilot greps its own; the guard follows each repo's main.py and r5 keeps its line (confirmed on r5 2026-09-27)
 local	ui-tests/run.sh	both	re:^\# hand, together, when the gate's HA floor allows it	2	each copy names the other as the twin it must match; the sentence is otherwise the same
+pending	alpine_a290/app/deploy.py	both	re:\.content p	2	the injected Smart Charging heading wrap covers the h2 HA 2026.10 renders; r5 wraps p only. Target: r5 ports the heading wrap

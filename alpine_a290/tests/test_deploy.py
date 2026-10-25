@@ -740,3 +740,10 @@ def test_failed_config_save_removes_the_new_dashboard(monkeypatch):
         asyncio.run(deploy._deploy_one(api, "standard", "alpine-a290", "t", redeploy=False))
     assert api.created == ["alpine-a290"]
     assert api.deleted == ["dash-1"]
+
+
+def test_the_injected_heading_style_wraps_the_h2_ha_2026_10_renders():
+    """The dashboards' own headings carry `.content p, .content h2`; the style injected into the
+    Smart Charging card must match, or that heading truncates on a 360 px phone."""
+    assert ".content h2{white-space:normal" in deploy._HEADING_STYLE
+    assert ".content p," in deploy._HEADING_STYLE

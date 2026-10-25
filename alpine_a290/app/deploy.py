@@ -127,7 +127,7 @@ _TILE_STYLE = ("ha-tile-icon{--tile-icon-size:55px;--mdc-icon-size:28px;}"
 _HEADING_STYLE = ('.content{font-family:"Zen Dots",system-ui,sans-serif !important;'
                   'font-size:13px !important;letter-spacing:2px !important;color:#FFFF00 !important;'
                   'border-bottom:1px solid var(--divider-color);padding-bottom:6px;'
-                  'text-transform:uppercase;}.content p{white-space:normal !important;'
+                  'text-transform:uppercase;}.content p,.content h2{white-space:normal !important;'
                   'overflow:visible !important;text-overflow:clip !important;}')
 # Bubble Card separator styling, matched to the bundled bubble dashboard's other separators.
 _BUBBLE_SEP_STYLE = (
