@@ -1,9 +1,17 @@
 # ADR 0001 — The add-on as it stands
 
 - **Repo:** a290-ha-addon
-- **Status:** Accepted (2026-10-25). A retrospective: every decision below is read from the code, the workflows and the scripts as they are at `297b6b1`, and nothing in it is new. It replaces the earlier records, which are gone.
-- **Context:** this repository is a Home Assistant add-on for the Alpine A290. It polls the Renault Kamereon API for one car and publishes what it finds to Home Assistant over MQTT. Others install it, so what it does with a credential, a location or a failure matters more than how much it exposes. A sibling repo, `r5-ha-addon`, is the Renault 5 port of the same code.
-- **North star:** the add-on tells the truth about the car, or says it does not know. It never invents a fresh reading, never ships a control the car refuses, never lets a secret or a precise location leave the machine unmasked, and never installs a release that was not booted first.
+- **Status:** Accepted (2026-10-25). A retrospective, read from the code, the workflows and the scripts as
+  they are at `297b6b1`. Rows 1–21 and 24–26 are what the code does. Rows 22, 23 and 25 also
+  carry policy no code states: which checks are required, and that a release is cut on request
+  from a tag I sign. It replaces the earlier records, which are gone.
+- **Context:** this repository is a Home Assistant add-on for the Alpine A290. It polls the Renault Kamereon
+  API for one car and publishes what it finds to Home Assistant over MQTT. Others install it, so
+  what it does with a credential, a location or a failure matters more than how much it exposes.
+  A sibling repo, `r5-ha-addon`, is the Renault 5 port of the same code.
+- **North star:** the add-on tells the truth about the car, or says it does not know. It never invents a fresh
+  reading, never ships a control the car refuses, never lets a secret or a precise location
+  leave the machine unmasked, and never installs a release that was not booted first.
 
 <!-- Format: my ADR template, referenced at source rather than copied.
 The Decision table is the plan and is kept current; the rest is the dated record. -->
@@ -52,6 +60,7 @@ The add-on runs as root inside a container it does not control, holds a credenti
 
 ## Consequences
 
+- Row 27 is the one entry this repo does not settle: the twin has not taken the release flow yet.
 - The runtime stays small on purpose. A new reading is a catalogue row and a poll line; a new control is a catalogue row and a gated command. Anything that needs a decision about the car's behaviour belongs here as a row first.
 - The shared core is a pinned commit of another repository. A fix there does not reach this add-on until `CORE_REF` moves, and nothing bumps it automatically (row 26).
 - Everything in the table is checked by something that can fail, except where a row says otherwise: the tag run in row 25 has not yet run on a real release, and row 27 is open.

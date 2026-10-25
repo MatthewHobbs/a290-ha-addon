@@ -1,6 +1,7 @@
 # Decision records
 
-Read in numeric order. Each records a decision that was made, not a plan.
+Read in numeric order. Each row is a decision that was made, not a plan; row 27 tracks what the
+twin still owes.
 
 | # | Decision |
 | --- | --- |

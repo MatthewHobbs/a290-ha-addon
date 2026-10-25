@@ -63,7 +63,7 @@ JS_DETECT = r"""
                   || (cs.overflowX === 'hidden' && cs.whiteSpace.indexOf('nowrap') >= 0);
       // A box can clip text it does not own: Bubble's .scrolling-container holds the name in a
       // child span and hides the overflow behind a mask, so the span never reports overflow
-      //.
+      // (measured on the twin: span 212/212, container 212 in 85).
       if (!own && clipsX) own = (el.textContent || '').trim();
       if (!own) continue;
       if (clipsX && el.scrollWidth > el.clientWidth + 1) {
@@ -72,7 +72,8 @@ JS_DETECT = r"""
       } else if (cs.webkitLineClamp && cs.webkitLineClamp !== 'none'
                  && el.scrollHeight > el.clientHeight + 1) {
         // A line clamp cuts text off vertically (Bubble clamps a non-scrolling name/state to 2
-        // lines), so the width test above never sees it.
+        // lines), so the width test above never sees it (measured on the twin: a three-line date
+        // in a 2-line box, 54 > 36).
         out.push({ type: 'truncated', tag, text: own.slice(0, 160), axis: 'y',
                    scrollWidth: el.scrollHeight, clientWidth: el.clientHeight });
       }
