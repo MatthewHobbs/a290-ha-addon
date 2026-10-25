@@ -3,7 +3,7 @@
 
 A release here is a change to `config.yaml` `version` (the Supervisor keys updates on it, and
 `release.yaml` publishes the image for any PR that moves it), so releases are cut on request, not
-by ordinary merges (ADR 0006). Ordinary PRs add their entry under `## Unreleased` and leave the
+by ordinary merges. Ordinary PRs add their entry under `## Unreleased` and leave the
 version alone; `docs_sync_check.py` fails any PR that moves the version without being exactly this
 edit. This writes that edit and nothing else. It does not commit, push or choose the number: the
 caller reads the entries below and passes a version.

@@ -48,7 +48,7 @@ jobs:
           fi
           echo "release=$release" | tee -a "$GITHUB_OUTPUT"
 
-      # Same patterns the trigger-level `paths:` filter used before ADR 0005, moved here so the
+      # Same patterns the trigger-level `paths:` filter used before this check always reported, moved here so the
       # workflow itself can always start (see the header comment) while still skipping the
       # expensive render when nothing relevant changed.
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3
@@ -82,7 +82,7 @@ jobs:
       matrix:
         leg: [stable, minimum]
     # Off, the leg still runs and reports success under its own name (the required check),
-    # only with every step skipped; see the ADR 0005 note below.
+    # only with every step skipped; see the note below.
     env:
       RENDER: ${{ github.event_name == 'workflow_dispatch' || (needs.changes.outputs.relevant == 'true' && (matrix.leg == 'stable' || needs.changes.outputs.release == 'true')) }}
     steps:

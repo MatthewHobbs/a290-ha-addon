@@ -1,12 +1,12 @@
 name: Supervisor pilot
 
-# ADR 0002: install, configure and run the add-on under a real stable-channel
+# Install, configure and run the add-on under a real stable-channel
 # Supervisor and Core, in the official add-on devcontainer, on both arches,
 # with AppArmor enforced by the runner's kernel. Required on every PR since
 # row 5 was closed. All of the logic is in scripts/supervisor-pilot.sh.
 
 on:
-  # Unconditional, as ui-tests.yaml is (ADR 0005): a required check on a
+  # Unconditional, as ui-tests.yaml is: a required check on a
   # path-filtered workflow never starts, so it stays "Expected" and blocks the
   # merge button. The `changes` job decides relevance inside instead.
   pull_request:
@@ -80,7 +80,7 @@ jobs:
       PILOT_BREAK: ${{ inputs.break != 'none' && inputs.break || '' }}
       # Every leg runs and reports under its own name — the required checks —
       # even when nothing relevant changed. Skipping steps, not the job: a job
-      # `if:` that is false stops the matrix expanding (ui-tests.yaml, ADR 0005).
+      # `if:` that is false stops the matrix expanding (ui-tests.yaml).
       PILOT_RUN: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || needs.changes.outputs.relevant == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -100,7 +100,7 @@ jobs:
           PILOT_WORKDIR: ${{ runner.temp }}/pilot
         run: scripts/supervisor-pilot.sh diagnostics "$PILOT_WORKDIR/diagnostics"
 
-      # The kernel's AppArmor verdict is the evidence ADR 0002 row 6 turns on,
+      # The kernel's AppArmor verdict is the evidence the AppArmor check turns on,
       # so it goes in the log itself, not only in the artifact.
       - name: Show AppArmor denials
         if: failure() && env.PILOT_RUN == 'true'

@@ -227,8 +227,9 @@ check: on a real HA host, wedge the event loop and watch whether the Supervisor 
 
 **Logged:** 2026-10-21. bandit, pip-audit, pytest, pytest-cov and the UI gate's pip installs are
 `name==version`, so their transitive dependencies resolve fresh on every run. A hash-locked
-`requirements-ci.txt` installed with `--require-hashes` would close that. Renovate proposes the
-pins themselves (a "CI tools" PR); the transitive gap is what remains.
+`requirements-ci.txt` installed with `--require-hashes` would close that. Nothing proposes bumps
+to the pins themselves (Dependabot does not read these inline pins), so
+they are bumped by hand; the transitive gap is a separate matter.
 
 ## P3 — Trivy's binary is checked for integrity, not authenticity
 
