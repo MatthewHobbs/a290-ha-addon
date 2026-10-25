@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- **The add-on no longer goes quiet when Home Assistant stops answering.** While deploying a
+  dashboard it waited on that reply with no time limit, so a silent Home Assistant left it
+  reporting healthy while it never read the car again. The wait now has a limit, and polling
+  starts whether or not the reply arrives.
+- **A state file it cannot make sense of no longer stops the car's data.** A `state.json`
+  restored from a backup, or edited by hand, in an unexpected shape made every poll fail from
+  then on. Anything other than the shape the add-on wrote itself is now ignored and rebuilt.
+- **A dashboard that failed to save is deployed on the next start.** It used to count as
+  already present for ever, so the one save that failed never appeared.
+- **A failed position read no longer silences the sensor that warns the position is stale.**
+  Clearing the age it reports switched that warning off, so a real loss of position could pass
+  unnoticed. The last reading's age is now carried forward, so an outage shows as an ageing
+  position instead.
+- **One card on the standard dashboard still clipped its heading on a narrow phone.** The 1.29.0
+  fix reached the cards' paragraphs but not the heading Home Assistant 2026.10 draws inside the
+  Smart Charging card. Re-copy or redeploy the standard dashboard to pick it up
+  (`redeploy_dashboard: true`, or paste `front-end.txt` again).
+
 ## 1.29.1
 
 - **Security: the image moves to Alpine 3.24.3**, with security fixes in musl (1.2.6-r3,
