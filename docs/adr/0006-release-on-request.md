@@ -1,7 +1,7 @@
 # ADR 0006 — Releases are batched and cut on request
 
 - **Repo:** a290-ha-addon
-- **Status:** Accepted (2026-10-03). I chose Option A of the RFC on the day it was raised.
+- **Status:** Accepted (2026-10-03). I chose Option A of the RFC on the day it was raised. Superseded in part by [ADR 0007](0007-release-publishes-from-a-signed-tag.md): the image is no longer published on the bump PR, and the merge no longer tags.
 - **Context:** `release.yaml` publishes a release for any merge that moves `version` in `config.yaml`, and the rule in the contributor notes was that every user-facing change moves it. `gh release list` shows v1.28.0 to v1.28.11 between 2026-09-25 and 2026-09-27, twelve releases in three days. I do not want a release per merge; I want releases batched until I ask for one. Proposed as RFC: a290-ha-addon, batch releases until one is requested, which is indexed in my RFC index, since a290 has none of its own yet.
 - **North star:** a release happens when I ask for one, and in no other way: no merge can publish a version, and the version on `main` always has its image.
 
