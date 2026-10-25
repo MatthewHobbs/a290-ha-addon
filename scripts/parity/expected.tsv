@@ -42,7 +42,7 @@ model	alpine_a290/dashboards/Images/Map Markers/*	r5	only	6	r5's map markers per
 
 # ---------------------------------------------------------------- one repository only
 local	BACKLOG.md	a290	only	1	a290's own backlog; r5 tracks work in its issues
-local	docs/adr/*	a290	only	6	a290's architecture decision records (0001 parity, 0002 Supervisor pilot, 0003 pop-up completeness, 0004 marquee clips, 0005 release waits for the UI gate, 0006 release on request)
+local	docs/adr/*	a290	only	7	a290's architecture decision records (0001 parity, 0002 Supervisor pilot, 0003 pop-up completeness, 0004 marquee clips, 0005 release waits for the UI gate, 0006 release on request)
 pending	alpine_a290/.dockerignore	a290	only	1	a290 keeps tests and docs out of the image build context. Target: port to r5
 pending	alpine_a290/tests/test_charge.py	a290	only	1	a290's charge-session tests; whether r5's _parse_charge_session tests cover the same is not established. Target: compare, then port what is missing to r5
 pending	alpine_a290/tests/test_config.py	a290	only	1	ENV_PREFIX wiring and end-to-end redaction tests. Target: port to r5
