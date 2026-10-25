@@ -243,13 +243,9 @@ def version_problem(config_text, path):
                 f"after it (no comment, tag or quoted key): the release check and the image "
                 f"publisher both read that line, and a spelling only one of them understands lets "
                 f"a version move unnoticed.")
-    # The line regex above and a YAML parser can still disagree: a decoy `version:` line inside a
-    # multi-line quoted scalar, an explicit `? version` key, a stray trailing quote. The image
-    # publisher reads the file as YAML too (with yq, not PyYAML), so a parser's answer has to match.
-    # Merge keys are refused, found in the parsed structure and not by their spelling: `<<:`,
-    # `? <<`, `!!merge m:` and `!<tag:yaml.org,2002:merge> m:` are all the same key to a parser.
-    # PyYAML lets the explicit key win and yq lets a later merge overwrite it (reproduced on yq
-    # 4.53.6), so one file can carry two different versions.
+    # A YAML parser and the line regex can disagree: a decoy `version:`, an explicit
+    # `? version` key, a stray quote. The publisher reads YAML too (yq). Merge keys are refused
+    # by parsing: PyYAML keeps the explicit key, yq lets a later merge overwrite it.
     yaml = _yaml()
     try:
         if _has_merge_key(yaml, yaml.compose(config_text)):

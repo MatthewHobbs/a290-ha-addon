@@ -1,15 +1,10 @@
 name: UI Tests
 
-# Renders the bundled dashboards in a real Home Assistant across the top mobile device
-# sizes and fails on text truncation / broken cards.
-#
-# Triggers unconditionally (ADR 0005) so this workflow — and so the render job's own check-run —
-# always exists on every push and PR, applicable or not: a required PR check tied to a workflow
-# that never starts stays "Expected" forever and blocks the merge button, and the release
-# pipeline (release.yaml) needs a check it can always wait on. The `changes` job below decides
-# relevance in-workflow instead, with the same patterns this trigger used to filter on; a job a
-# GitHub Actions `if:` skips reports its own conclusion (and the workflow run's) as `success`,
-# so a non-dashboard PR still gets a fast green check, not a missing one.
+# Renders the bundled dashboards in a real Home Assistant on mobile sizes
+# and fails on truncation or broken cards.
+# Triggers unconditionally so the render check-run always exists: a required check
+# on a workflow that never starts stays "Expected" and blocks merges. `changes`
+# decides relevance; skipped steps still report green.
 on:
   push:
     branches: [main]
@@ -63,17 +58,11 @@ jobs:
           filters: |
             relevant:
               - 'alpine_a290/dashboards/**'
-              # ...but NOT the prose in there. USER-GUIDE.md / INSTALLATION.md are user
-              # documentation; they cannot change what renders, yet a one-line edit to either
-              # used to trigger the full ten-viewport render AND the screenshot auto-refresh,
-              # which commits PNGs to the PR branch — twice rejecting an in-flight merge on #115
-              # and committing a shot that changed 62% in size for a markdown-only edit.
-              # Everything else under dashboards/ (the .txt card configs, CSS, Fonts, Images,
-              # Packages, Templates) genuinely affects the render and still triggers. Both
-              # patterns deliberately: the two .md files sit directly in dashboards/, and whether
-              # `**/` matches zero directories is exactly the kind of assumption that ships a
-              # filter which silently changes nothing. The first line is the one that does the
-              # work today; the second covers any doc added in a subdirectory later.
+              # ...but NOT the prose: those .md files cannot change what renders, and a
+              # markdown edit used to run the full render and screenshot refresh, twice
+              # rejecting an in-flight merge (#115). Everything else under dashboards/
+              # affects the render. Both patterns: `**/` matching zero directories is
+              # not assumed.
               - '!alpine_a290/dashboards/*.md'
               - '!alpine_a290/dashboards/**/*.md'
               - 'alpine_a290/app/deploy.py'
@@ -101,15 +90,11 @@ jobs:
       # changes). This job holds NO secrets.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      # ADR 0005: the `if:` that skips a no-op run lives on these steps, not on the job itself.
-      # A job-level `if:` on a matrix job that evaluates false stops the matrix from ever
-      # expanding, so GitHub creates exactly one check-run under the raw, unexpanded template
-      # name ("...mobile matrix, ${{ matrix.leg }})") instead of the two named ones ("stable" /
-      # "minimum") this repo's required checks (and `release.yaml`'s wait step) name explicitly —
-      # leaving both permanently "Expected" on every PR that doesn't touch a dashboard. Skipping
-      # each step instead still expands the matrix into two real, correctly-named jobs; they just
-      # finish in seconds instead of ~14 minutes.
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+      # The `if:` lives on these steps, not the job: a job-level `if:` that is false
+      # stops a matrix expanding, so one check-run appears under the raw template name
+      # instead of the two ("stable", "minimum") the required checks name — leaving both
+      # "Expected" forever.
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         if: env.RENDER == 'true'
         with:
           # Match the add-on runtime (HA base 3.24 → Python 3.14); the harness imports app/deploy.py.
@@ -148,13 +133,12 @@ jobs:
           HA_IMAGE: ${{ steps.ha.outputs.image }}   # empty on the stable leg: run.sh keeps its pin
         run: bash ui-tests/run.sh
 
-      # Download these to compare with docs/screenshots/ by hand. Uploaded whenever a
-      # render was attempted (always(), not just on success) so a failed render still surfaces
-      # its partial shots for debugging; skipped outright on a no-op run, so a non-dashboard PR
-      # doesn't get a spurious "no files found" warning for a directory that was never created.
+      # For comparing with docs/screenshots/ by hand. Uploaded whenever a render was
+      # attempted (`always()`), skipped on a no-op run so a non-dashboard PR gets no
+      # spurious "no files found" warning.
       - name: Upload device screenshots
         if: always() && env.RENDER == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: ${{ matrix.leg == 'stable' && 'dashboard-screenshots' || 'dashboard-screenshots-minimum' }}
           path: ui-tests/screenshots/

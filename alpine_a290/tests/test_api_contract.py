@@ -72,11 +72,10 @@ def test_charges_model_contract():
     assert lc["last_charge_duration_min"] == 180   # 3 h from start/end timestamps
 
 
-# The typed HVAC / charge-mode models the poll loop reads. poll_once reads hvacStatus /
-# externalTemperature / socThreshold / lastUpdateTime off get_hvac_status(), the chargeMode
-# off get_charge_mode(), and _hvac_schedule_fields walks the typed HvacSettings.schedules ->
-# per-day .readyAtTime. A renault-api bump renaming any of these would break a live sensor;
-# the synthetic-stub tests elsewhere wouldn't notice, so pin them against the real schemas.
+# The typed models poll_once reads: hvacStatus, externalTemperature, socThreshold,
+# lastUpdateTime, the chargeMode, and HvacSettings.schedules' daily readyAtTime. A
+# renault-api bump renaming any of these breaks a live sensor, and the stub tests would not
+# notice, so pin them against the real schemas.
 def test_hvac_status_model_contract():
     hv = schemas.KamereonVehicleHvacStatusDataSchema.load(
         {"externalTemperature": 12.5, "internalTemperature": 19.0, "hvacStatus": "off",
@@ -157,11 +156,9 @@ def test_soc_levels_model_contract():
     assert main.SOC_ENDPOINT == "soc-levels"
 
 
-# What the library declares for the A290 (model A5E1AE): every key, including the ones set to
-# None. The add-on probes supports_endpoint() at startup and publishes only what this allows, and a
-# key that DISAPPEARS falls back to renault-api's default map, which reads as supported (that is
-# how hvac-settings was polled into 502000 errors). Dependabot proposes renault-api as its own
-# PR; this fails CI on any change to the map until someone has looked at it.
+# What the library declares for A5E1AE, including the None keys. A key that DISAPPEARS falls
+# back to renault-api's default map, which reads as supported - how hvac-settings was polled
+# into 502000 errors. Fails CI on any map change until someone has looked.
 _KCA = "/kca/car-adapter/v1/cars/{vin}"
 A5E1AE_MAP = {
     "actions/charge-set-mode": None,

@@ -62,10 +62,10 @@ mqtt.configure(catalog)
 
 LOG = logging.getLogger("alpine_a290")
 
-# Number of leading chars to strip off an object_id to get the MQTT value_template key /
-# command suffix (e.g. "a290_battery_level" -> "battery_level"). Derived from the catalog's
-# per-model OBJ_PREFIX, so the r5 twin needs no change here — previously a bare `obj[5:]`.
-# (mqtt.py keeps its own copy for discovery; both derive from the same catalog constant.)
+# Leading chars to strip from an object_id for the value_template key / command suffix
+# ("a290_battery_level" -> "battery_level"). Derived from the catalog's per-model
+# OBJ_PREFIX, so the r5 twin needs no change; mqtt.py keeps its own copy for discovery,
+# from the same constant.
 _P = len(OBJ_PREFIX)
 STATE_FILE = "/data/state.json"
 
@@ -253,12 +253,9 @@ async def detect_supported(vsession):
     """Set of supported endpoint names. Data endpoints default to supported on a detection
     error (read-only, harmless if empty); action endpoints default to unsupported so a
     forbidden control is never shipped."""
-    # Optional DATA endpoints default to supported when detection cannot run, on the grounds
-    # that a read-only call is harmless. That is not true for every endpoint: hvac-settings is
-    # unavailable on this model and answers errorCode 502000 on every poll, so an optimistic
-    # default turns one transient login failure into a warning every five minutes until the
-    # add-on is restarted. Endpoints whose wrong guess is expensive default the other way -
-    # the cost of being wrong is two absent sensors, not unbounded log spam.
+    # Optional DATA endpoints default to supported when detection cannot run: a read-only
+    # call is harmless. hvac-settings is not: it answers 502000 on every poll, so an optimistic
+    # default turns one login failure into warning spam. Expensive guesses default absent.
     supported = set(OPTIONAL_ENDPOINTS) - PESSIMISTIC_ENDPOINTS
     action_eps = {ep for _name, _icon, ep in ACTION_BUTTONS.values()}
     try:
@@ -316,10 +313,10 @@ def _debounce_now():
     wall clock back would otherwise hold a button suppressed for the size of the jump."""
     return time.monotonic()
 
-# Command suffixes that trigger a location refresh — rejected unless the user has opted in AND
-# location publishing is on (publish_discovery clears the button in the same cases). Gating the
-# command as well as the button is the point: the entity is pressable from voice, automations and
-# any dashboard, so hiding it alone would leave every other path working.
+# Command suffixes that trigger a location refresh, rejected unless the user opted in AND
+# location publishing is on (publish_discovery clears the button in the same cases). Gating
+# the command too is the point: voice, automations and dashboards can press the entity, so
+# hiding the button leaves those paths working.
 LOCATION_CMDS = {obj[_P:] for obj, (_n, _i, ep) in ACTION_BUTTONS.items() if ep == REFRESH_LOCATION_EP}
 
 # Command suffixes (topic tail) that map to writable numbers rather than button actions.
@@ -423,10 +420,9 @@ async def run_command(cmd, payload=""):
     except Exception as err:  # noqa: BLE001
         LOG.error("Command '%s' failed: %s", cmd, redact(err))
     finally:
-        # Also on cancellation, so a cancelled press cannot wedge the button. If nothing reached
-        # the car, drop the stamp too so a retry goes straight through; once the action has
-        # started its outcome is unknown and a retry could send it twice, so the stamp stays. A
-        # press ignored while this one was in flight is not replayed; that is accepted.
+        # Also on cancellation, so a cancelled press cannot wedge the button. If nothing reached the
+        # car, drop the stamp so a retry goes through; once started, the outcome is unknown and a
+        # retry could send it twice, so the stamp stays. A press ignored in flight is not replayed.
         _in_flight.discard(cmd)
         if not dispatched:
             _last_command.pop(cmd, None)
@@ -454,11 +450,10 @@ async def resolve_account(client):
     account_id = cfg("A290_ACCOUNT_ID")
     if account_id:
         return account_id
-    # Match the account whose garage actually contains our VIN. The A290 is registered under a
-    # MYALPINE account, not MYRENAULT, so keying on account type mis-resolves for Alpine owners;
-    # matching by VIN is model-agnostic (also correct for the Renault 5) and robust to the several
-    # account types a login can carry (MYALPINE / MYRENAULT / SFDC / ALPINE_TM …). Fall back to a
-    # MYRENAULT account only if no garage matches (preserves the old behaviour as a safety net).
+    # Match the account whose garage holds our VIN: this car is registered under MYALPINE, not
+    # MYRENAULT, so keying on account type mis-resolves, while a VIN match is model-agnostic and
+    # robust to the several types one login carries. Fall back to MYRENAULT only if no garage
+    # matches.
     vin = (cfg("A290_VIN") or "").strip().upper()
     person = await client.get_person()
     fallback = None
@@ -518,11 +513,9 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
         "plug_status": _enum_label(plug, PLUG_STATUS_LABELS, getattr(battery, "plugStatus", None)),
         "charging_flap": "Open: Plugged In" if plug == PlugState.PLUGGED else "Closed",
         "charging_status": "Charging" if charging else charging_status_label(battery),
-        # The CAR's own report time, never our clock. The previous `or iso(now_ts())` fallback
-        # stamped a payload that carried no timestamp as if it had arrived this instant, which
-        # is the same failure as the GPS sentinel: a fabricated-fresh timestamp is worse than an
-        # absent one, because it silences the very guard that exists to catch it. If the car did
-        # not say when it reported, we do not know, and the sensor reads unknown.
+        # The car's own report time, never our clock. The old `or iso(now_ts())` fallback stamped a
+        # payload that carried no time as if it had just arrived - the GPS-sentinel failure again: a
+        # fabricated-fresh time silences the guard that exists to catch it. Unknown stays unknown.
         "last_updated": getattr(battery, "timestamp", None),
         "drive_side": "RHD" if locale.lower() in RHD_LOCALES else "LHD",
     }
@@ -553,13 +546,10 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
         data.update(_charge_schedule_fields(p))
     except Exception as err:  # noqa: BLE001
         LOG.warning("ev/settings unavailable: %s", err)
-    # renault-api <= 0.5.13 declared hvac-settings for this model while the server answers
-    # errorCode 502000 to every actual call, so advertised support was not a usable gate - v1.23.0
-    # shipped one and the warning carried on every five minutes regardless. 0.5.14 withdraws it
-    # from the table, but the failure is the server's, so what the endpoint DOES is still the
-    # only reliable signal: trip a breaker after a few consecutive failures, log once, stop
-    # calling, and let a restart retry. Reset on any success, so a server-side fix is picked up
-    # without intervention.
+    # renault-api <= 0.5.13 advertised hvac-settings while the server answered 502000 to every
+    # call, so advertised support was no gate. 0.5.14 withdrew it, but the failure is the
+    # server's: trip a breaker after a few failures, log once, stop calling, and reset on success
+    # so a server-side fix is picked up.
     if _hvac_due(supported_eps):
         tripped = bool(_BREAKERS.get("hvac-settings"))
         try:
@@ -605,27 +595,14 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
     if mqtt.PUBLISH_LOCATION:   # skipped entirely when the user opts out of location publishing
         try:
             loc = await vehicle.get_location()
-            # build_location_attrs returns None when the payload carries no usable fix, which
-            # Kamereon signals with an out-of-band sentinel rather than a null: this car returned
-            # 91/181 on a fresh timestamp and the old `is not None` check published it as a real
-            # position, flipping the car to not_home while it was parked.
+            # build_location_attrs returns None for no usable fix, which Kamereon signals out-of-band:
+            # this car returned 91/181 on a fresh timestamp and the old `is not None` check published it
+            # as a real position, flipping a parked car to not_home.
             location_attrs = build_location_attrs(loc, GPS_PRECISION)
             if location_attrs is None:
-                # gps_last_activity must be neither ADVANCED nor DROPPED here, and both failure
-                # modes disarm binary_sensor.a290_gps_stale, which templates on this sensor:
-                #   advanced -> the sentinel's fresh timestamp says the fix is current;
-                #   dropped  -> `data` is published as a COMPLETE retained state document with
-                #               value_template "{{ value_json.gps_last_activity }}", so a missing
-                #               key renders empty, `as_datetime` yields none, and the guard's
-                #               `t is not none` short-circuits to False, i.e. "not stale".
-                # Carrying the last USABLE fix time forward is the only option that leaves the
-                # guard armed, and it does not depend on how HA treats an absent key.
-                # Prefer the persisted last-good time; fall back to whatever was last published
-                # in this process. state["gps_last_activity"] is introduced by this change, so on
-                # the FIRST poll after upgrading there is no persisted value - and if that poll is
-                # a sentinel (which it is on the vehicle that prompted this fix) the key would be
-                # omitted from the retained document and the guard would go quiet. _LATEST covers
-                # the rest of that window.
+                # Neither advance nor drop: both disarm binary_sensor.a290_gps_stale. Carry the last usable
+                # fix forward, preferring the persisted value and falling back to _LATEST for the first poll
+                # after upgrading, when the state file has no value yet.
                 prev = (state.get("gps_last_activity")
                         or (_LATEST.get("data") or {}).get("gps_last_activity"))
                 if prev:
@@ -764,12 +741,9 @@ async def main():
             # the exact rule data_stale used to carry here (no success within stale_hours), so
             # the connectivity alarm users already have is preserved, not dropped.
             fresh = freshness_fields(state, None, stale_secs, last_ok)
-            # Prefer the exception type (an HTTP 401/403, or Kamereon's unauthorized reply); fall
-            # back to the message text for gigya/library errors that aren't raised as one of those.
-            # The text match cannot catch Kamereon's reply: str() of it is "('err.func.wired.
-            # unauthorized', 'Not authorized')", none of the words below. Upstream says it can also
-            # mean a permissions problem, and it drops the session every poll while it lasts. An
-            # account Renault holds behind two-factor sign-in cannot sign in here at all.
+            # Prefer the exception type (HTTP 401/403, or Kamereon's unauthorized reply); fall back to
+            # the message text for gigya/library errors raised as neither. That text match misses
+            # Kamereon's reply, whose str() is "('err.func.wired.unauthorized', 'Not authorized')".
             auth = isinstance(err, (UnauthorizedException, PendingTwoFactorAuthenticationException)) or \
                 (isinstance(err, aiohttp.ClientResponseError) and err.status in (401, 403)) or \
                 any(s in str(err).lower() for s in ("login", "password", "credential", "401", "403"))

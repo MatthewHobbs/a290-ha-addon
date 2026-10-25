@@ -1,34 +1,15 @@
 ##### Alpine A290 Pretty Location #####
 #
-# Human-readable location string for the dashboard "LOCATION" tile
-# (sensor.alpine_pretty_location).
-#
-# It works primarily from the RAW MQTT device_tracker that this card already
-# provides (device_tracker.alpine_a290_location):
-#   * If the car is within zone.driveway  -> "Driveway"
-#   * If the car is within zone.home      -> "Home"
-#   * Otherwise -> the town/area name from the OPTIONAL `places` integration
-#     sensor (sensor.a290). If you do not run the `places` integration, or it is
-#     unavailable, it simply shows "Away".
-#
-# NOTE: distance() returns the value in the HA unit system's length unit, and a
-# zone's `radius` is always in metres, so each comparison converts the distance
-# to metres before testing it against the radius. Without that, the test reads
-# (km <= metres) and reports "Home" anywhere within ~radius km of the home zone.
-#
-# UNIT SYSTEM: this template assumes a METRIC Home Assistant, where distance()
-# returns kilometres — hence the `* 1000` (km -> m). On an IMPERIAL unit system
-# distance() returns MILES, so change both `* 1000` factors to `* 1609.344`
-# (mi -> m), or the zone test is off by ~1.6x. HA's sandboxed templates can't
-# read the configured unit system, so this can't be auto-detected here.
-#
-# OPTIONAL dependencies (the sensor degrades gracefully without them):
-#   * zone.driveway  - create this zone if you want a separate "Driveway" state;
-#                      without it the driveway branch is skipped.
-#   * sensor.a290    - the `places` (HACS) integration reverse-geocoding
-#                      device_tracker.alpine_a290_location. Rename to match your
-#                      own places sensor, or remove for coords-only setups.
+# Human-readable location for the dashboard's LOCATION tile (sensor.alpine_pretty_location),
+# derived from device_tracker.alpine_a290_location: "Driveway" inside zone.driveway, "Home"
+# inside zone.home, otherwise the town from the optional `places` sensor (sensor.a290).
 
+# METRIC ONLY: distance() returns kilometres and a zone radius is in metres, so the `* 1000`
+# converts. On an imperial system it returns miles: change both factors to 1609.344. Templates
+# cannot read the unit system, so this cannot self-detect.
+
+# Optional: zone.driveway (else that branch is skipped) and sensor.a290 from the `places`
+# integration (rename to your own, or remove for coordinates only).
 - sensor:
     - name: "Alpine Pretty Location"
       unique_id: alpine_pretty_location
