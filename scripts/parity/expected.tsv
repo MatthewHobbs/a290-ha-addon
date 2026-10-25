@@ -161,3 +161,4 @@ local	scripts/supervisor-pilot.sh	both	hunk:deploy_dashboard	15	the same default
 local	scripts/supervisor-pilot.sh	both	hunk:poll-success line is|addon_log_has "Published	4	r5's poll-success log line is "Published in <s>s" where a290's is "Published: ", so each pilot greps its own; the guard follows each repo's main.py and r5 keeps its line (confirmed on r5 2026-09-27)
 local	ui-tests/run.sh	both	re:^\# hand, together, when the gate's HA floor allows it	2	each copy names the other as the twin it must match; the sentence is otherwise the same
 pending	alpine_a290/app/deploy.py	both	re:\.content p	2	the injected Smart Charging heading wrap covers the h2 HA 2026.10 renders; r5 wraps p only. Target: r5 ports the heading wrap
+pending	scripts/docs_sync_check.py	both	*	68	the end-to-end harness poisons a tree instead of deleting a loose object. Target: r5 ports the harness fix
