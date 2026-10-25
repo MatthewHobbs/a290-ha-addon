@@ -122,7 +122,6 @@ pending	.github/workflows/ci.yaml	both	hunk:declared minimum HA must	2	comment w
 pending	.github/workflows/ci.yaml	both	hunk:a VIN in a test fixture|pair of public add-on repos	5	PII-step comment wording. Target: converge, either way
 pending	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant/base	4	the same comment on the build step, in a different place. Target: one place in both
 pending	.github/workflows/ui-tests.yaml	both	hunk:NOT the prose in there|Decide whether this touches the render|needs: \[changes\]|Triggers unconditionally \(ADR 0005\)|the \`if:\` that skips a no-op run|if: needs\.changes\.outputs\.relevant|skipped outright on a no-op run|if: always\(\) && needs\.changes	21	r5 ported ADR 0005 (its ADR 0002). What remains is the path-filter comment, which names each repo's own user docs (USER-GUIDE.md/INSTALLATION.md vs CUSTOMISING.md) and the #115 incident a290 saw. Target: converge the comment wording
-pending	.github/renovate.json	both	re:"Strict vX\.Y\.Z	4	rule descriptions worded differently for the same strict-tag rule. Target: converge, either way
 pending	.gitignore	both	*	16	section order differs; r5 ignores a local reference/ checkout. Target: one section order
 pending	.trivyignore	r5	*	3	r5 still ignores AVD-DS-0026 (no HEALTHCHECK) although its Dockerfile has one. Target: delete from r5
 pending	.yamllint	a290	*	4	a290 exempts dashboards/ because it bundles upstream YAML packages there. Target: follows the Packages/Templates decision
@@ -149,7 +148,6 @@ pending	alpine_a290/README.md	both	*	39	the add-on's store README. Target: same 
 pending	docs/dashboards-on-mobile.md	both	*	10	r5 claims the screenshots auto-refresh, which is false there, plus rewrapping. Target: fix r5's claim, then rewrap
 # ---------------------------------------------------------------- Supervisor pilot + AppArmor pin (a290 #160, r5 #108, ADR 0002)
 local	alpine_a290/apparmor.txt	both	re:^# (from 3\.0 up\. Parsers |profile, which differs from this one only in its name|the pin \(a290 ADR 0002 row 8\)|\((supervisor\.yml|ADR 0002)\) now enforces it in CI)	6	both pin `abi <abi/3.0>,`; only these comment lines differ, r5's citing "the a290 twin's profile" and a290 ADR 0002 row 8 where a290's cite its own ADR 0002 (r5 #108). Deliberately not `*`: a policy line that drifts must fail here, not hide behind a comment count
-local	.github/renovate.json	both	hunk:Supervisor pilot	4	both carry the pilot's Renovate rule and manager; the four differing lines are its descriptions, r5's citing "the a290 twin's ADR 0002" and "the a290 twin's" pilot where a290's cite its own (r5 #108)
 # --- pilot dashboard probe (a290 #165, mirrored by r5 in #108)
 # The probe is in both pilots now. Its only per-line residue is r5's deploy_dashboard default,
 # listed below; the rest of it is identical, and ADR 0002 row 11 is docs/adr/* (local).
@@ -161,3 +159,8 @@ local	scripts/supervisor-pilot.sh	both	re:must install what GHCR serves \(ADR 00
 model	scripts/supervisor-pilot.sh	both	re:a290-supervisor|r5-supervisor|local_alpine_a290|local_renault_5|pilot-registry|pilot-build|pilot-no-egress	16	the pilot's container, registry, provenance-label and egress-rule names carry each add-on's own short name
 local	scripts/supervisor-pilot.sh	both	hunk:deploy_dashboard	15	the same default difference in cmd_install (sets deploy_dashboard: standard) and the dashboard-probe comment (r5's deliberate choice, confirmed on r5 2026-09-27)
 local	scripts/supervisor-pilot.sh	both	hunk:poll-success line is|addon_log_has "Published	4	r5's poll-success log line is "Published in <s>s" where a290's is "Published: ", so each pilot greps its own; the guard follows each repo's main.py and r5 keeps its line (confirmed on r5 2026-09-27)
+pending	.github/dependabot.yml	both	*	30	a290 drops Renovate and widens Dependabot to actions and the Dockerfile images; r5 still splits the two bots. Target: r5 drops Renovate
+pending	.github/renovate.json	r5	only	1	a290 deleted the file. Target: r5 deletes it
+pending	.github/workflows/ui-tests.yaml	both	*	6	the gate's comments no longer claim a bot bumps the render pins. Target: r5 drops Renovate
+pending	scripts/supervisor-pilot.sh	both	*	4	the pinned images are hand-bumped now. Target: r5 drops Renovate
+pending	ui-tests/run.sh	both	*	6	the render pins are hand-bumped now. Target: r5 drops Renovate
