@@ -692,3 +692,51 @@ def test_charger_slots_keep_their_order():
     assert deploy._CHARGER_ENTITIES == (
         "A290_CHARGER_SMART_CHARGE", "A290_CHARGER_BUMP_CHARGE", "A290_CHARGER_TARGET_SOC",
         "A290_CHARGER_TARGET_TIME", "A290_CHARGER_DISPATCHING")
+
+
+# --------------------------------------------------------------------------- #
+# auth deadline, and a dashboard whose config never saved
+# --------------------------------------------------------------------------- #
+def test_ws_auth_gives_up_when_the_socket_never_answers(monkeypatch):
+    """A Supervisor proxy that accepts the socket and then says nothing used to wedge the
+    deploy before polling started: auth() awaited receive_json() with no deadline."""
+    class SilentWS:
+        async def receive_json(self):
+            await asyncio.sleep(10)
+
+        async def send_json(self, payload):
+            pass
+
+    monkeypatch.setattr(deploy, "REPLY_TIMEOUT", 0.01)
+    with pytest.raises(TimeoutError):
+        asyncio.run(deploy._WS(SilentWS(), "tok").auth())
+
+
+def test_failed_config_save_removes_the_new_dashboard(monkeypatch):
+    """Otherwise the empty dashboard satisfies the exists check and is never retried."""
+    class Api:
+        def __init__(self):
+            self.created, self.deleted = [], []
+
+        async def dashboards(self):
+            return []
+
+        async def create_dashboard(self, url_path, title):
+            self.created.append(url_path)
+            return {"id": "dash-1", "url_path": url_path}
+
+        async def save_config(self, url_path, config):
+            raise RuntimeError("save boom")
+
+        async def delete_dashboard(self, dashboard_id):
+            self.deleted.append(dashboard_id)
+
+    async def fake_fetch(style, refresh_location=False):
+        return {"title": "t", "views": []}
+
+    api = Api()
+    monkeypatch.setattr(deploy, "_fetch_dashboard", fake_fetch)
+    with pytest.raises(RuntimeError):
+        asyncio.run(deploy._deploy_one(api, "standard", "alpine-a290", "t", redeploy=False))
+    assert api.created == ["alpine-a290"]
+    assert api.deleted == ["dash-1"]

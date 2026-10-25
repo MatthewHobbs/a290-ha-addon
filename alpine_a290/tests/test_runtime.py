@@ -766,7 +766,7 @@ def test_numbers_not_debounced(monkeypatch):
 
 def test_detect_supported_adds_soc_levels(monkeypatch):
     class V:
-        def supports_endpoint(self, ep):
+        async def supports_endpoint(self, ep):
             return ep == main.SOC_ENDPOINT
 
     supported = asyncio.run(main.detect_supported(FakeVSession(V())))
@@ -781,7 +781,7 @@ def test_detect_supported_success(monkeypatch):
         def __init__(self, s):
             self._s = s
 
-        def supports_endpoint(self, ep):
+        async def supports_endpoint(self, ep):
             return ep in self._s
 
     vs = FakeVSession(V({"pressure", "actions/horn-start", "actions/hvac-start"}))
@@ -967,7 +967,7 @@ def test_vehicle_session_invalidate_swallows_close_error():
 
 def test_detect_supported_handles_probe_errors():
     class V:
-        def supports_endpoint(self, ep):
+        async def supports_endpoint(self, ep):
             raise RuntimeError("probe boom")
 
     supported = asyncio.run(main.detect_supported(FakeVSession(V())))
@@ -1318,20 +1318,15 @@ def test_vehicle_session_invalidates_on_login_failure(monkeypatch):
     asyncio.run(scenario())
 
 
-def test_supports_handles_sync_and_async():
-    class SyncV:
-        def supports_endpoint(self, ep):
-            return True
-
-    class AsyncV:
-        def supports_endpoint(self, ep):
-            async def _a():
-                return True
-            return _a()
+def test_supports_awaits_the_pinned_api():
+    """supports_endpoint() is a coroutine in the pinned renault-api, so its result is awaited."""
+    class V:
+        async def supports_endpoint(self, ep):
+            return ep == "supported"
 
     async def scenario():
-        assert await main._supports(SyncV(), "x") is True
-        assert await main._supports(AsyncV(), "x") is True
+        assert await main._supports(V(), "supported") is True
+        assert await main._supports(V(), "other") is False
 
     asyncio.run(scenario())
 
@@ -1720,3 +1715,59 @@ def test_main_failure_path_publishes_both_signals(monkeypatch):
     assert published[0]["poll_failing"] == "on"      # never succeeded in this process
     assert "data_stale" not in published[0]          # and no car timestamp to judge
     assert published[0]["api_auth_failure"] == "off"  # not every failure is a credentials one
+
+
+# --------------------------------------------------------------------------- #
+# state file shape, a cancelled login, and a failed location fetch
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("document", ["[]", '"text"', "3", "null", "{}"])
+def test_load_state_ignores_a_document_of_the_wrong_shape(tmp_path, monkeypatch, document):
+    """The poll's own error path calls .get() on this, so a list would raise inside the
+    handler and take the loop down."""
+    path = tmp_path / "state.json"
+    path.write_text(document)
+    monkeypatch.setattr(main, "STATE_FILE", str(path))
+    state = main.load_state()
+    assert state == {}
+    assert isinstance(state, dict)
+
+
+def test_cancelled_login_closes_its_session(monkeypatch):
+    """The poll timeout cancels mid-login; the next call would overwrite the reference."""
+    closed = []
+
+    class Sess:
+        def __init__(self, *a, **k):
+            pass
+
+        async def close(self):
+            closed.append(True)
+
+    async def slow_login(ws, locale):
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(main.aiohttp, "ClientSession", Sess)
+    monkeypatch.setattr(main, "_login_vehicle", slow_login)
+    session = main.VehicleSession("en")
+
+    async def scenario():
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(session.vehicle(), timeout=0.01)
+
+    asyncio.run(scenario())
+    assert closed == [True]
+    assert session._websession is None
+
+
+def test_location_failure_carries_the_last_good_timestamp_forward():
+    """The sentinel branch's invariant, reached by the other route: the fetch itself failed.
+    Dropping the key renders the sensor empty and disarms the stale guard."""
+    class _V(FakeVehicle):
+        async def get_location(self):
+            raise RuntimeError("location boom")
+
+    st = {"gps_last_activity": "2026-09-02T11:43:14Z"}
+    data, loc_attrs = asyncio.run(
+        main.poll_once(FakeVSession(_V()), st, 52.0, {"pressure"}, "km"))
+    assert loc_attrs is None
+    assert data["gps_last_activity"] == "2026-09-02T11:43:14Z"
