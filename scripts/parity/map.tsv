@@ -1,5 +1,5 @@
 # Parity normalisation map: how the derived tree (r5-ha-addon) is read in the canonical tree's
-# (a290-ha-addon) names before the two are diffed. Read by scripts/parity_check.py; ADR 0001.
+# (a290-ha-addon) names before the two are diffed. Read by scripts/parity_check.py.
 #
 # Columns, tab-separated: kind, scope, pattern, replacement, why.
 #   side          scope canonical|derived; pattern = marker file that identifies that tree;
@@ -9,7 +9,7 @@
 #                 scope names canonical paths, but a path rule rewrites derived names before
 #                 any canonical path exists, so a scoped path rule is refused (exit 2)
 #   legacy        content rewrite: r5's Topolino65-compatible names -> a290's. Expected to go:
-#                 r5 moves to a290's names in one migration release (ADR 0001), and each
+#                 r5 moves to a290's names in one migration release, and each
 #                 rule is deleted once r5 no longer uses that name
 #   identity      content rewrite: names that differ only because the car differs
 #   verbatim      files that must be byte-identical: compared raw, never normalised
@@ -31,7 +31,7 @@
 # leave known real differences visible: MQTT_KEEPALIVE, PESSIMISTIC_ENDPOINTS, cabin
 # temperature, COMMAND_DEBOUNCE_S and r5's Cabin Temp card all still reach the diff.
 
-side	canonical	alpine_a290/config.yaml	a290	a290-ha-addon holds the names every comparison is made in (a290 is upstream, ADR 0001)
+side	canonical	alpine_a290/config.yaml	a290	a290-ha-addon holds the names every comparison is made in (a290 is upstream)
 side	derived	renault_5/config.yaml	r5	r5-ha-addon is normalised onto a290's names
 
 define	-	DOMAIN	(?<![a-z_])(sensor|binary_sensor|button|number|device_tracker|switch|select|text|update|image)	entity-id domains; the lookbehind stops a match inside a longer word

@@ -11,8 +11,7 @@ A sibling repo, **`MatthewHobbs/r5-ha-addon`**, is the Renault 5 port of the sam
 **Keep the two in lockstep.** Most feature and fix work here should be mirrored there
 (adjusting for per-model API differences), and the other way round.
 
-**The parity check enforces that** ([ADR 0001](docs/adr/0001-r5-inherits-from-a290.md), stage A;
-decisions live in `docs/adr/`). `scripts/parity_check.py` rewrites r5's names onto a290's
+**The parity check enforces that** (decisions live in `docs/adr/`). `scripts/parity_check.py` rewrites r5's names onto a290's
 (`scripts/parity/map.tsv`), diffs the trees, and fails on any difference that
 `scripts/parity/expected.tsv` does not list with a category, an exact count and a reason, and on
 any entry whose difference is gone. Run `just parity` (clones r5's main, or
@@ -208,14 +207,14 @@ machine.
 
 Exceptions (CI is enough): docs-only, CI-YAML-only, or test-only changes.
 
-## Supervisor pilot ([ADR 0002](docs/adr/0002-test-under-stable-supervisor.md))
+## Supervisor pilot
 
 `.github/workflows/supervisor.yml` runs `scripts/supervisor-pilot.sh`. The script installs this
 add-on under a real **stable-channel Supervisor** in the official add-on devcontainer, on amd64
 and aarch64. It runs two Core legs: current stable, and the `homeassistant:` minimum read from
 `config.yaml`. Nightly it runs amd64 on Core stable only; on Wednesdays, on demand, and on every
-PR it runs all four legs, which are **required checks** (ADR row 5). The trigger is
-unconditional and a `changes` job decides relevance, the way `ui-tests.yaml` does (ADR 0005), so
+PR it runs all four legs, which are **required checks**. The trigger is
+unconditional and a `changes` job decides relevance, the way `ui-tests.yaml` does, so
 a PR that touches neither the pilot nor the add-on's runtime files still reports all four in
 seconds, with every step skipped, instead of leaving a required check pending. It checks that
 versions match
@@ -252,7 +251,7 @@ purpose.
 
 ## Release / versioning
 
-**Releases are batched and cut on request** ([ADR 0006](docs/adr/0006-release-on-request.md)).
+**Releases are batched and cut on request.**
 A user-facing change adds its entry under `## Unreleased` in **`alpine_a290/CHANGELOG.md`** and
 **leaves `alpine_a290/config.yaml` `version` alone**: the Supervisor keys updates on that version
 and `release.yaml` publishes an image for any PR that moves it, so moving it is releasing. The
@@ -263,9 +262,8 @@ Only when the maintainer asks for a release: `just release <version>` (read the 
 prints, then choose the number: a new feature is a minor, otherwise a patch), commit the two
 files it changes as their own PR titled `chore(release): <version>`, and let the existing gates
 run. Merging that PR publishes nothing. `just tag <version>` then signs and pushes `v<version>`;
-that run installs the per-arch image under a real stable Supervisor on four legs (ADR 0002
-row 5), waits for CI and the UI gate, and only then publishes the image users pull and cuts the
-Release (ADR 0007). Never put a version bump in a feature PR "to get it out".
+that run installs the per-arch image under a real stable Supervisor on four legs, waits for CI and the UI gate, and only then publishes the image users pull and cuts the
+Release. Never put a version bump in a feature PR "to get it out".
 
 **What reaches users on merge, whatever the version.** Batching holds back the container image
 only. The Supervisor reads the add-on's *files* straight from `main`, so a merge that changes
@@ -275,8 +273,7 @@ a change must work with the currently released image. Adding an option the old i
 fine. Removing or renaming one, changing `image`/`arch`/`slug`, or adding an `apparmor.txt` rule
 the old image does not need, is not, and belongs in the release PR's company, never in an
 ordinary merge. The docs-sync check refuses any `config.*` or `build.*` file other than
-`alpine_a290/config.yaml`, because the Supervisor treats every one it finds as an add-on
-([ADR 0006](docs/adr/0006-release-on-request.md)).
+`alpine_a290/config.yaml`, because the Supervisor treats every one it finds as an add-on.
 
 When mirroring to `r5-ha-addon`, the entry goes under `## Unreleased` in
 **`renault_5/CHANGELOG.md`**. r5 is released separately, never ahead of this repo. r5 has no

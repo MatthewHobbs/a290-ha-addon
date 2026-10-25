@@ -63,7 +63,7 @@ JS_DETECT = r"""
                   || (cs.overflowX === 'hidden' && cs.whiteSpace.indexOf('nowrap') >= 0);
       // A box can clip text it does not own: Bubble's .scrolling-container holds the name in a
       // child span and hides the overflow behind a mask, so the span never reports overflow
-      // (ADR 0004; measured by the r5 twin: span 212/212, container 212 in 85).
+      //.
       if (!own && clipsX) own = (el.textContent || '').trim();
       if (!own) continue;
       if (clipsX && el.scrollWidth > el.clientWidth + 1) {
@@ -72,8 +72,7 @@ JS_DETECT = r"""
       } else if (cs.webkitLineClamp && cs.webkitLineClamp !== 'none'
                  && el.scrollHeight > el.clientHeight + 1) {
         // A line clamp cuts text off vertically (Bubble clamps a non-scrolling name/state to 2
-        // lines), so the width test above never sees it (ADR 0004 row 1 as amended; measured
-        // by the r5 twin: a three-line date in a 2-line box, 54 > 36).
+        // lines), so the width test above never sees it.
         out.push({ type: 'truncated', tag, text: own.slice(0, 160), axis: 'y',
                    scrollWidth: el.scrollHeight, clientWidth: el.clientHeight });
       }
@@ -219,7 +218,7 @@ JS_SHOWS_TEXT = r"""
 """
 
 
-# The items still short of the open pop-up's completeness set (ADR 0003 row 3): `items` is the
+# The items still short of the open pop-up's completeness set: `items` is the
 # manifest's per-card list [[tag, [texts]], ...], and each is met by a DISTINCT laid-out element of
 # that tag inside the open pop-up (found by hash as JS_POPUP_SHOWS finds it), outside its header,
 # holding for every text a laid-out element whose own text equals it. Laid out is a non-zero box,
@@ -332,7 +331,7 @@ JS_POPUP_SHORT = r"""
 """
 JS_POPUP_COMPLETE = f"(arg) => ({JS_POPUP_SHORT})(arg).length === 0"
 
-# One timeout for a pop-up's whole completeness set (ADR 0003 row 4): a healthy pop-up resolves as
+# One timeout for a pop-up's whole completeness set: a healthy pop-up resolves as
 # soon as its cards are laid out, a broken one costs this once per device, never one wait per card.
 POPUP_COMPLETE_MS = 10000
 
@@ -806,7 +805,7 @@ def _capture_popup(page, popup, where, dev_name, shot, nav):
                 for line in _popup_skip_diag(page, stages, nav):
                     print(f"    [popup diag] {line}")
                 return None
-            # Completeness first, THEN scan (review of #171 round 4, ADR 0003): Bubble's inner
+            # Completeness first, THEN scan (review of #171 round 4): Bubble's inner
             # cards lazy-render, and _stable_issues can exit on its fast path (two clean scans, as
             # little as ~1s) before a slower card finishes painting; nothing is truncated in a card
             # that is not there. So wait, once, for every card the manifest lists for this pop-up
@@ -865,8 +864,8 @@ def run():
             sys.exit(f"{args.expect} names no dashboard: this pass would check nothing")
         args.dashboards = list(expect)
     popups = {dash: expect.get(dash, {}).get("popups", []) for dash in args.dashboards}
-    # A pop-up without its card list has nothing to wait for, and a scan without the wait is the
-    # gap ADR 0003 closes: refuse the manifest rather than scan on a guess.
+    # A pop-up without its card list has nothing to wait for, and a scan without the wait is a
+    # guess: refuse the manifest rather than scan on a guess.
     for dash, entries in popups.items():
         for p in entries:
             if not p.get("cards"):

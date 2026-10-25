@@ -26,7 +26,7 @@ Mushroom tile labels clipping on a phone.
    cuts a non-scrolling name or state at two lines), or any `hui-error-card`. A box that clips
    but owns no text node is measured by its text content: Bubble's scrolling-text marquee keeps
    a name in a child span that never overflows while the container hides it behind a fade, and
-   the gate reported 0 for those names until ADR 0004. A screenshot is saved per
+   the gate reported 0 for those names until the span was measured. A screenshot is saved per
    device; the run exits non-zero with a report if anything is clipped.
 4. **Bubble pop-ups.** The Bubble dashboard is nothing but pop-ups, and Bubble renders a pop-up
    only while it is open (a closed one is detached from the DOM, measured on 3.4.1), so step 3
@@ -36,8 +36,7 @@ Mushroom tile labels clipping on a phone.
    `bubble-card` that renders it) is open on screen showing its header `name`, scans it with the
    same truncation check, and screenshots it as `<dashboard>__popup_<hash>__<device>.png`
    (`#alpine-charging` keeps its `smart_charging` name). Findings
-   inside a pop-up are reported with its hash. **The scan waits for the whole pop-up first**
-   ([ADR 0003](../docs/adr/0003-wait-for-every-pop-up-card-before-scanning.md)): Bubble renders
+   inside a pop-up are reported with its hash. **The scan waits for the whole pop-up first**: Bubble renders
    a pop-up's cards lazily, and nothing is truncated in a card that has not painted, so the
    manifest carries, per pop-up, one item per card its `cards:` render (a conditional card's
    inner card only while its conditions hold under the complete seeded state map, never the
@@ -47,8 +46,7 @@ Mushroom tile labels clipping on a phone.
    value renders as where it shows state (`show_state`, Bubble's `button_type: state`), and, for
    a JavaScript or Jinja field the seed cannot read, what `seed.DECLARED` says it renders (the
    Charge Status badges and the off-peak window are the two). A state-display button whose
-   `styles` overwrites `.bubble-state`'s text with a JavaScript template (the short-date buttons
-   ADR 0004 added) is a separate case the collector detects on the `styles` string itself:
+   `styles` overwrites `.bubble-state`'s text with a JavaScript template (the short-date buttons) is a separate case the collector detects on the `styles` string itself:
    `seed.STATE_TEXT_OVERRIDE`, keyed by dashboard, pop-up hash, entity and card name (Last
    Charge's Started and Date buttons share an entity), says what it renders instead of the raw
    state text, with the same guarantee as `DECLARED`. Such a field with no declaration, a

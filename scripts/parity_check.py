@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail when the a290 and r5 add-on trees differ in any way the expected list does not explain.
 
-Shared verbatim by a290-ha-addon and r5-ha-addon (ADR 0001 in a290), so it knows neither repo
+Shared verbatim by a290-ha-addon and r5-ha-addon, so it knows neither repo
 by name. Everything model-specific is data under scripts/parity/ in the repo that runs it:
 
   map.tsv       how the derived tree's names are rewritten onto the canonical tree's, and

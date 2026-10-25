@@ -19,12 +19,12 @@ docs-sync-self-test:
     scripts/test-check-version-order.sh
 
 # Cut a release: turn `## Unreleased` into `## <version>` and move config.yaml's version to match,
-# and nothing else (ADR 0006). Commit the result as its own PR, titled `chore(release): <version>`;
-# merging it publishes nothing; `just tag` does (ADR 0007). `--dry-run` only prints.
+# and nothing else. Commit the result as its own PR, titled `chore(release): <version>`;
+# merging it publishes nothing; `just tag` does. `--dry-run` only prints.
 release version *flags:
     python3 scripts/prepare_release.py {{version}} {{flags}}
 
-# Sign and push the tag for a merged release (ADR 0007); release.yaml then publishes it. Tags the
+# Sign and push the tag for a merged release; release.yaml then publishes it. Tags the
 # release PR's merge commit on origin/main, not whatever main is now.
 tag version:
     #!/usr/bin/env bash
@@ -42,7 +42,7 @@ parity-self-test:
     python3 scripts/parity_check.py --self-test
 
 # Same command as the Parity job: diff this add-on against r5-ha-addon through the committed
-# map and expected list (ADR 0001). PARITY_TWIN=<path> must be a git checkout of r5: its
+# map and expected list. PARITY_TWIN=<path> must be a git checkout of r5: its
 # tracked files (content as in its working tree) and tracked modes are compared; anything else
 # is refused rather than silently walked. Unset, it clones r5's main (network).
 parity: parity-self-test

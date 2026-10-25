@@ -2,7 +2,7 @@
 """docs-sync-check: enforce the documentation rules instead of trusting them.
 
 CONTRIBUTING.md says a user-facing change adds a CHANGELOG entry under `## Unreleased` and leaves
-`config.yaml` `version` alone (a release is a separate, requested PR; ADR 0006), and that the
+`config.yaml` `version` alone (a release is a separate, requested PR), and that the
 options table and entity lists in the docs describe what the code publishes.
 Those were checklist items, not checks, so they drifted: `stale_hours` was documented as
 "mark data stale after this many hours without a successful poll" long after the option had

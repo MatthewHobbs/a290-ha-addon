@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Install, configure and probe the add-on under a real stable-channel
-# Supervisor and Core, inside the official add-on devcontainer (ADR 0002).
+# Supervisor and Core, inside the official add-on devcontainer.
 # Adapted from polygonal-zones' pilot (its ADR 0001), which solved the image,
 # floor-Core and AppArmor problems this relies on.
 #
@@ -188,7 +188,7 @@ cmd_build() {
 
   if [[ -n "${PILOT_IMAGE:-}" ]]; then
     # The artefact that ships, not a rebuild of it: the release's own pilot
-    # must install what GHCR serves (ADR 0002 row 5).
+    # must install what GHCR serves.
     log "Pulling published image ${PILOT_IMAGE}"
     docker pull --platform "$platform" --quiet "$PILOT_IMAGE" >/dev/null ||
       fail "could not pull ${PILOT_IMAGE}"

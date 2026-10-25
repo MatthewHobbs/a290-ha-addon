@@ -1,6 +1,6 @@
 name: Release
 
-# A release is a signed v* tag I push after the release PR merges (ADR 0007). The tag run
+# A release is a signed v* tag I push after the release PR merges. The tag run
 # builds, boots under the Supervisor, waits for CI, then publishes the manifest and cuts the
 # Release. A PR or dispatch is a dry run: it builds and pushes nothing.
 
@@ -234,7 +234,7 @@ jobs:
   pilot:
     name: Published image (${{ matrix.arch }}, Core ${{ matrix.core }})
     needs: [prepare, build]
-    # ADR 0002 row 5: the per-arch image the tag run just pushed is booted under a real stable
+    # The per-arch image the tag run just pushed is booted under a real stable
     # Supervisor, both arches and both Core ends, before the manifest users pull is published.
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
@@ -247,7 +247,7 @@ jobs:
       PILOT_IMAGE: ${{ matrix.image }}:${{ needs.prepare.outputs.version }}
       # Condition on the steps, not the job: a false job-level `if:` stops the
       # matrix expanding, so the legs report under an unexpanded template name
-      # (ui-tests.yaml, ADR 0005).
+      # (ui-tests.yaml).
       PILOT_RUN: ${{ needs.prepare.outputs.publish == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -282,18 +282,18 @@ jobs:
         run: scripts/supervisor-pilot.sh down
 
   validated:
-    name: Wait for CI + UI Tests on this commit (ADR 0005)
+    name: Wait for CI + UI Tests on this commit
     # Gates `manifest`, the image users pull, on CI and the UI gate for the tagged commit.
     needs: [prepare]
     if: ${{ github.event_name == 'push' && needs.prepare.outputs.publish == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Wait for UI Tests (both legs; always reports per ADR 0005, applicable or not)
+      - name: Wait for UI Tests (both legs; always reports, applicable or not)
         uses: lewagon/wait-on-check-action@369769072fe522a3a8a85c03c96af1e5242a1994  # v1.9.1
         with:
           ref: ${{ github.sha }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          running-workflow-name: "Wait for CI + UI Tests on this commit (ADR 0005)"
+          running-workflow-name: "Wait for CI + UI Tests on this commit"
           check-regexp: '^Dashboard responsive render'
           wait-interval: 20
           checks-discovery-timeout: 180
@@ -303,7 +303,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          running-workflow-name: "Wait for CI + UI Tests on this commit (ADR 0005)"
+          running-workflow-name: "Wait for CI + UI Tests on this commit"
           check-regexp: '^(Lint|Tests|Security|Build \(amd64 sanity\)|Docs sync)$'
           wait-interval: 20
           checks-discovery-timeout: 180
