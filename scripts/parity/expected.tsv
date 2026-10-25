@@ -42,7 +42,7 @@ model	alpine_a290/dashboards/Images/Map Markers/*	r5	only	6	r5's map markers per
 
 # ---------------------------------------------------------------- one repository only
 local	BACKLOG.md	a290	only	1	a290's own backlog; r5 tracks work in its issues
-local	docs/adr/*	a290	only	7	a290's architecture decision records (0001 parity, 0002 Supervisor pilot, 0003 pop-up completeness, 0004 marquee clips, 0005 release waits for the UI gate, 0006 release on request)
+local	docs/adr/*	a290	only	8	a290's architecture decision records (0001 parity, 0002 Supervisor pilot, 0003 pop-up completeness, 0004 marquee clips, 0005 release waits for the UI gate, 0006 release on request, 0007 signed release tag)
 pending	alpine_a290/.dockerignore	a290	only	1	a290 keeps tests and docs out of the image build context. Target: port to r5
 pending	alpine_a290/tests/test_charge.py	a290	only	1	a290's charge-session tests; whether r5's _parse_charge_session tests cover the same is not established. Target: compare, then port what is missing to r5
 pending	alpine_a290/tests/test_config.py	a290	only	1	ENV_PREFIX wiring and end-to-end redaction tests. Target: port to r5
@@ -113,8 +113,8 @@ pending	alpine_a290/dashboards/front-end-bubble.txt	both	re:# Ghost tile:	2	comm
 # ---------------------------------------------------------------- repo config and CI
 pending	.github/workflows/ci.yaml	both	hunk:name: Parity with r5|name: Parity with a290|fail on any difference from|Check out r5-ha-addon main|Check out a290-ha-addon main|differ only as listed|repository: MatthewHobbs/	15	r5 added its own reciprocal job (#126): symmetric wording (each names the other repo, checks out the other's main, names its own check "differ only as listed" the other way round). Target: converge wording; row 3 (required check) is a separate owner decision once r5's job has run stably
 pending	.github/workflows/release.yaml	both	re:^# `v<version>` being absent	1	r5 cites the twin's decision record for the bump decision: a290 writes ADR 0006, r5 writes a290-ha-addon/ADR 0006. Target: converge the citation
-local	.github/workflows/release.yaml	both	re:ADR 0002 row 5: the artefact that ships	2	each copy names its own decision record for the release pilot: a290's ADR 0002, r5's "the a290 twin's"
-local	justfile	both	re:^# (and nothing else \((a290's )?ADR 0006\)|merging it publishes the image and the tag\. `just release|`chore\(release\): <version>`; merging it publishes|`just release <version> --dry-run` only prints)	5	each repo's `release` recipe comment cites ADR 0006 from its own side (r5 says "a290's ADR 0006") and wraps differently
+local	.github/workflows/release.yaml	both	re:ADR 0002 row 5: the artefact that ships	1	each copy names its own decision record for the release pilot: a290's ADR 0002, r5's "the a290 twin's"
+local	justfile	both	re:^# (and nothing else \((a290's )?ADR 0006\)|merging it publishes the image and the tag\. `just release|`chore\(release\): <version>`; merging it publishes|`just release <version> --dry-run` only prints)	4	each repo's `release` recipe comment cites ADR 0006 from its own side (r5 says "a290's ADR 0006") and wraps differently
 local	docs/adr/0001-release-on-request.md	r5	only	1	r5's own ADR for release on request; it restates a290's ADR 0006 for r5, which a290 keeps as docs/adr/0006-release-on-request.md
 local	docs/adr/0002-release-waits-for-the-ui-gate.md	r5	only	1	r5's own ADR for the release waiting on the UI gate; it restates a290's ADR 0005 for r5, which a290 keeps as docs/adr/0005-release-waits-for-the-ui-gate.md
 pending	justfile	both	hunk:parity|against r5-ha-addon through|against a290-ha-addon through|twin=	16	r5 added its own reciprocal parity recipes (#126), symmetric wording (each names the other repo as its twin). Target: converge wording
@@ -162,10 +162,13 @@ local	scripts/supervisor-pilot.sh	both	hunk:poll-success line is|addon_log_has "
 local	ui-tests/run.sh	both	re:^\# hand, together, when the gate's HA floor allows it	2	each copy names the other as the twin it must match; the sentence is otherwise the same
 pending	alpine_a290/app/deploy.py	both	re:\.content p	2	the injected Smart Charging heading wrap covers the h2 HA 2026.10 renders; r5 wraps p only. Target: r5 ports the heading wrap
 pending	scripts/docs_sync_check.py	both	*	78	the end-to-end harness poisons a tree instead of deleting a loose object. Target: r5 ports the harness fix
-pending	.github/workflows/ci.yaml	both	*	25	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite
-pending	.github/workflows/release.yaml	both	*	66	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite
+pending	.github/workflows/ci.yaml	both	*	31	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite
+pending	.github/workflows/release.yaml	both	*	232	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite; and a290 publishes from a signed tag, not the bump PR (ADR 0007). Target: r5 takes the signed-tag release
 pending	alpine_a290/app/catalog.py	both	*	10	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite
 pending	alpine_a290/app/deploy.py	both	*	12	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite
 pending	alpine_a290/tests/conftest.py	both	*	7	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite
-pending	justfile	both	*	4	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite
+pending	justfile	both	*	23	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite; and a290 has a `tag` recipe (ADR 0007). Target: r5 takes it
 pending	scripts/check_comment_length.py	a290	only	1	the comment-length checker. Target: r5 takes the checker
+pending	scripts/check-version-order.sh	a290	only	1	the version-order check the tag run uses (ADR 0007). Target: r5 takes it
+pending	scripts/test-check-version-order.sh	a290	only	1	the checks for the version-order script (ADR 0007). Target: r5 takes it
+pending	scripts/release_decision.py	r5	only	1	r5 still decides a PR-time publish; a290 publishes from a signed tag and has no such decision (ADR 0007). Target: r5 removes it with the port

@@ -262,10 +262,10 @@ waives that.
 Only when the maintainer asks for a release: `just release <version>` (read the entries it
 prints, then choose the number: a new feature is a minor, otherwise a patch), commit the two
 files it changes as their own PR titled `chore(release): <version>`, and let the existing gates
-run. That PR publishes the image, then installs the **published** per-arch image under a real
-stable Supervisor on four legs (ADR 0002 row 5) before it may merge, so the artefact users pull
-has been booted on both arches at both ends of the Core range. Merging tags `v<version>`. Never
-put a version bump in a feature PR "to get it out".
+run. Merging that PR publishes nothing. `just tag <version>` then signs and pushes `v<version>`;
+that run installs the per-arch image under a real stable Supervisor on four legs (ADR 0002
+row 5), waits for CI and the UI gate, and only then publishes the image users pull and cuts the
+Release (ADR 0007). Never put a version bump in a feature PR "to get it out".
 
 **What reaches users on merge, whatever the version.** Batching holds back the container image
 only. The Supervisor reads the add-on's *files* straight from `main`, so a merge that changes
