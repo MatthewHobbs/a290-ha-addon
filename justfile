@@ -20,9 +20,22 @@ docs-sync-self-test:
 
 # Cut a release: turn `## Unreleased` into `## <version>` and move config.yaml's version to match,
 # and nothing else (ADR 0006). Commit the result as its own PR, titled `chore(release): <version>`;
-# merging it publishes the image and the tag. `just release <version> --dry-run` only prints.
+# merging it publishes the image. `just release <version> --dry-run` only prints.
 release version *flags:
     python3 scripts/prepare_release.py {{version}} {{flags}}
+
+# Sign and push the tag for a merged release (ADR 0007); release-tag.yaml then checks it and cuts
+# the GitHub Release. Tags the release PR's merge commit on origin/main, not whatever main is now.
+tag version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    git fetch --quiet origin main
+    sha="$(git log origin/main -1 --format=%H --grep="^chore(release): {{version}} ")"
+    [[ -n "$sha" ]] || { echo "no merged chore(release): {{version}} commit on origin/main"; exit 1; }
+    [[ "$(git show "$sha:alpine_a290/config.yaml" | awk -F'"' '/^version:/{print $2}')" == "{{version}}" ]] ||
+        { echo "config.yaml at $sha is not version {{version}}"; exit 1; }
+    git tag -s "v{{version}}" -m "Alpine A290 {{version}}" "$sha"
+    git push origin "v{{version}}"
 
 # Proves the parity check can fail on each kind of drift; needs nothing outside this repo.
 parity-self-test:

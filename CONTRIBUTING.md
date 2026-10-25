@@ -264,7 +264,8 @@ prints, then choose the number: a new feature is a minor, otherwise a patch), co
 files it changes as their own PR titled `chore(release): <version>`, and let the existing gates
 run. That PR publishes the image, then installs the **published** per-arch image under a real
 stable Supervisor on four legs (ADR 0002 row 5) before it may merge, so the artefact users pull
-has been booted on both arches at both ends of the Core range. Merging tags `v<version>`. Never
+has been booted on both arches at both ends of the Core range. Merging publishes the image; `just tag <version>` then signs and pushes `v<version>` and the
+release workflow cuts the Release (ADR 0007). Never
 put a version bump in a feature PR "to get it out".
 
 **What reaches users on merge, whatever the version.** Batching holds back the container image

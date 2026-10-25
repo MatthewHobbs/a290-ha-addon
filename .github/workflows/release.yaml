@@ -1,9 +1,8 @@
 name: Release
 
-# A version on main with no image behind it 404s every update, so the bump PR
-# publishes the image and the REQUIRED `Release image published` gate confirms it
-# resolves before merge; the push to main rebuilds, attests and cuts the tag.
-# "Bump" = version changed AND tag absent (scripts/release_decision.py).
+# The bump PR publishes the image and the REQUIRED `Release image published` gate confirms it
+# resolves before merge; the push to main rebuilds and attests. My signed tag then runs
+# release-tag.yaml (ADR 0007). "Bump" = version changed AND tag absent (release_decision.py).
 
 on:
   push:
@@ -296,62 +295,6 @@ jobs:
       - name: Tear down
         if: always() && env.PILOT_RUN == 'true'
         run: scripts/supervisor-pilot.sh down
-
-  validated:
-    name: Wait for CI + UI Tests on this commit (ADR 0005)
-    # The image is already live (published from the bump PR), so this gates the
-    # visible "this version is out" signal only. `needs` treats a skipped job as
-    # success, so `tag` is blocked only when this runs and fails.
-    needs: [prepare]
-    if: ${{ github.event_name == 'push' && needs.prepare.outputs.publish == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Wait for UI Tests (both legs; always reports per ADR 0005, applicable or not)
-        uses: lewagon/wait-on-check-action@369769072fe522a3a8a85c03c96af1e5242a1994  # v1.9.1
-        with:
-          ref: ${{ github.sha }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          running-workflow-name: "Wait for CI + UI Tests on this commit (ADR 0005)"
-          check-regexp: '^Dashboard responsive render'
-          wait-interval: 20
-          checks-discovery-timeout: 180
-
-      - name: Wait for CI's required jobs on this commit
-        uses: lewagon/wait-on-check-action@369769072fe522a3a8a85c03c96af1e5242a1994  # v1.9.1
-        with:
-          ref: ${{ github.sha }}
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          running-workflow-name: "Wait for CI + UI Tests on this commit (ADR 0005)"
-          check-regexp: '^(Lint|Tests|Security|Build \(amd64 sanity\)|Docs sync)$'
-          wait-interval: 20
-          checks-discovery-timeout: 180
-
-  tag:
-    name: Tag release
-    needs: [prepare, manifest, validated, pilot]
-    if: ${{ github.event_name == 'push' && needs.prepare.outputs.publish == 'true' }}
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write   # create the git tag + GitHub Release
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-
-      - name: Create v<version> tag + release when new
-        env:
-          VERSION: ${{ needs.prepare.outputs.version }}
-          IMAGE: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          tag="v${VERSION}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
-            echo "Tag ${tag} already exists — nothing to do."
-            exit 0
-          fi
-          echo "Tagging ${tag} at ${GITHUB_SHA}"
-          gh release create "${tag}" \
-            --target "${GITHUB_SHA}" \
-            --title "${tag}" \
-            --notes "Multi-arch image published: \`${IMAGE}:${VERSION}\` — build provenance attested (keyless, GitHub OIDC) and pushed to the registry. Verify: \`gh attestation verify oci://${IMAGE}:${VERSION} --owner MatthewHobbs\`."
 
   release-gate:
     name: Release image published

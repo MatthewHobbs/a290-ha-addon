@@ -10,3 +10,4 @@ Read in numeric order. Each records a decision that was made, not a plan.
 | 0004 | Bubble button names wrap instead of scrolling. |
 | 0005 | Release publishing waits for the UI gate, and its check always reports. |
 | 0006 | Releases are cut on request, and the bump PR publishes the image before the merge. |
+| 0007 | The release tag is signed and pushed by me; a workflow only checks it and cuts the Release. |
