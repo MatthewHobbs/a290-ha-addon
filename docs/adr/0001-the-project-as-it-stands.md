@@ -1,10 +1,9 @@
 # ADR 0001 — The add-on as it stands
 
 - **Repo:** a290-ha-addon
-- **Status:** Accepted (2026-10-25). A retrospective, read from the code, the workflows and the scripts as
-  they are at `297b6b1`. Rows 1–21 and 24–26 are what the code does. Rows 22, 23 and 25 also
-  carry policy no code states: which checks are required, and that a release is cut on request
-  from a tag I sign. It replaces the earlier records, which are gone.
+- **Status:** Accepted (2026-10-25), replacing the earlier records. Retrospective: the rows
+  describe the tree at `297b6b1`. Rows 22, 23 and 25 also record policy the code cannot state —
+  which checks are required, and that a release is cut on request from a tag I sign.
 - **Context:** this repository is a Home Assistant add-on for the Alpine A290. It polls the Renault Kamereon
   API for one car and publishes what it finds to Home Assistant over MQTT. Others install it, so
   what it does with a credential, a location or a failure matters more than how much it exposes.
@@ -13,12 +12,13 @@
   reading, never ships a control the car refuses, never lets a secret or a precise location
   leave the machine unmasked, and never installs a release that was not booted first.
 
-<!-- Format: my ADR template, referenced at source rather than copied.
-The Decision table is the plan and is kept current; the rest is the dated record. -->
-
 ## Decision
 
 One add-on, one car, one poll loop, published as discovered MQTT entities, with every claim about the car gated on what the car says it supports and every failure shown as a failure. The runtime is small and its checks are many, because it runs unattended in other people's homes.
+
+The table is the record, and it is kept current rather than appended to: a row says what is
+true now. When a decision reverses, the row is rewritten and re-dated, and the change is
+explained in the changelog like any other.
 
 | # | Decision | Owner | Status | Evidence |
 | --- | --- | --- | --- | --- |
@@ -32,7 +32,7 @@ One add-on, one car, one poll loop, published as discovered MQTT entities, with 
 | 8 | Controls are conservative. A press logs in on its own short-lived session, is ignored while the same press is in flight or within five seconds of the last, and keeps its stamp once dispatched so a retry cannot send it twice. Charge limits are written together under one lock, reading the opposing slider back first | a290 | Done | `main.py` (`run_command`, `COMMAND_DEBOUNCE_S`, `set_soc_level`, `_soc_lock_get`); `catalog.py` (`NUMBERS`: minimum 15 to 45, target 55 to 100, step 5) |
 | 9 | A control that can hurt is off until asked for. Refresh Location withholds itself unless `enable_refresh_location` is set, because on a parked car it replaces the recorded position with no fix. Start Charging is published but documented as a no-op under external scheduling | a290 | Done | `config.yaml` (`enable_refresh_location: false`); `main.py` (`run_command`, the module docstring); `catalog.py` (`ACTION_BUTTONS`) |
 | 10 | The add-on logs in once and keeps the session. The poll loop reuses one login; a rejected token or every third failure drops it; a poll is bounded by a timeout under the interval; failures back off exponentially up to the larger of the interval and thirty minutes, and an authentication failure is its own binary sensor | a290 | Done | `main.py` (`VehicleSession`, `API_TIMEOUT`, the `wait` and `auth` logic in `main`); `catalog.py` (`a290_api_auth_failure`) |
-| 11 | A secret never reaches a log. Records are scrubbed by a redaction filter on every handler; the `renault_api` loggers are held at INFO, because at DEBUG the library logs whole request and response bodies; `debug_dump` is the one route for decoded responses and goes through redaction; dashboard-deploy errors are masked as well | a290 | Done | `main.py` (`setup_logging`); `deploy.py` (`_redact`); `config.py` in the core (`_RedactingFilter`, `redact`) via `main.py` |
+| 11 | A secret never reaches a log. Records are scrubbed by a redaction filter on every handler; the `renault_api` loggers are held at INFO, because at DEBUG the library logs whole request and response bodies; `debug_dump` is the one route for decoded responses and goes through redaction; dashboard-deploy errors are masked as well | a290 | Done | `main.py` (`setup_logging`); `deploy.py` (`_redact`); `core/config.py` (`core._RedactingFilter`, `core.redact`), reached through `main.py` |
 | 12 | Location is opt-out and coarsened. `publish_location` can disable it; the published position is rounded to `gps_precision` places (default 4, about 11 m) before it reaches the retained topic; the tracker has attributes and no state topic, so Home Assistant resolves home and zones from the coordinates | a290 | Done | `config.yaml` (`publish_location`, `gps_precision`); `main.py` (`GPS_PRECISION`, the `ATTR_TOPIC` publish) |
 | 13 | State that must survive a restart is a small file. Charge-session reconciliation, the plug baseline, the last good GPS time and the last car timestamp are kept in `/data/state.json`, written after every poll | a290 | Done | `main.py` (`STATE_FILE`, `load_state`, `save_state`, `detect_plug_suspect`) |
 | 14 | An entity that is retired is cleaned up, and one that adds noise is hidden. Discovery clears `RETIRED_SENSORS` on every publish so old installs lose them; `drive_side` is published disabled by default | a290 | Done | `catalog.py` (`RETIRED_SENSORS`, `DEFAULT_DISABLED_SENSORS`) |
@@ -42,13 +42,12 @@ One add-on, one car, one poll loop, published as discovered MQTT entities, with 
 | 18 | The image is small, pinned and confined. The base is the Home Assistant base image by digest; Python dependencies are hash-locked and installed with `--require-hashes`; `tempio` is removed because scanners flag it and nothing uses it; an AppArmor profile denies mount, umount, pivot_root and ptrace and grants no raw packet socket; the health bind carries a justified `nosec` | a290 | Done | `Dockerfile`; `app/requirements.in` and `requirements.txt`; `apparmor.txt`; `main.py` (`start_health_server`) |
 | 19 | The Renault library is pinned and its contract is tested. `renault-api` is exactly pinned and gets its own Dependabot PR, because a bump changes what the car exposes. A test loads representative Kamereon payloads through the library's own schemas and asserts every field and helper the poller reads | a290 | Done | `requirements.in`; `.github/dependabot.yml` (`renault-api` group); `tests/test_api_contract.py` |
 | 20 | Every pull request runs the same gates locally and remotely. Lint (ruff, yamllint, hadolint, shellcheck), the unit suite at a 95% coverage floor, Bandit, pip-audit, Trivy, a repo check that refuses committed VINs, coordinates, personal emails and home paths, a 50-word cap on comment blocks, and a check that the declared minimum Home Assistant version is real and allowed. `just ci` runs the local subset | a290 | Done | `.github/workflows/ci.yaml`; `justfile`; `scripts/pii_check.py`, `scripts/check_comment_length.py`, `scripts/ha_minimum_check.py` |
-| 21 | Documentation is held to the code by a check. A change to the options or the published entities fails unless the options table or the entity lists change with it, and a change to the version fails unless it is exactly a release | a290 | Done | `scripts/docs_sync_check.py`; the `Docs sync` job in `ci.yaml` |
+| 21 | Documentation is held to the code by a check. A change to the options or the published entities fails unless the options table or the entity lists change with it, a change to the version fails unless it is exactly a release, and every citation in this table is checked against the tree | a290 | Done | `scripts/docs_sync_check.py`, `scripts/adr_evidence_check.py`; the `Docs sync` job in `ci.yaml` |
 | 22 | The dashboards are rendered in a real Home Assistant on seven phone sizes, and a truncated label or an error card fails the run. Its inputs (the Home Assistant image and four custom-card bundles) are pinned and bumped together, and it always reports so it can be required | a290 | Done | `ui-tests/run.sh`, `seed.py`, `check_overflow.py`, `devices.json`; `.github/workflows/ui-tests.yaml` |
 | 23 | The add-on is installed under a real stable Supervisor before it ships. A pilot builds or pulls the image, installs it from a local registry, and checks the versions, the image's provenance, `/healthz`, the retained discovery and availability topics, that Renault was tried and refused, the dashboard in Core, and AppArmor enforcement. It runs on both architectures at current stable and at the declared minimum Core, and the network guard means Renault is never reached | a290 | Done | `scripts/supervisor-pilot.sh`; `.github/workflows/supervisor.yml`; the `pilot` job in `release.yaml` |
 | 24 | The twin is derived and checked. `r5-ha-addon` is held to this repo by a script that rewrites its names onto this repo's, diffs the trees and fails on any difference that is not listed with a category, an exact count and a reason | a290 | Done | `scripts/parity_check.py`; `scripts/parity/map.tsv`, `expected.tsv`; the `parity` job in `ci.yaml` |
 | 25 | A release is requested, then published from a tag I sign. Ordinary changes add a changelog entry under `## Unreleased` and leave `version` alone; a release PR changes only `version` and the heading; I then push a signed `v<version>` tag, and the tag run checks it (annotated, verified, on `main`, matches `config.yaml`, above every earlier tag), pushes the per-arch images, boots them under the Supervisor, waits for CI and the UI gate, publishes the manifest, attests its provenance and creates the Release | a290 | Done | `scripts/prepare_release.py`; `scripts/check-version-order.sh`; the `justfile` `release` and `tag` recipes; `.github/workflows/release.yaml`. The tag run itself has not yet been exercised on a real release |
 | 26 | Dependabot is the only dependency bot. It covers the runtime Python, the Actions and the Dockerfile's images; what no manifest describes (the core commit, the UI gate's inputs, the pilot's digests, inline tool pins) is bumped by hand | a290 | Done | `.github/dependabot.yml` |
-| 27 | The Renault 5 port takes the same release flow, the shared scripts and the version-order check | r5 | Open | `scripts/parity/expected.tsv` lists the differences as `pending`, with r5 as the target |
 
 Status is one of **Open**, **Done**, **Blocked**, **Dropped**. A **Done** row carries Evidence.
 
@@ -60,8 +59,11 @@ The add-on runs as root inside a container it does not control, holds a credenti
 
 ## Consequences
 
-- Row 27 is the one entry this repo does not settle: the twin has not taken the release flow yet.
+- The twin has not taken the release flow of row 25: it still publishes from the bump PR, and
+  its parity list carries that as `pending`. It also still cites the decision records this repo
+  has deleted, so its copies of the shared scripts need the same citation removed.
 - The runtime stays small on purpose. A new reading is a catalogue row and a poll line; a new control is a catalogue row and a gated command. Anything that needs a decision about the car's behaviour belongs here as a row first.
 - The shared core is a pinned commit of another repository. A fix there does not reach this add-on until `CORE_REF` moves, and nothing bumps it automatically (row 26).
-- Everything in the table is checked by something that can fail, except where a row says otherwise: the tag run in row 25 has not yet run on a real release, and row 27 is open.
+- Everything in the table is checked by something that can fail, except the tag run in row 25,
+  which has not yet run on a real release.
 - **Not established:** how this add-on behaves on a real A290 for the endpoints I have not seen refuse or accept, beyond what the tests and the changelog record; that the Supervisor on a user's host acts on the image `HEALTHCHECK`; and any behaviour of the shared core that the add-on's own tests do not exercise.

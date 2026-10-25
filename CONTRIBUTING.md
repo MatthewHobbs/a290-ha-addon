@@ -98,10 +98,12 @@ What is known about the A290 endpoints:
 ## Local checks: run the full suite before pushing
 
 CI (`.github/workflows/ci.yaml`) has seven jobs: **lint, test, security, build, docs-sync,
-parity and comments** — the last three compare this repo against its twin and `DOCS.md`, and hold
-code comments under 50 words. Run all of them locally before pushing, not just ruff and pytest. macOS and Linux behave differently (the UI gate
-has caught Linux-only font truncations a local macOS run missed), so a green local partial run is
-not a green CI. `just ci` runs the static gates.
+parity and comments** — the last three compare this repo against its twin and `DOCS.md`, check
+that every file and symbol [the decision record](docs/adr/0001-the-project-as-it-stands.md) cites
+still exists (`just adr`), and hold code comments under 50 words. Run all of them locally before
+pushing, not just ruff and pytest. macOS and Linux behave differently (the UI gate has caught
+Linux-only font truncations a local macOS run missed), so a green local partial run is not a green
+CI. `just ci` runs the static gates.
 
 ```sh
 # lint — `just lint` runs exactly this, with the pinned ruff

@@ -9,13 +9,14 @@
 # Local CI gate - the same commands remote CI runs, for the checks it covers.
 # `parity` itself is not in here: it needs the r5 twin (a sibling checkout or a clone), so
 # only its self-test is. The Parity job in ci.yaml runs the full comparison.
-ci: lint comments pii ha-min parity-self-test docs-sync-self-test test
+ci: lint comments adr pii ha-min parity-self-test docs-sync-self-test test
 
 # Proves the release guard, the release script and the version-order check can fail, and that the
 # script writes exactly what the guard accepts. The Docs sync job in ci.yaml runs the same three.
 docs-sync-self-test:
     python3 scripts/docs_sync_check.py --self-test
     python3 scripts/prepare_release.py --self-test
+    python3 scripts/adr_evidence_check.py --self-test
     scripts/test-check-version-order.sh
 
 # Cut a release: turn `## Unreleased` into `## <version>` and move config.yaml's version to match,
@@ -75,6 +76,10 @@ venv:
 # Code comment blocks stay under 50 words.
 comments:
     python3 scripts/check_comment_length.py alpine_a290 scripts .github
+
+# The decision record cites files and symbols; fail on one the tree no longer has.
+adr:
+    python3 scripts/adr_evidence_check.py
 
 # Same command as the Security job's PII step, so a leak is caught before it is published.
 pii:
