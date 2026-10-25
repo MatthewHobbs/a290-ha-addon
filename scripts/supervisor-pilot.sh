@@ -39,8 +39,8 @@
 
 set -euo pipefail
 
-# Renovate keeps these current (customManagers in .github/renovate.json),
-# matching the quoted "name:tag@digest"; the tag must exist upstream.
+# Raise these by hand, matching the quoted "name:tag@digest"; the tag must exist
+# upstream, and the pilot's own run is what proves the pinned set boots.
 DEVCONTAINER_IMAGE="ghcr.io/home-assistant/devcontainer:6-apps@sha256:9c08de75a4d91938dab76d44846a2d297d4ce92bf80024ff15a4f6dff766855e"
 REGISTRY_IMAGE="docker.io/library/registry:3@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8"
 

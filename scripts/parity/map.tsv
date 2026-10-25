@@ -133,6 +133,6 @@ skip	scripts/parity/*	-	-	per-repo copy of this map and the expected list
 collapse-ws	alpine_a290/app/catalog.py	-	-	alignment after renamed keys
 
 ignore-blank	*	-	-	a blank line carries no behaviour or wording
-mask	.github/workflows/*	(@)[0-9a-f]{40}(?:\s*#\s*v[0-9][0-9A-Za-z.]*)?	\1<pinned>	Renovate bumps an action pin in each repo on its own schedule, so the commit id and its version comment are each repo's own; the action's name is still compared
-mask	ui-tests/run.sh	(home-assistant:)[0-9][0-9.]*	\1<version>	the UI gate's HA image is bumped by Renovate in each repo on its own schedule, so the version is each repo's own; the image and everything else on the line is still compared
-mask	scripts/supervisor-pilot.sh	(@sha256:)[0-9a-f]{64}	\1<digest>	the pilot's devcontainer and registry images are bumped by Renovate in each repo on its own schedule; the image names and the rest of the script are still compared
+mask	.github/workflows/*	(@)[0-9a-f]{40}(?:\s*#\s*v[0-9][0-9A-Za-z.]*)?	\1<pinned>	An action pin is bumped in each repo separately, so the commit id and its version comment are each repo's own; the action's name is still compared
+mask	ui-tests/run.sh	(home-assistant:)[0-9][0-9.]*	\1<version>	the UI gate's HA image is bumped in each repo separately, so the version is each repo's own; the image and everything else on the line is still compared
+mask	scripts/supervisor-pilot.sh	(@sha256:)[0-9a-f]{64}	\1<digest>	the pilot's devcontainer and registry images are bumped in each repo on its own schedule; the image names and the rest of the script are still compared

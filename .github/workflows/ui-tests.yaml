@@ -86,7 +86,7 @@ jobs:
     name: Dashboard responsive render (mobile matrix, ${{ matrix.leg }})
     needs: [changes]
     runs-on: ubuntu-latest
-    # Both ends of the supported range (global rule): the Renovate-tracked stable pin in run.sh,
+    # Both ends of the supported range (global rule): the hand-bumped stable pin in run.sh,
     # and the declared minimum, read from config.yaml so the test cannot drift from the claim.
     strategy:
       fail-fast: false
@@ -127,13 +127,13 @@ jobs:
         if: env.RENDER == 'true'
         run: |
           # A stable pin behind current stable means this leg is not testing what users run.
-          # Renovate proposes the bump; until it merges, say so visibly rather than failing every PR.
+          # Bumping the pin is a manual step; until it happens, say so visibly rather than fail every PR.
           if [ "${{ matrix.leg }}" = stable ]; then
             pin="$(sed -n 's/^HA_IMAGE=.*home-assistant:\([0-9][0-9.]*\)}.*/\1/p' ui-tests/run.sh)"
             cur="$(curl -fsS -A 'ha-minimum-check (MatthewHobbs HA add-ons)' https://version.home-assistant.io/stable.json \
                    | python3 -c 'import sys,json;print(json.load(sys.stdin)["homeassistant"]["default"])')"
             [ -n "$pin" ] && [ -n "$cur" ] || { echo "::error::could not read the pin or current stable"; exit 1; }
-            [ "$pin" = "$cur" ] || echo "::warning::UI gate stable pin $pin is behind current stable $cur - merge the Renovate 'UI gate render inputs' PR"
+            [ "$pin" = "$cur" ] || echo "::warning::UI gate stable pin $pin is behind current stable $cur - bump it in ui-tests/run.sh with the card pins"
             echo "stable leg: pin $pin, current stable $cur"
           fi
           if [ "${{ matrix.leg }}" = minimum ]; then

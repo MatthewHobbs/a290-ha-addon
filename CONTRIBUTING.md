@@ -58,18 +58,17 @@ regeneration silently reverts the one you missed.
 **The shared core.** Most of the runtime (MQTT, discovery, parsing, redaction, the debug dump)
 lives in `renault-mqtt`, shared with the r5 add-on. The Dockerfile pins it by full commit SHA
 (`ARG CORE_REF`, with the release tag in the comment above it) and installs it with
-`--no-build-isolation`. Renovate proposes a new core release as its own PR; bump it like any
-runtime change, with the container boot.
+`--no-build-isolation`. No bot follows that pin: bump it by hand when a core release lands, like
+any runtime change, with the container boot.
 
 **CI tools.** The workflows and the justfile pin pytest, pytest-cov, bandit, pip-audit, playwright,
-ruff and Trivy's version. Renovate proposes them together in a "CI tools" PR (a major release
-comes separately), at least 3 days after a release, Trivy 7. Only those five Python tools are
-tracked: workflow steps that need runtime packages install the hash-locked `requirements.txt`,
-never a hand pin, so runtime Python stays Dependabot's alone. A new Python tool in a workflow is
-ignored until its name is added to the allowlist in `.github/renovate.json` (`matchPackageNames`).
-ruff's version lives in `ruff.toml` (`required-version`), which `just lint` runs and Renovate bumps
-together with the action's pin. The workflows' Python stays on 3.14, the add-on runtime's; when
-the base image moves, move `python-version` and the `allowedVersions` bound in the same change.
+ruff and Trivy's version, and nothing bumps them: Dependabot reads `uses:` action pins and
+manifests, not versions quoted inside a workflow step or a justfile recipe. Raise them by hand,
+together, when a release matters — a major one separately. Workflow steps that need runtime
+packages install the hash-locked `requirements.txt`, never a hand pin, so runtime Python stays
+Dependabot's alone. ruff's version lives in `ruff.toml` (`required-version`), which `just lint`
+runs, and moves with its action's pin. The workflows' Python stays on 3.14, the add-on runtime's;
+when the base image moves, move `python-version` with it.
 
 **`renault-api` follows upstream.** Dependabot proposes it weekly in a group of its own, so each
 bump is its own PR. Review each bump against `renault_api/kamereon/models.py`
@@ -133,17 +132,17 @@ The harness **pins its render inputs** in `ui-tests/run.sh` so the gate is deter
 image and the mushroom, button-card, card-mod and Bubble Card versions. A floating
 `:stable`/`@latest`/`@master` previously drifted under the gate and made it flake (marginal
 sub-pixel truncations on one high-DPR device that vanished on the next run). Hand-bumped pins
-went stale instead (2026.7.1 while users ran 2026.9.x), so **Renovate tracks all five** and
-proposes them as **one grouped PR** ("UI gate render inputs", stable HA releases and `vX.Y.Z`
-card tags only), bumped together. The gate on that PR confirms the combination before it is
-pinned. Keep them identical to the r5 twin's `ui-tests/run.sh` and Renovate rules (lockstep).
+went stale instead (2026.7.1 while users ran 2026.9.x), so the gate warns when the stable pin falls
+behind current stable, and **all five move together or not at all**. Bump them in one change, with
+a run of the gate confirming the combination; never one at a time, and keep them identical to the
+r5 twin's `ui-tests/run.sh` (lockstep).
 
 The gate has **two legs**: that stable pin, and the declared minimum (`homeassistant:` in
 `alpine_a290/config.yaml`, currently 2026.8.1), read from the manifest so the test cannot drift
 from the claim. The minimum leg renders only for a release PR, a change to `version:` or
 `homeassistant:`, or a manual dispatch; otherwise it reports success with every step skipped.
 The stable leg warns (does not fail) while its pin lags current stable; the fix
-is merging Renovate's render-inputs PR. `scripts/ha_minimum_check.py` (CI Lint job,
+is bumping the render inputs in `ui-tests/run.sh`. `scripts/ha_minimum_check.py` (CI Lint job,
 `just ha-min`) fails if the minimum is missing or newer than the `.1` of the month before
 current stable, read live from `version.home-assistant.io/stable.json`, or is not a published
 release on PyPI (exact spelling, no pre-releases). An unreachable PyPI fails the step too. The
