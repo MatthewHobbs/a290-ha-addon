@@ -38,9 +38,13 @@ four decimals instead (e.g. 51.5 / -0.1), which is also the preferred fix everyw
 Usage: pii_check.py [--self-test]
 Exit 0 = clean, 1 = PII found, 2 = the check itself could not run.
 """
+import contextlib
+import io
+import os
 import re
 import subprocess
 import sys
+import tempfile
 
 SKIP_SUFFIXES = (".png", ".webp", ".jpg", ".jpeg", ".gif", ".ico", ".ttf", ".woff", ".woff2")
 GAP = 80
@@ -123,21 +127,25 @@ def _joined(lines):
 def coord_hits(lines):
     hits = []
     joined = _joined(lines)
-    for k, (i, line) in enumerate(joined):
+    # A blank line never separates a pair: hand-written YAML puts them between keys,
+    # and the marker rule still applies to the line carrying each number. Comments
+    # stay, because they are deliberate text between two values.
+    lines_at = [(i, text) for _, (i, text) in enumerate(joined) if text.strip()]
+    for k, (i, line) in enumerate(lines_at):
         if MARKER.search(line):
             continue
         if _pair_in(line):
             hits.append(i)
             continue
         # A pair split across this line and the next; either line may carry the marker.
-        nxt = joined[k + 1][1] if k + 1 < len(joined) else ""
+        nxt = lines_at[k + 1][1] if k + 1 < len(lines_at) else ""
         if NUM.search(line) and NUM.search(nxt) and not MARKER.search(nxt) and _pair_in(line + " " + nxt):
             hits.append(i)
             continue
         # A pair with one `key: value` or `key=value` line between (pretty-printed attributes),
         # which may hold a number of its own (altitude). A bare `key:` between opens a nested
         # mapping, whose numbers are not a pair.
-        far = joined[k + 2][1] if k + 2 < len(joined) else ""
+        far = lines_at[k + 2][1] if k + 2 < len(lines_at) else ""
         if (NUM.search(line) and KEY_VALUE.match(nxt)
                 and NUM.search(far) and not MARKER.search(far) and _pair_in(line + " " + far)):
             hits.append(i)
@@ -238,7 +246,7 @@ def self_test():
         ("pair, a key line between", [f'"latitude": {lat},', '"source_type": "gps",', f'"longitude": {lon}'], True),
         ("pair, a key line between, marked", [f"latitude: {lat}", "source: gps", f"longitude: {lon}  # synthetic-coords: t"], False),
         ("pair, a bare key between", [f"radius: {lat}", "zone_b:", f"radius: {lon}"], False),
-        ("pair, a blank line between", [f"latitude: {lat}", "", f"longitude: {lon}"], False),
+        ("pair, a blank line between", [f"latitude: {lat}", "", f"longitude: {lon}"], True),
         ("pair, an altitude line between", [f"latitude: {lat}", f"altitude: 250.{'1234'}", f"longitude: {lon}"], True),
         ("pair, a keyword argument between", [f"ns(gpsLatitude={lat},", 'gpsDirection="N",', f"gpsLongitude={lon})"], True),
         ("pair, a block scalar between", [f"a: {lat}", "b: >", f"  {lon}"], False),
@@ -279,9 +287,27 @@ def self_test():
         if got != want:
             failed += 1
             print(f"pii-check self-test FAILED: {name}: expected {'hit' if want else 'clean'}", file=sys.stderr)
+    # The cases above test the detectors. This tests that scan() still runs them:
+    # a rule dropped from scan()'s loop would leave every case above green.
+    with tempfile.TemporaryDirectory() as tmp:
+        subprocess.run(["git", "init", "-q", tmp], check=True, capture_output=True)
+        with open(os.path.join(tmp, "planted.yaml"), "w", encoding="utf-8") as f:
+            f.write(f"latitude: {lat}\nlongitude: {lon}\n")
+        subprocess.run(["git", "-C", tmp, "add", "-A"], check=True, capture_output=True)
+        cwd = os.getcwd()
+        os.chdir(tmp)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                code = scan()
+        finally:
+            os.chdir(cwd)
+        if code != 1:
+            failed += 1
+            print(f"pii-check self-test FAILED: scan() returned {code} on a planted pair, not 1",
+                  file=sys.stderr)
     if failed:
         return 2
-    print(f"pii-check self-test: {len(cases)} cases ok")
+    print(f"pii-check self-test: {len(cases)} cases ok, and scan() finds a planted pair")
     return 0
 
 
