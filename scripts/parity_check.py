@@ -54,7 +54,7 @@ CATEGORIES = {
     "noise": "versions, release history, binaries: expected to differ forever",
     "pending": "drift or a port not yet made; must name a Target: and is expected to be removed",
 }
-MAP_KINDS = {"side", "define", "path", "legacy", "identity", "verbatim", "skip", "collapse-ws", "ignore-blank"}
+MAP_KINDS = {"side", "define", "path", "legacy", "identity", "verbatim", "skip", "collapse-ws", "ignore-blank", "mask"}
 DEFAULT_EXCLUDED_DIRS = {".git", ".venv", "venv", "__pycache__", ".pytest_cache", ".ruff_cache", "node_modules"}
 
 
@@ -89,6 +89,7 @@ class ParityMap:
     skip: list = field(default_factory=list)
     collapse_ws: list = field(default_factory=list)
     ignore_blank: list = field(default_factory=list)
+    mask: list = field(default_factory=list)
 
 
 def _rows(path):
@@ -138,7 +139,7 @@ def load_map(path):
                 pm.derived_marker, pm.derived_label = pattern, replacement
             else:
                 raise ConfigError(f"{path}:{n}: side scope must be canonical or derived")
-        elif kind in ("path", "legacy", "identity"):
+        elif kind in ("path", "legacy", "identity", "mask"):
             if kind == "path" and scope != "*":
                 raise ConfigError(f"{path}:{n}: a path rule's scope must be `*`, got {scope!r}. Path rules are "
                                   f"global: a scope names canonical paths, but a path rule rewrites derived "
@@ -147,7 +148,7 @@ def load_map(path):
                 rule.regex = re.compile(pattern)
             except re.error as err:
                 raise ConfigError(f"{path}:{n}: bad regex {pattern!r}: {err}") from err
-            (pm.path_rules if kind == "path" else pm.content_rules).append(rule)
+            {"path": pm.path_rules, "mask": pm.mask}.get(kind, pm.content_rules).append(rule)
         else:
             {"verbatim": pm.verbatim, "skip": pm.skip, "collapse-ws": pm.collapse_ws,
              "ignore-blank": pm.ignore_blank}[kind].append(rule)
@@ -483,6 +484,11 @@ def compare(canonical, derived, pm, walk=False):
             continue
         verbatim = any(_scope_matches(r.scope, rel) for r in pm.verbatim)
         if not verbatim:
+            for rule in pm.mask:
+                if _scope_matches(rule.scope, rel):
+                    text_c, n_c = rule.regex.subn(rule.replacement, text_c)
+                    text_d, n_d = rule.regex.subn(rule.replacement, text_d)
+                    rule.hits += n_c + n_d
             text_d = normalise_text(text_d, rel, pm)
         (lines_c, ends_c), (lines_d, ends_d) = _split_lines(text_c), _split_lines(text_d)
         bodies_c, bodies_d = lines_c, lines_d
@@ -573,7 +579,7 @@ def report(items, entries, unlisted, show_all, pm):
     stale = [e for e in entries if not e.hits]
     miscounted = [e for e in entries if e.hits and e.count is not None and e.count != len(e.hits)]
     # A rewrite rule that rewrote nothing is dead weight that would hide the name if it came back.
-    idle_rules = [r for r in pm.path_rules + pm.content_rules if not r.hits]
+    idle_rules = [r for r in pm.path_rules + pm.content_rules + pm.mask if not r.hits]
     ok = not (unlisted or stale or miscounted or idle_rules)
 
     for rule in idle_rules:
@@ -738,6 +744,7 @@ def self_test():
         return mutate
 
     collapse_map = "collapse-ws\tcar_a/cat.py\t-\t-\talignment only\n"
+    mask_map = "mask\tcar_a/wf.yml\t(@)[0-9a-f]{8}(?:  # v[0-9.]+)?\t$1<pinned>\tthe pin is each repo's own business\n"
     mode_entry = "model\tcar_a/run.sh\tboth\tmode\t1\tthe entrypoint is executable on one side on purpose\n"
 
     cases = [
@@ -776,6 +783,14 @@ def self_test():
         ("collapse-ws keeps spacing inside a string literal exact",
          {"mutate": catalog('    "k": ("Charging  Power", 1),', '    "k": ("Charging Power", 1),'),
           "extra_map": collapse_map}, False, "car_a/cat.py:2"),
+        ("a mask hides the pin but not the action name it belongs to",
+         {"mutate": lambda a, b: (_write(a, "car_a/wf.yml", "uses: act/one@aaaaaaaa  # v1.2.3\n"),
+                                  _write(b, "car_b/wf.yml", "uses: act/one@bbbbbbbb  # v1.2.9\n")),
+          "extra_map": mask_map}, True, None),
+        ("a mask does not hide a different action",
+         {"mutate": lambda a, b: (_write(a, "car_a/wf.yml", "uses: act/one@aaaaaaaa  # v1.2.3\n"),
+                                  _write(b, "car_b/wf.yml", "uses: act/two@aaaaaaaa  # v1.2.3\n")),
+          "extra_map": mask_map}, False, "car_a/wf.yml:1"),
         ("a tree that is not a git checkout is refused without --walk",
          {"walk": False}, None, "--walk"),
         ("a tracked file deleted but not staged is refused, naming it (git)",
