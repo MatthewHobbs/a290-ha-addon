@@ -1,14 +1,9 @@
-# A290 Test Mode — self-contained preview package (OPTIONAL).
-#
-# Merge this single file into your Home Assistant config (as a package — see INSTALLATION.md) to
-# make the dashboard's "Test Charge" panel work without a real charge: toggle
-# `input_boolean.a290_test_mode`, or press the **Run Test Charge** button for a scripted 5-minute
-# preview that populates the Last-Charge tiles.
-#
-# Everything is prefixed `a290_test_*` and reads only its own helpers, so it never collides with
-# the Renault 5 add-on's (unprefixed) test mode on a shared Home Assistant instance. Car data comes
-# from the Alpine A290 add-on over MQTT — none of these entities touch the real car.
+# A290 Test Mode: an optional preview package, merged into your config as a package (see
+# INSTALLATION.md) so the "Test Charge" panel works without a real charge. Toggle
+# `input_boolean.a290_test_mode`, or press **Run Test Charge** for a scripted five-minute preview.
 
+# Every helper is `a290_test_*` and reads only itself, so it never collides with the Renault 5
+# add-on's unprefixed test mode on a shared instance. No entity here touches the car.
 input_boolean:
   a290_test_mode:
     name: A290 Test Mode
@@ -277,12 +272,9 @@ template:
           {% endif %}
 
 automation:
-  # Press "Run Test Charge" -> fill the simulated last-charge helpers, open a 5-minute Test Mode
-  # window (the dashboard shows the live-charging animations + the "Ends In" countdown), then turn
-  # Test Mode off and stamp a290_test_last_finished so the completed panel lingers 60s ("Auto
-  # Reset"). Duration is set to ~170 min so the Charge Type tile reads a realistic home rate
-  # (~7 kW -> Slow AC) rather than an implausible rapid-DC figure. mode: restart so a re-press
-  # restarts the window cleanly.
+  # Fill the simulated last-charge helpers, run a five-minute Test Mode window, then stamp
+  # a290_test_last_finished so the completed panel lingers 60 s. ~170 min of charge makes the
+  # Charge Type tile read a home rate (~7 kW, Slow AC) rather than rapid DC. mode: restart.
   - id: a290_test_charge_run_driver
     alias: "A290 Test Charge — simulate a 5-minute preview"
     mode: restart

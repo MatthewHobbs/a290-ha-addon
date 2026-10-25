@@ -219,10 +219,8 @@ def test_unauthorized_on_the_battery_request_escapes_poll_once():
 
 
 def test_unauthorized_on_an_optional_request_is_swallowed_by_poll_once():
-    # Every optional request catches its own errors, so the same reply on one of them is logged and
-    # the poll carries on: it never reaches the classifier, and the sensor is not turned on. The
-    # changelog says exactly this; a mistaken claim that the sensor covers every endpoint was
-    # caught in review.
+    # Each optional request catches its own errors, so the same reply is logged and the poll
+    # carries on: it never reaches the classifier and the sensor stays off.
     data, _ = asyncio.run(
         main.poll_once(FakeVSession(CockpitUnauthorizedVehicle()), {}, 52.0, set(), "km"))
     assert data["battery_level"] == 60
@@ -1116,10 +1114,9 @@ def _one_failed_poll(monkeypatch, err):
 
 
 def test_kamereon_unauthorized_is_an_auth_failure(monkeypatch):
-    # str() of this exception is "('err.func.wired.unauthorized', 'Not authorized')": none of the
-    # words the keyword match looks for, so it was classified as an ordinary failure. That gap
-    # predates renault-api 0.5.14 (0.5.13 raised the same text under a generic class); 0.5.14 only
-    # gives the reply a class of its own, which is what lets it be recognised by type.
+    # str() is "('err.func.wired.unauthorized', 'Not authorized')" - none of the words the
+    # keyword match looks for, so it read as an ordinary failure until 0.5.14 gave the reply a
+    # class of its own. The gap predates that release.
     err = UnauthorizedException("err.func.wired.unauthorized", "Not authorized")
     published, invalidated = _one_failed_poll(monkeypatch, err)
     assert published and all(d["api_auth_failure"] == "on" for d in published)
@@ -1609,10 +1606,9 @@ def test_failed_probe_stays_tripped_and_silent(caplog):
     assert main._BREAKERS.get("hvac-settings") is True
 
 
-# --- data_stale measures the CAR, poll_failing measures the FEED (v1.24.0) -------------------
-# Regression cover for the defect where data_stale was wired to poll success and forced "off"
-# on every successful poll: a vehicle silent since 2026-09-04 was polled successfully every
-# five minutes for 68 hours and published as healthy, showing 55% while the car was at 83%.
+# --- data_stale measures the CAR, poll_failing the FEED (v1.24.0) --------------------------
+# Regression cover: data_stale was wired to poll success, so a vehicle silent since 2026-09-04
+# was polled every five minutes for 68 hours and published as healthy.
 
 def _fresh(state, payload_iso, last_ok, hours=6):
     return main.freshness_fields(state, payload_iso, hours * 3600, last_ok)

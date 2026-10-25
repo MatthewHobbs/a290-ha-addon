@@ -61,10 +61,9 @@ jobs:
           apparmor_parser -Q -K alpine_a290/apparmor.txt
           echo "apparmor.txt compiled OK"
 
-      # Global rule: the declared minimum HA must be present and no newer than the .1 of the month
-      # before current stable, read live - stable moves monthly, so a hard-coded bound would rot.
-      # It must also be a published release (looked up on PyPI; no pre-releases), and an
-      # unreachable PyPI fails the step rather than passing it.
+      # Global rule: the declared minimum HA must exist and be no newer than the .1 of
+      # the month before current stable, read live (a fixed bound rots). It must also be
+      # a published PyPI release; an unreachable PyPI fails the step.
       - name: Home Assistant minimum is declared and allowed
         run: |
           python3 scripts/ha_minimum_check.py --self-test
@@ -73,10 +72,8 @@ jobs:
   docs-sync:
     name: Docs sync
     runs-on: ubuntu-latest
-    # After lint, deliberately. There is no point telling someone which doc they owe while the
-    # code does not even lint — the lint failure is the one to fix first, and a second red check
-    # underneath it is noise. `needs` also means a lint failure skips this rather than queueing
-    # a runner for a verdict nobody will read.
+    # After lint, deliberately: a doc-sync verdict is noise while the code does not
+    # lint, and `needs` skips this rather than queueing a runner for it.
     needs: [lint]
     # PR-only: the check diffs base...HEAD, and a push to main has no pull_request payload.
     if: github.event_name == 'pull_request'
@@ -98,10 +95,9 @@ jobs:
   parity:
     name: Parity with r5
     runs-on: ubuntu-latest
-    # ADR 0001 stage A: fail on any difference from r5-ha-addon that scripts/parity/expected.tsv
-    # does not explain, and on any entry there whose difference is gone. It reads r5's main as it
-    # is NOW, so a merge on r5 can turn this red without a change here (a stale entry to delete,
-    # usually). That is why it is its own job and not yet a required check; see the ADR.
+    # Fail on any difference from r5 that expected.tsv does not explain, and on any
+    # entry whose difference is gone. It reads r5's main as it is now, so r5 can turn
+    # this red without a change here — hence its own, not-yet-required job.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -124,18 +120,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           # Match the add-on runtime: HA base 3.24 ships Python 3.14 (apk python3).
           python-version: "3.14"
 
       - name: Install deps
-        # requirements.txt is hash-pinned, so pip enters --require-hashes mode and every
-        # requirement in that command must be hashed — install the app deps on their own, then
-        # the (unhashed) test tooling and the shared core separately. The core SHA is read from
-        # the Dockerfile's ARG CORE_REF (single source of truth — no duplicate literal to drift),
-        # so CI validates the exact core the image ships. --no-deps: core's third-party deps are
-        # already satisfied by the hash-locked requirements.txt above.
+        # requirements.txt is hash-pinned, so install app deps on their own, then the
+        # unhashed test tooling and the core separately. The core SHA comes from the
+        # Dockerfile's CORE_REF, so CI validates what the image ships; --no-deps
+        # because its deps are already in the lock.
         run: |
           python3 -m pip install --quiet -r alpine_a290/app/requirements.txt
           python3 -m pip install --quiet pytest==9.1.1 pytest-cov==7.1.0
@@ -146,6 +140,16 @@ jobs:
 
       - name: pytest
         run: python3 -m pytest alpine_a290/tests -q --cov=alpine_a290/app --cov-report=term-missing --cov-fail-under=95
+
+  comments:
+    name: Comment length
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.1.0
+        with:
+          python-version: "3.14"
+      - run: python3 scripts/check_comment_length.py alpine_a290 scripts .github
 
   security:
     name: Security
@@ -163,10 +167,9 @@ jobs:
           python3 -m pip install --quiet pip-audit==2.10.1
           pip-audit -r alpine_a290/app/requirements.txt
 
-      # gitleaks/trivy have no rule for a VIN or a home location, and both have leaked into this
-      # public repo (a VIN in a test fixture, #91; coordinates in prose and then in fixtures,
-      # caught 2026-09-08). The rules and their history live in the script. Self-test first:
-      # a guard that cannot fail is not a guard, and the inline version of this could not.
+      # gitleaks/trivy have no rule for a VIN or a home location, and both leaked here
+      # (a VIN, #91; coordinates, 2026-09-08). Self-test first: a guard that cannot fail
+      # is not a guard.
       - name: No committed PII (VINs, coordinates)
         run: |
           python3 scripts/pii_check.py --self-test

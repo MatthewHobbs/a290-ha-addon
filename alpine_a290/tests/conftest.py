@@ -20,10 +20,9 @@ def _isolate_module_globals():
     resolve_account, read by redact)."""
     import main
     from renault_mqtt import config, debug, mqtt
-    # _last_command and _in_flight are the button debounce: left populated, a second test pressing
-    # the same button would be silently dropped and pass while testing nothing. (Sets restore the
-    # same way as dicts: clear() then update().)
-    # The hvac-settings breaker counts across polls; a trip left over makes the next poll skip the call.
+    # _last_command and _in_flight are the button debounce: left populated, a second press
+    # would be dropped and the test would pass while testing nothing. The hvac-settings
+    # breaker counts across polls too, so clear it.
     dict_globals = ((main, "_LATEST"), (main, "_last_command"), (main, "_in_flight"),
                     (main, "_BREAKERS"), (main, "_BREAKER_FAILS"), (main, "_BREAKER_SKIPS"),
                     (mqtt, "_MQTT_CTX"), (debug, "_DEBUG_STATE"))

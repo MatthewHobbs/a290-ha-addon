@@ -2,10 +2,9 @@
 sensors, icons, optional endpoints, control buttons). Object_ids are prefixed "a290_"; the
 discovery value_template strips that prefix."""
 
-# The per-model object_id prefix. Every object_id below starts with it, and main.py strips it
-# (obj[len(OBJ_PREFIX):]) to derive the MQTT value_template key / command suffix. This is the
-# ONE place the prefix is defined — the r5 twin sets "r5_" here and nothing else in the shared
-# poll/publish loop changes (previously it was a hard-coded `obj[5:]` magic number at 5 sites).
+# The per-model object_id prefix. main.py strips it to derive the MQTT value_template key /
+# command suffix. Defined only here: the r5 twin sets "r5_" and nothing else in the shared
+# poll/publish loop changes.
 OBJ_PREFIX = "a290_"
 
 # The per-model environment-variable prefix the add-on's options are exported under (run.sh
@@ -14,10 +13,9 @@ OBJ_PREFIX = "a290_"
 # "R5_" here. The ONE place the env prefix is defined.
 ENV_PREFIX = "A290_"
 
-# Per-model MQTT identity, injected into the shared core via mqtt.configure(catalog). NODE is the
-# HA discovery node + topic root; DEVICE is the HA device block (its name drives the entity_id
-# slug — HA ignores object_id); MQTT_KEEPALIVE is the broker keepalive. DIST_UNIT_OBJS names the
-# sensors whose unit follows the locale (mi/km) instead of a fixed one. The r5 twin sets its own.
+# Per-model MQTT identity for mqtt.configure(catalog): NODE is the discovery node and topic
+# root, DEVICE the HA device block (its name drives the entity_id slug), MQTT_KEEPALIVE the
+# broker keepalive, DIST_UNIT_OBJS the sensors whose unit follows the locale.
 NODE = "alpine_a290"
 DEVICE = {"identifiers": [NODE], "name": "Alpine A290", "manufacturer": "Alpine", "model": "A290"}
 MQTT_KEEPALIVE = 60
@@ -51,11 +49,9 @@ SENSORS = {
     "a290_tyre_pressure_fr":     ("Tyre Pressure Front Right", None, None, "measurement"),
     "a290_tyre_pressure_rl":     ("Tyre Pressure Rear Left", None, None, "measurement"),
     "a290_tyre_pressure_rr":     ("Tyre Pressure Rear Right", None, None, "measurement"),
-    # Two different questions, deliberately two different entities. last_updated is the CAR's
-    # own report time (from the battery-status payload) and drives a290_data_stale;
-    # last_successful_poll is OUR clock — when the add-on last reached Kamereon — and drives
-    # a290_poll_failing. Collapsing them is the defect this pair replaces: a car silent for
-    # three days was polled successfully every five minutes and read as healthy.
+    # Two questions, two entities. last_updated is the CAR's report time and drives
+    # a290_data_stale; last_successful_poll is OUR clock and drives a290_poll_failing.
+    # Collapsing them let a car silent for three days read as healthy.
     "a290_last_updated":         ("Last Updated", "timestamp", None, None),
     "a290_last_successful_poll": ("Last Successful Poll", "timestamp", None, None),
     "a290_last_charge_start":          ("Last Charge Start", "timestamp", None, None),
@@ -77,10 +73,8 @@ BINARY_SENSORS = {
     "a290_heated_seat_passenger": ("Heated Seat Passenger", None),
     "a290_plug_suspect":          ("Plug State Suspect", "problem"),
     "a290_api_auth_failure":      ("API Auth Failure", "problem"),
-    # data_stale = the CAR has not reported within stale_hours (payload timestamp age).
-    # poll_failing = WE cannot reach Kamereon. Before v1.24.0 data_stale carried the second
-    # meaning and never the first, so stale car data was invisible; poll_failing now carries
-    # the connectivity alarm so nothing is lost by data_stale taking its correct meaning.
+    # data_stale = the CAR has not reported within stale_hours. poll_failing = WE cannot reach
+    # Kamereon. Before v1.24.0 the first meant the second, so stale car data was invisible.
     "a290_data_stale":            ("Data Stale", "problem"),
     "a290_poll_failing":          ("Poll Failing", "problem"),
 }
@@ -106,12 +100,9 @@ ICONS = {
 
 OPTIONAL_ENDPOINTS = {
     "charge-mode": ["a290_charge_mode"],
-    # A5E1AE (A290) does not advertise hvac-settings: the car's supported list is
-    # charge-start / horn-start / hvac-start / hvac-stop / lights-start / refresh-location /
-    # charges / soc-levels. Calling it anyway returned errorCode 502000 ("something went
-    # wrong", errorType technical) on EVERY poll - roughly every five minutes, indefinitely.
-    # Probing it like any other optional endpoint withholds the two climate-schedule sensors
-    # on cars that lack it, and picks them up automatically on cars (or firmware) that gain it.
+    # A5E1AE does not advertise hvac-settings, and calling it anyway returned 502000 on every
+    # poll. Probing like any optional endpoint withholds the two climate-schedule sensors on
+    # cars that lack it, and picks them up on cars that gain it.
     "hvac-settings": ["a290_climate_schedule_mode", "a290_climate_ready_time"],
     "pressure": ["a290_tyre_pressure_fl", "a290_tyre_pressure_fr",
                  "a290_tyre_pressure_rl", "a290_tyre_pressure_rr"],
@@ -136,12 +127,10 @@ ACTION_BUTTONS = {
 # match object_id[5:]); a press writes via set_battery_soc(). Gated on SOC_ENDPOINT support,
 # so a model that rejects the write never ships the control. (name, icon, min, max, step)
 SOC_ENDPOINT = "soc-levels"
-# (CHARGES_ENDPOINT — the authoritative recent-charge-sessions endpoint — moved to
-# renault_mqtt.charge with the reconciliation logic; it's identical across models. main.py
-# imports it from there for the endpoint-support probe.)
-# The refresh-location action endpoint. Names the ACTION_BUTTONS entry that triggers a GPS
-# refresh; the poller gates both the discovery button and the command on it (and on the
-# location opt-out), so it's shared between the control layer and the MQTT discovery layer.
+# CHARGES_ENDPOINT moved to renault_mqtt.charge with the reconciliation logic; main.py imports
+# it for the support probe.
+# The refresh-location action endpoint: the poller gates the button and the command on it, and
+# on the location opt-out.
 REFRESH_LOCATION_EP = "actions/refresh-location"
 NUMBERS = {
     "a290_soc_min":    ("Minimum SoC",       "mdi:battery-arrow-down", 15, 45,  5),
@@ -157,11 +146,8 @@ RETIRED_SENSORS = ["a290_cabin_temperature", "a290_soc_target", "a290_soc_min"]
 # heated-seat mapping); it adds noise to the entity list. Users who want it can re-enable it.
 DEFAULT_DISABLED_SENSORS = {"a290_drive_side"}
 
-# Sensors whose endpoint can keep failing while the car still advertises it. A5E1AE
-# advertises hvac-settings as supported and the server answers errorCode 502000 to every
-# call, so the v1.23.1 breaker trips and stops writing these two keys. Without this they
-# render as EMPTY STRINGS - indistinguishable from 'the car reported nothing', which is
-# what the backlog asked to fix on 2026-09-05 and what three releases of breaker work left
-# behind. Declaring them here makes their MQTT availability follow whether the key was
-# actually published (renault-mqtt >= 0.16.0).
+# Sensors whose endpoint can keep failing while the car still advertises it: the breaker stops
+# writing them, and an unwritten key renders as an empty string, indistinguishable from "the
+# car reported nothing". Declaring them here ties their availability to the key being
+# published.
 DATA_GATED_SENSORS = {"a290_climate_schedule_mode", "a290_climate_ready_time"}

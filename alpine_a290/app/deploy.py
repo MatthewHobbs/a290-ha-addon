@@ -83,10 +83,8 @@ def _read_dashboard(style):
         return fh.read()
 
 
-# Optional "Smart Charging" controls — the user maps their own EV-charger control entities
-# (any integration, e.g. Octopus Intelligent) via the charger_* options; each blank slot is
-# skipped. On the standard dashboard these render as Mushroom cards matching the presets; on
-# the bubble dashboard they become their own pop-up "tab" of native Bubble Card controls.
+# Optional Smart Charging controls: the user maps charger_* entities, blank slots are skipped.
+# Mushroom cards on the standard dashboard, a pop-up tab of Bubble controls on the bubble one.
 # Order matters: both builders unpack these as smart, bump, soc, ttime, dispatch.
 _CHARGER_ENTITIES = (
     "A290_CHARGER_SMART_CHARGE",
@@ -98,10 +96,8 @@ _CHARGER_ENTITIES = (
 _CHARGER_HASH = "#alpine-charging"
 # The heading the standard-dashboard card is inserted directly beneath.
 _CHARGER_ANCHOR_HEADING = "Climate/Charging Presets"
-# The standard dashboard renders every control as a Mushroom card with a 55px coloured icon
-# and Zen Dots styling — these constants mirror that exact look so the Smart Charging controls
-# match the Climate/Charging Presets above them (and avoid the light MDC inputs a plain
-# entities card would produce for the number/select).
+# Mirrors the standard dashboard's Mushroom card look (55px coloured icon, Zen Dots) so the
+# Smart Charging controls match the presets and avoid a plain entities card's light inputs.
 _MUSH_SHAPE = ".shape{--icon-size:55px;--icon-symbol-size:28px;}"
 _MUSH_INFO = (".container{--card-secondary-color:#FFFF00;}"
               ".primary{font-family:system-ui,sans-serif !important;font-size:12px !important;"

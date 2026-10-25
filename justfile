@@ -9,7 +9,7 @@
 # Local CI gate - the same commands remote CI runs, for the checks it covers.
 # `parity` itself is not in here: it needs the r5 twin (a sibling checkout or a clone), so
 # only its self-test is. The Parity job in ci.yaml runs the full comparison.
-ci: lint pii ha-min parity-self-test docs-sync-self-test test
+ci: lint comments pii ha-min parity-self-test docs-sync-self-test test
 
 # Proves the release guard, the release script and the publish decision can fail, and that the
 # script writes exactly what the guard accepts. The Docs sync job in ci.yaml runs the same three.
@@ -57,6 +57,11 @@ venv:
     echo "renault-mqtt pinned to ${CORE_REF}"
     uv pip install --python .venv --quiet --no-deps \
       "renault-mqtt @ git+https://github.com/MatthewHobbs/renault-mqtt@${CORE_REF}"
+
+# Scope matches the sibling pair: the ui-tests harness keeps its measured findings.
+# Code comment blocks stay under 50 words.
+comments:
+    python3 scripts/check_comment_length.py alpine_a290 scripts .github
 
 # Same command as the Security job's PII step, so a leak is caught before it is published.
 pii:

@@ -1,30 +1,9 @@
 name: Release
 
-# Publishes the add-on image so that `config.yaml`'s version on main is NEVER advertised to
-# Home Assistant before its image exists on GHCR (a Supervisor resolves the add-on image by
-# `version`, so a version on main with no image behind it makes every install 404 on update).
-#
-# To guarantee that, the image is published on the PR that bumps the version — BEFORE the merge:
-#   * On a same-repo PR whose config.yaml version is new (no `v<version>` tag yet): build every
-#     arch, push them, and publish the multi-arch manifest to GHCR. The `Release image published`
-#     gate then confirms `<image>:<version>` is pullable and is a REQUIRED check, so the bump
-#     cannot merge until its image is live. (No attestation/tag on the PR.)
-#   * On push to main: rebuild from the merged commit (the tag is already occupied by the PR
-#     image, so there is no 404 window), republish, then attest build provenance — keyless
-#     Sigstore via GitHub OIDC, pushed to GHCR (verify with
-#     `gh attestation verify oci://<image>:<version> --owner MatthewHobbs`) — and create the
-#     `v<version>` git tag + GitHub Release. Provenance is thus always attested from main.
-# A PR that does not bump the version publishes nothing; the gate passes as a no-op.
-# Fork PRs cannot push to GHCR, so a version bump must come from a branch in this repo.
-#
-# "Bump" is decided by comparing the version the pinned info helper reads on the comparison base
-# (the PR's base commit, or the commit before this push) with the one it reads here, AND the tag
-# `v<version>` being absent (scripts/release_decision.py, ADR 0006 row 8). Tag-absent alone is not
-# enough: after a release merges and its post-merge gate fails, the tag never exists, and every
-# later ordinary PR would republish its own unmerged build over the live `<image>:<version>`. A
-# failed `git ls-remote` is an error that blocks the run, never "no such tag". To finish a
-# release whose gate failed, re-run the failed push run (same commit, same comparison) within
-# GitHub's re-run window; later, re-cut it as the next version.
+# A version on main with no image behind it 404s every update, so the bump PR
+# publishes the image and the REQUIRED `Release image published` gate confirms it
+# resolves before merge; the push to main rebuilds, attests and cuts the tag.
+# "Bump" = version changed AND tag absent (scripts/release_decision.py).
 
 on:
   push:
@@ -57,7 +36,7 @@ jobs:
 
       - name: Get add-on information
         id: info
-        uses: home-assistant/actions/helpers/info@cd6f3635a740c84d8a14f6121a90068b8ece6bf6  # master
+        uses: home-assistant/actions/helpers/info@06749dd8c0b54f350bc69c8752456cee498808a3  # master
         with:
           path: "./alpine_a290"
 
@@ -96,7 +75,7 @@ jobs:
 
       - name: Get the base add-on information
         id: base_info
-        uses: home-assistant/actions/helpers/info@cd6f3635a740c84d8a14f6121a90068b8ece6bf6  # master
+        uses: home-assistant/actions/helpers/info@06749dd8c0b54f350bc69c8752456cee498808a3  # master
         with:
           path: "./base/alpine_a290"
 
@@ -125,7 +104,7 @@ jobs:
 
       - name: Prepare build matrix
         id: matrix
-        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@7412f0023ea9b6e58e8bb5059f1660f51376f49a  # 2026.09.0
+        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@4de35182ce1e329181bffcbcc84d33db5e2c7e10  # 2026.06.0
         with:
           architectures: ${{ steps.info.outputs.architectures }}
           image-name: ${{ steps.normalize.outputs.image_name }}
@@ -163,7 +142,7 @@ jobs:
       # multi-arch image), so no BUILD_FROM build-arg / build.yaml is needed — the builder picks
       # the right platform per matrix arch.
       - name: Build image
-        uses: home-assistant/builder/actions/build-image@7412f0023ea9b6e58e8bb5059f1660f51376f49a  # 2026.09.0
+        uses: home-assistant/builder/actions/build-image@4de35182ce1e329181bffcbcc84d33db5e2c7e10  # 2026.06.0
         with:
           arch: ${{ matrix.arch }}
           build-args: |
@@ -206,7 +185,7 @@ jobs:
       attestations: write  # publish the build-provenance attestation
     steps:
       - name: Publish multi-arch manifest
-        uses: home-assistant/builder/actions/publish-multi-arch-manifest@7412f0023ea9b6e58e8bb5059f1660f51376f49a  # 2026.09.0
+        uses: home-assistant/builder/actions/publish-multi-arch-manifest@4de35182ce1e329181bffcbcc84d33db5e2c7e10  # 2026.06.0
         with:
           architectures: ${{ needs.prepare.outputs.architectures }}
           # Disable the builder's Cosign manifest signing too — image verification is provided by
@@ -219,12 +198,10 @@ jobs:
             ${{ needs.prepare.outputs.version }}
           registry-prefix: ${{ needs.prepare.outputs.registry_prefix }}
 
-      # Attest build provenance for the published multi-arch image. `build-image` /
-      # `publish-multi-arch-manifest` do NOT expose the pushed digest as a step output (unlike
-      # `docker/build-push-action`, which the polygonal exemplar relies on), so resolve the
-      # manifest-list digest from the registry and attest that. The manifest list is what a
-      # Supervisor pulls for `image: ghcr.io/matthewhobbs/alpine_a290` (no `{arch}` placeholder →
-      # Docker resolves the platform from the index), so it is the subject a consumer verifies.
+      # build-image/publish-multi-arch-manifest expose no pushed digest, so resolve
+      # the manifest-list digest from the registry and attest that: it is what a
+      # Supervisor pulls for the tagless `image:` reference, and what a consumer
+      # verifies.
       - name: Log in to GHCR
         if: ${{ github.event_name == 'push' }}
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
@@ -243,13 +220,10 @@ jobs:
           IMAGE_REF: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}:${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          # The manifest-list (index) digest is, by definition, the sha256 of the raw index
-          # bytes — compute it directly. (`--format '{{.Manifest.Digest}}'` is version-fragile:
-          # on the runner's buildx that template silently falls back to the verbose default
-          # output instead of the digest, which fails the regex below.)
-          # Capture first (pipefail + the -z guard below): a failed inspect must NOT fall through
-          # to `sha256sum` hashing an empty stream, which would yield the valid-looking
-          # e3b0c442… empty-input hash and attest the wrong subject.
+          # Compute the index digest from its raw bytes: `--format
+          # '{{.Manifest.Digest}}'` falls back to verbose output on this buildx.
+          # Capture first, so a failed inspect cannot hash an empty stream and attest
+          # that.
           raw="$(docker buildx imagetools inspect "$IMAGE_REF" --raw)"
           if [[ -z "$raw" ]]; then
             echo "::error::imagetools inspect returned no data for ${IMAGE_REF}"
@@ -312,7 +286,7 @@ jobs:
 
       - name: Upload diagnostics
         if: failure() && env.PILOT_RUN == 'true'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: release-pilot-${{ matrix.arch }}-${{ matrix.core }}
           path: ${{ runner.temp }}/pilot/diagnostics
@@ -325,12 +299,9 @@ jobs:
 
   validated:
     name: Wait for CI + UI Tests on this commit (ADR 0005)
-    # The image itself is already live by this point (published from the version-bump PR,
-    # before merge — see the header comment), so this gates only the visible "this version is
-    # out" signal (the git tag + GitHub Release below), not image availability. Runs only when
-    # `tag` below would otherwise run: a job this one `needs` treats a SKIPPED job as success for
-    # gating purposes (GitHub's own semantics), so `tag` is never blocked by this being skipped
-    # on a PR or a non-bump push — only by it actually running and failing.
+    # The image is already live (published from the bump PR), so this gates the
+    # visible "this version is out" signal only. `needs` treats a skipped job as
+    # success, so `tag` is blocked only when this runs and fails.
     needs: [prepare]
     if: ${{ github.event_name == 'push' && needs.prepare.outputs.publish == 'true' }}
     runs-on: ubuntu-latest
@@ -384,11 +355,9 @@ jobs:
 
   release-gate:
     name: Release image published
-    # The merge gate. Make this a REQUIRED status check on main: a version-bump PR then cannot
-    # merge until its image is live on GHCR, so main never advertises a version that 404s.
-    # Runs on every PR and always reports (a no-op success when the version is unchanged), so it
-    # never leaves a required check pending. `always()` so it evaluates even if build/manifest
-    # were skipped for a non-bump PR.
+    # The merge gate, and a REQUIRED check: a bump PR cannot merge until its image
+    # resolves on GHCR. Runs on every PR and always reports, so it never leaves a
+    # required check pending; `always()` so it evaluates when build/manifest skipped.
     needs: [prepare, build, manifest]
     if: ${{ always() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
