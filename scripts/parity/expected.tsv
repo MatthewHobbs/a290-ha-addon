@@ -159,8 +159,4 @@ local	scripts/supervisor-pilot.sh	both	re:must install what GHCR serves \(ADR 00
 model	scripts/supervisor-pilot.sh	both	re:a290-supervisor|r5-supervisor|local_alpine_a290|local_renault_5|pilot-registry|pilot-build|pilot-no-egress	16	the pilot's container, registry, provenance-label and egress-rule names carry each add-on's own short name
 local	scripts/supervisor-pilot.sh	both	hunk:deploy_dashboard	15	the same default difference in cmd_install (sets deploy_dashboard: standard) and the dashboard-probe comment (r5's deliberate choice, confirmed on r5 2026-09-27)
 local	scripts/supervisor-pilot.sh	both	hunk:poll-success line is|addon_log_has "Published	4	r5's poll-success log line is "Published in <s>s" where a290's is "Published: ", so each pilot greps its own; the guard follows each repo's main.py and r5 keeps its line (confirmed on r5 2026-09-27)
-pending	.github/dependabot.yml	both	*	30	a290 drops Renovate and widens Dependabot to actions and the Dockerfile images; r5 still splits the two bots. Target: r5 drops Renovate
-pending	.github/renovate.json	r5	only	1	a290 deleted the file. Target: r5 deletes it
-pending	.github/workflows/ui-tests.yaml	both	*	6	the gate's comments no longer claim a bot bumps the render pins. Target: r5 drops Renovate
-pending	scripts/supervisor-pilot.sh	both	*	4	the pinned images are hand-bumped now. Target: r5 drops Renovate
-pending	ui-tests/run.sh	both	*	6	the render pins are hand-bumped now. Target: r5 drops Renovate
+local	ui-tests/run.sh	both	re:^\# hand, together, when the gate's HA floor allows it	2	each copy names the other as the twin it must match; the sentence is otherwise the same
