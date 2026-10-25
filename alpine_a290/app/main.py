@@ -10,7 +10,6 @@ refresh-location is supported but withheld unless enable_refresh_location is set
 destructive on a parked car; see the option's description in DOCS.md.
 """
 import asyncio
-import inspect
 import json
 import logging
 import math
@@ -131,9 +130,12 @@ def setup_logging():
 def load_state():
     try:
         with open(STATE_FILE) as fh:
-            return json.load(fh)
+            data = json.load(fh)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
+    # A restored or hand-edited file can hold valid JSON of the wrong shape; the
+    # poll's own error path then calls .get() and would die inside its handler.
+    return data if isinstance(data, dict) else {}
 
 
 def save_state(state):
@@ -216,6 +218,11 @@ class VehicleSession:
             self._websession = aiohttp.ClientSession(timeout=API_TIMEOUT)
             try:
                 self._vehicle = await _login_vehicle(self._websession, self.locale)
+            except asyncio.CancelledError:
+                # The poll timeout cancelled us mid-login. Close the session here:
+                # the next call would overwrite the reference and leak it.
+                await self.invalidate()
+                raise
             except Exception:
                 await self.invalidate()
                 raise
@@ -238,9 +245,8 @@ class VehicleSession:
 
 
 async def _supports(vehicle, ep):
-    """supports_endpoint() is async in renault-api 0.5.x; tolerate a sync return too."""
-    res = vehicle.supports_endpoint(ep)
-    return (await res) if inspect.isawaitable(res) else res
+    """supports_endpoint() is async in the pinned renault-api; await it."""
+    return await vehicle.supports_endpoint(ep)
 
 
 async def detect_supported(vsession):
@@ -633,7 +639,14 @@ async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
                 data["gps_last_activity"] = getattr(loc, "lastUpdateTime", None)
                 state["gps_last_activity"] = data["gps_last_activity"]
         except Exception as err:  # noqa: BLE001
+            # Same invariant as the sentinel branch: a missing gps_last_activity
+            # disarms the gps_stale guard, so carry the last usable fix forward.
             LOG.warning("location unavailable: %s", err)
+            prev = (state.get("gps_last_activity")
+                    or (_LATEST.get("data") or {}).get("gps_last_activity"))
+            if prev:
+                data["gps_last_activity"] = prev
+                state.setdefault("gps_last_activity", prev)
 
     live_lc = update_charge_session(state, battery, capacity_kwh, charging)
     data.update(await resolve_last_charge(vehicle, state, supported_eps, capacity_kwh, live_lc))

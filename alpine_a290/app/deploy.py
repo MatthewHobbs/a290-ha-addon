@@ -406,6 +406,9 @@ def _inject_bubble_charging(view):
     view.setdefault("cards", []).append(popup)
 
 
+REPLY_TIMEOUT = 15
+
+
 class _WS:
     """Minimal Home Assistant WebSocket API client over the Supervisor proxy."""
 
@@ -418,16 +421,19 @@ class _WS:
         await self._ws.send_json(payload)
         while True:
             # Per-receive timeout so an unexpected event/close frame can't hang the deploy.
-            msg = await asyncio.wait_for(self._ws.receive_json(), timeout=15)
+            msg = await asyncio.wait_for(self._ws.receive_json(), timeout=REPLY_TIMEOUT)
             if msg.get("id") == self._id and msg.get("type") == "result":
                 if not msg.get("success", False):
                     raise RuntimeError(f"{payload['type']} failed: {msg.get('error')}")
                 return msg.get("result")
 
     async def auth(self):
-        await self._ws.receive_json()
+        # Same deadline as _cmd: a proxy that accepts the socket and then says
+        # nothing must fail here, not wedge the deploy before polling starts.
+        await asyncio.wait_for(self._ws.receive_json(), timeout=REPLY_TIMEOUT)
         await self._ws.send_json({"type": "auth", "access_token": self._token})
-        if (await self._ws.receive_json()).get("type") != "auth_ok":
+        first = await asyncio.wait_for(self._ws.receive_json(), timeout=REPLY_TIMEOUT)
+        if first.get("type") != "auth_ok":
             raise RuntimeError("HA WebSocket auth failed")
 
     async def dashboards(self):
@@ -444,8 +450,11 @@ class _WS:
     async def resources(self):
         return await self._cmd(type="lovelace/resources")
 
-    async def create_resource(self, url, res_type="css"):
-        return await self._cmd(type="lovelace/resources/create", url=url, res_type=res_type)
+    async def create_resource(self, url):
+        return await self._cmd(type="lovelace/resources/create", url=url, res_type="css")
+
+    async def delete_dashboard(self, dashboard_id):
+        return await self._cmd(type="lovelace/dashboards/delete", dashboard_id=dashboard_id)
 
 
 def _deploy_targets(style, url_path):
@@ -465,10 +474,20 @@ async def _deploy_one(api, style, url_path, title, redeploy, refresh_location=Fa
         LOG.info("Dashboard '%s' already exists — leaving it (set redeploy_dashboard to "
                  "overwrite). %d views available.", url_path, len(config["views"]))
         return
+    created = None
     if url_path not in existing:
-        await api.create_dashboard(url_path, title)
+        created = await api.create_dashboard(url_path, title)
         LOG.info("Created dashboard '%s'", url_path)
-    await api.save_config(url_path, config)
+    try:
+        await api.save_config(url_path, config)
+    except Exception:
+        # An empty dashboard left behind would satisfy the exists check above and
+        # never be retried. Take it away so the next start deploys it properly.
+        if created and created.get("id"):
+            await api.delete_dashboard(created["id"])
+            LOG.warning("Removed dashboard '%s' after its config failed to save; the "
+                        "next start retries", url_path)
+        raise
     LOG.info("Deployed '%s' dashboard to '%s' (%d views, CDN assets)",
              style, url_path, len(config["views"]))
 
