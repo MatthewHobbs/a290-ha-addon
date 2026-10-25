@@ -163,6 +163,7 @@ pending	scripts/supervisor-pilot.sh	r5	re:^# (Adapted from polygonal-zones' pilo
 local	ui-tests/run.sh	both	re:^\# hand, together, when the gate's HA floor allows it	2	each copy names the other as the twin it must match; the sentence is otherwise the same
 pending	alpine_a290/app/deploy.py	both	re:\.content p	2	the injected Smart Charging heading wrap covers the h2 HA 2026.10 renders; r5 wraps p only. Target: r5 ports the heading wrap
 pending	scripts/docs_sync_check.py	both	*	80	the end-to-end harness poisons a tree instead of deleting a loose object. Target: r5 ports the harness fix; r5 still cites the decision records a290 has removed. Target: r5 strips them
+pending	scripts/adr_evidence_check.py	a290	*	1	the decision record's evidence check is new, with its self-test; r5 has no retrospective record yet, so it has nothing to check. Target: r5 takes the check with its own record
 pending	.github/workflows/ci.yaml	both	*	33	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite
 pending	.github/workflows/release.yaml	both	*	240	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite; and a290 publishes from a signed tag, not the bump PR. Target: r5 takes the signed-tag release; r5 still cites the decision records a290 has removed. Target: r5 strips them
 pending	alpine_a290/app/catalog.py	both	*	10	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite
