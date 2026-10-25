@@ -55,6 +55,21 @@ import subprocess
 import sys
 
 
+def _poison(d, rev, rel, message):
+    """A commit from rev's tree whose ``rel`` names a blob the repo cannot read.
+
+    Deleting the loose object was the old trick; it failed once gc packed it,
+    because there was nothing left to delete. A fabricated id is never written,
+    so this cannot depend on how git stores objects.
+    """
+    missing = "deadbeef" + "0" * 32
+    parent = _git(d, "rev-parse", rev).strip()
+    _git(d, "read-tree", parent)
+    _git(d, "update-index", "--add", "--cacheinfo", f"100644,{missing},{rel}")
+    tree = _git(d, "write-tree", "--missing-ok").strip()
+    return _git(d, "commit-tree", tree, "-p", parent, "-m", message).strip()
+
+
 def _run(args):
     return subprocess.run(args, capture_output=True, text=True)
 
@@ -541,8 +556,7 @@ def _end_to_end():
         code()
         _git(d, "add", "-A")
         _git(d, "commit", "-q", "-m", "unreadable config")
-        blob = _git(d, "rev-parse", "HEAD:a/config.yaml").strip()
-        (root / ".git/objects" / blob[:2] / blob[2:]).unlink()
+        _git(d, "update-ref", "HEAD", _poison(d, "HEAD", "a/config.yaml", "unreadable config"))
         got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
                              capture_output=True, text=True, env={**_clean_env(), "LABELS": ""})
         if got.returncode != 2 or "cannot read" not in got.stdout + got.stderr:
@@ -550,27 +564,38 @@ def _end_to_end():
                     f"{(got.stdout + got.stderr).strip()[:300]}")
         # The same for the CHANGELOG at HEAD, and for the config at the merge base (head's own blob
         # is intact there, so only the merge-base refusal can produce this exit).
-        for name, edits, path, rev, needle in (
-                ("an unreadable changelog", lambda: (root / "a/CHANGELOG.md").write_text(
-                    log.replace("- wip", "- wip, edited")), "a/CHANGELOG.md", "HEAD", "cannot read"),
-                ("an unreadable base config", lambda: (root / "a/config.yaml").write_text(
-                    cfg.replace("a: 1", "a: 2")), "a/config.yaml", "main", "although its tree lists it")):
-            _git(d, "switch", "-q", "-c", "u2", "main")
-            edits()
-            _git(d, "add", "-A")
-            _git(d, "commit", "-q", "-m", name)
-            blob = _git(d, "rev-parse", f"{rev}:{path}").strip()
-            loose = root / ".git/objects" / blob[:2] / blob[2:]
-            saved = loose.read_bytes()
-            loose.unlink()
-            got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
-                                 capture_output=True, text=True, env={**_clean_env(), "LABELS": ""})
-            loose.write_bytes(saved)
-            _git(d, "switch", "-q", "main")
-            _git(d, "branch", "-q", "-D", "u2")
-            if got.returncode != 2 or needle not in got.stdout + got.stderr:
-                return (f"{name}: want exit 2 naming '{needle}', got {got.returncode}: "
-                        f"{(got.stdout + got.stderr).strip()[:300]}")
+        # -f: poisoning HEAD leaves the index and worktree disagreeing with it.
+        _git(d, "switch", "-q", "-f", "-c", "u2", "main")
+        (root / "a/CHANGELOG.md").write_text(log.replace("- wip", "- wip, edited"))
+        _git(d, "add", "-A")
+        _git(d, "commit", "-q", "-m", "unreadable changelog")
+        _git(d, "update-ref", "HEAD", _poison(d, "HEAD", "a/CHANGELOG.md", "unreadable changelog"))
+        got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
+                             capture_output=True, text=True, env={**_clean_env(), "LABELS": ""})
+        _git(d, "switch", "-q", "-f", "main")
+        _git(d, "branch", "-q", "-D", "u2")
+        if got.returncode != 2 or "cannot read" not in got.stdout + got.stderr:
+            return (f"an unreadable changelog: want exit 2 naming 'cannot read', got "
+                    f"{got.returncode}: {(got.stdout + got.stderr).strip()[:300]}")
+        # The merge base: poison main, commit a readable config on top of it, so only the
+        # base lookup can produce this exit.
+        main = _git(d, "rev-parse", "main").strip()
+        base = _poison(d, "main", "a/config.yaml", "unreadable base")
+        (root / "a/config.yaml").write_text(cfg.replace("a: 1", "a: 2"))
+        _git(d, "add", "-A")
+        tree = _git(d, "write-tree").strip()
+        head = _git(d, "commit-tree", tree, "-p", base, "-m", "readable config").strip()
+        _git(d, "update-ref", "refs/heads/main", base)
+        _git(d, "update-ref", "refs/heads/u3", head)
+        _git(d, "switch", "-q", "-f", "u3")
+        got = subprocess.run([sys.executable, str(Path(__file__).resolve()), "main"], cwd=d,
+                             capture_output=True, text=True, env={**_clean_env(), "LABELS": ""})
+        _git(d, "update-ref", "refs/heads/main", main)
+        _git(d, "switch", "-q", "-f", "main")
+        _git(d, "branch", "-q", "-D", "u3")
+        if got.returncode != 2 or "although its tree lists it" not in got.stdout + got.stderr:
+            return (f"an unreadable base config: want exit 2 naming 'although its tree lists it', "
+                    f"got {got.returncode}: {(got.stdout + got.stderr).strip()[:300]}")
     return None
 
 
