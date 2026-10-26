@@ -1,7 +1,7 @@
 # Decision records
 
-Read in numeric order. Each records a decision that was made, not a plan.
+Read in numeric order. Each records decisions that were made, not plans.
 
 | # | Decision |
 | --- | --- |
-| 0001 | The add-on as it stands: what it does, what it refuses to do, and how it is checked and released. |
+| 0001 | What this add-on is, why it is built this way, and how to work on it. |

@@ -89,8 +89,10 @@ jobs:
           python3 -m pip install --quiet -r alpine_a290/app/requirements.txt
           python3 scripts/docs_sync_check.py --self-test
           python3 scripts/prepare_release.py --self-test
+          python3 scripts/adr_evidence_check.py --self-test
           scripts/test-check-version-order.sh
           python3 scripts/docs_sync_check.py "$BASE_SHA"
+          python3 scripts/adr_evidence_check.py
 
   parity:
     name: Parity with r5

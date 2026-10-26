@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Install, configure and probe the add-on under a real stable-channel
 # Supervisor and Core, inside the official add-on devcontainer.
-# Adapted from polygonal-zones' pilot (its ADR 0001), which solved the image,
-# floor-Core and AppArmor problems this relies on.
+# Adapted from the polygonal-zones pilot (polygonal-zones/ADR 0001 rows 1, 3, 6, 11), which
+# solved the image, floor-Core and AppArmor problems this relies on.
 #
 # One script for CI (.github/workflows/supervisor.yml) and for a local run:
 #
@@ -357,7 +357,7 @@ cmd_versions() {
 # .storage the newer one already wrote, and the Supervisor rolls back to
 # stable while the CLI still reports ok. Instead the Supervisor is told the
 # version before its first start, and with no Core container it installs
-# that version directly (polygonal-zones ADR 0001 row 11). The layout of
+# that version directly (polygonal-zones' supervisor-pilot.sh). The layout of
 # homeassistant.json is internal; the version check is what catches a change.
 seed_core_version() {
   local v

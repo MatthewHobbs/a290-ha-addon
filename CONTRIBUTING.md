@@ -11,8 +11,9 @@ A sibling repo, **`MatthewHobbs/r5-ha-addon`**, is the Renault 5 port of the sam
 **Keep the two in lockstep.** Most feature and fix work here should be mirrored there
 (adjusting for per-model API differences), and the other way round.
 
-**The parity check enforces that** (decisions live in `docs/adr/`). `scripts/parity_check.py` rewrites r5's names onto a290's
-(`scripts/parity/map.tsv`), diffs the trees, and fails on any difference that
+**The parity check enforces that** (decisions live in `docs/adr/`). `scripts/parity_check.py`
+rewrites r5's names onto a290's (`scripts/parity/map.tsv`), diffs the trees, and fails on any
+difference that
 `scripts/parity/expected.tsv` does not list with a category, an exact count and a reason, and on
 any entry whose difference is gone. Run `just parity` (clones r5's main, or
 `PARITY_TWIN=../r5-ha-addon just parity` to use a git checkout; tracked files and modes are
@@ -97,10 +98,12 @@ What is known about the A290 endpoints:
 ## Local checks: run the full suite before pushing
 
 CI (`.github/workflows/ci.yaml`) has seven jobs: **lint, test, security, build, docs-sync,
-parity and comments** — the last three compare this repo against its twin and `DOCS.md`, and hold
-code comments under 50 words. Run all of them locally before pushing, not just ruff and pytest. macOS and Linux behave differently (the UI gate
-has caught Linux-only font truncations a local macOS run missed), so a green local partial run is
-not a green CI. `just ci` runs the static gates.
+parity and comments** — the last three compare this repo against its twin and `DOCS.md`, check
+that every file and symbol [the decision record](docs/adr/0001-what-this-add-on-is-why-and-how.md) cites
+still exists (`just adr`), and hold code comments under 50 words. Run all of them locally before
+pushing, not just ruff and pytest. macOS and Linux behave differently (the UI gate has caught
+Linux-only font truncations a local macOS run missed), so a green local partial run is not a green
+CI. `just ci` runs the static gates.
 
 ```sh
 # lint — `just lint` runs exactly this, with the pinned ruff
@@ -262,8 +265,9 @@ Only when the maintainer asks for a release: `just release <version>` (read the 
 prints, then choose the number: a new feature is a minor, otherwise a patch), commit the two
 files it changes as their own PR titled `chore(release): <version>`, and let the existing gates
 run. Merging that PR publishes nothing. `just tag <version>` then signs and pushes `v<version>`;
-that run installs the per-arch image under a real stable Supervisor on four legs, waits for CI and the UI gate, and only then publishes the image users pull and cuts the
-Release. Never put a version bump in a feature PR "to get it out".
+that run installs the per-arch image under a real stable Supervisor on four legs, waits for CI
+and the UI gate, and only then publishes the image users pull and cuts the Release. Never put a
+version bump in a feature PR "to get it out".
 
 **What reaches users on merge, whatever the version.** Batching holds back the container image
 only. The Supervisor reads the add-on's *files* straight from `main`, so a merge that changes

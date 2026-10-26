@@ -48,7 +48,7 @@ jobs:
           fi
           echo "release=$release" | tee -a "$GITHUB_OUTPUT"
 
-      # Same patterns the trigger-level `paths:` filter used before this check always reported, moved here so the
+      # Same patterns the trigger-level `paths:` filter used while the job could be skipped, so the
       # workflow itself can always start (see the header comment) while still skipping the
       # expensive render when nothing relevant changed.
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d  # v4.0.3

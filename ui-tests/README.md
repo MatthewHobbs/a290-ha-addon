@@ -46,7 +46,8 @@ Mushroom tile labels clipping on a phone.
    value renders as where it shows state (`show_state`, Bubble's `button_type: state`), and, for
    a JavaScript or Jinja field the seed cannot read, what `seed.DECLARED` says it renders (the
    Charge Status badges and the off-peak window are the two). A state-display button whose
-   `styles` overwrites `.bubble-state`'s text with a JavaScript template (the short-date buttons) is a separate case the collector detects on the `styles` string itself:
+   `styles` overwrites `.bubble-state`'s text with a JavaScript template (the short-date buttons)
+   is a separate case the collector detects on the `styles` string itself:
    `seed.STATE_TEXT_OVERRIDE`, keyed by dashboard, pop-up hash, entity and card name (Last
    Charge's Started and Date buttons share an entity), says what it renders instead of the raw
    state text, with the same guarantee as `DECLARED`. Such a field with no declaration, a
