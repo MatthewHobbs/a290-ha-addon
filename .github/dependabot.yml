@@ -11,12 +11,10 @@ updates:
       time: "06:00"
       timezone: Europe/London
     groups:
-      # Its own PR: it changes what the car exposes (see test_api_contract.py's endpoint map).
-      renault-api:
-        patterns: ["renault-api"]
+      # One PR for the runtime, renault-api included. A release that changes the endpoint map
+      # still fails test_api_contract.py, so the bump is reviewed like any other.
       python:
         patterns: ["*"]
-        exclude-patterns: ["renault-api"]
 
   - package-ecosystem: github-actions
     directory: "/"

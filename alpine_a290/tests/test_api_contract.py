@@ -201,18 +201,24 @@ def test_a290_endpoint_map_is_the_reviewed_one():
     assert not changed, f"A5E1AE endpoint map changed (reviewed, now): {changed}"
 
 
-def test_requirements_in_pins_match_the_lock():
+def test_requirements_in_specifiers_are_satisfied_by_the_lock():
     """A bump that edits requirements.in but not the hash-locked requirements.txt (or the reverse)
-    would pass every other gate while the image kept installing the old version."""
+    would pass every other gate while the image kept installing the old version. A range is allowed
+    (renault-api is one), so the lock has to satisfy it rather than repeat it."""
     import re
     from pathlib import Path
+
+    from packaging.requirements import Requirement
+    from packaging.utils import canonicalize_name
     app = Path(__file__).resolve().parents[1] / "app"
     pin = re.compile(r"^([A-Za-z0-9_.-]+)==([^\s\\;]+)", re.M)
-    norm = lambda n: re.sub(r"[-_.]+", "-", n).lower()   # noqa: E731
-    lock = {norm(n): v for n, v in pin.findall((app / "requirements.txt").read_text())}
+    lock = {canonicalize_name(n): v for n, v in pin.findall((app / "requirements.txt").read_text())}
     src = [ln.strip() for ln in (app / "requirements.in").read_text().splitlines()
            if ln.strip() and not ln.strip().startswith("#")]
-    assert all(pin.match(ln) for ln in src), f"requirements.in must pin every package with ==: {src}"
-    wanted = {norm(n): v for n, v in pin.findall("\n".join(src))}
-    assert wanted, "requirements.in has no pins"
-    assert {n: lock.get(n) for n in wanted} == wanted
+    reqs = [Requirement(ln) for ln in src]
+    assert all(r.specifier for r in reqs), f"requirements.in must constrain every package: {src}"
+    for req in reqs:
+        locked = lock.get(canonicalize_name(req.name))
+        assert locked, f"{req.name} is not in requirements.txt"
+        assert req.specifier.contains(locked, prereleases=True), \
+            f"{req.name} {locked} does not satisfy {req.specifier}"
