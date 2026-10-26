@@ -94,7 +94,7 @@ jobs:
       # stops a matrix expanding, so one check-run appears under the raw template name
       # instead of the two ("stable", "minimum") the required checks name — leaving both
       # "Expected" forever.
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         if: env.RENDER == 'true'
         with:
           # Match the add-on runtime (HA base 3.24 → Python 3.14); the harness imports app/deploy.py.
@@ -138,7 +138,7 @@ jobs:
       # spurious "no files found" warning.
       - name: Upload device screenshots
         if: always() && env.RENDER == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: ${{ matrix.leg == 'stable' && 'dashboard-screenshots' || 'dashboard-screenshots-minimum' }}
           path: ui-tests/screenshots/
