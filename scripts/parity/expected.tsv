@@ -127,7 +127,6 @@ pending	alpine_a290/DOCS.md	both	*	*	each add-on's options page; 38% shared. r5'
 pending	CONTRIBUTING.md	both	*	*	each repo's contributor notes, worded for its own car (names, model codes, endpoint facts, the boot recipe's env vars). Target: same as DOCS.md
 pending	README.md	both	*	*	repository README; 44% shared. Target: same as DOCS.md
 pending	alpine_a290/README.md	both	*	39	the add-on's store README. Target: same as DOCS.md
-pending	docs/dashboards-on-mobile.md	both	*	10	r5 claims the screenshots auto-refresh, which is false there, plus rewrapping. Target: fix r5's claim, then rewrap
 # ---------------------------------------------------------------- Supervisor pilot + AppArmor pin (a290 #160, r5 #108)
 # --- pilot dashboard probe (a290 #165, mirrored by r5 in #108)
 # The probe is in both pilots now. Its only per-line residue is r5's deploy_dashboard default,
