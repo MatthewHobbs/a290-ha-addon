@@ -39,6 +39,7 @@ define	-	DOMAIN	(?<![a-z_])(sensor|binary_sensor|button|number|device_tracker|sw
 path	*	^renault_5/	alpine_a290/	add-on directory
 path	*	r5_background	alpine_a290_background	background image file name
 path	*	r5_side	alpine_a290_side	side image file name
+path	*	/Templates/r5_pretty_location\.yaml$	/Templates/a290_pretty_location.yaml	location template file name
 
 # Legacy entity ids: slug(device name + friendly name), from the two catalog.py files.
 legacy	*	<DOMAIN>\.r5_battery_autonomy\b	\1.alpine_a290_range	legacy entity id (Range)
@@ -99,6 +100,8 @@ identity	*	\br5-(verify|mqtt|local)\b	a290-\1	container-verify names (CONTRIBUTI
 identity	*	\br5v\b	a290v	container-verify network (CONTRIBUTING.md)
 identity	*	\br5_(background|side)\b	alpine_a290_\1	background image basenames
 identity	*	\br5_pretty_location\b	alpine_pretty_location	location template sensor
+identity	alpine_a290/dashboards/Templates/*,ui-tests/seed.py	R5 Pretty Location	Alpine Pretty Location	location template sensor name
+identity	alpine_a290/dashboards/Templates/*	\bsensor\.r5\b	sensor.a290	optional places integration sensor
 identity	*	<DOMAIN>\.r5_test_	\1.a290_test_	test-mode helper entities
 identity	*	<DOMAIN>\.r5_	\1.alpine_a290_	entity-id prefix (slug of the device name)
 identity	*	\br5_	a290_	object-id and helper prefix

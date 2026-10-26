@@ -44,7 +44,6 @@ model	alpine_a290/dashboards/Images/Map Markers/*	r5	only	6	r5's map markers per
 local	BACKLOG.md	a290	only	1	a290's own backlog; r5 tracks work in its issues
 local	docs/adr/0001-what-this-add-on-is-why-and-how.md	both	*	223	each repo's own retrospective record: the decisions and the evidence differ where the two cars and the two histories do
 pending	alpine_a290/dashboards/Packages/a290_test.yaml	a290	only	1	a290's namespaced test-mode package; r5 uses bare sensor.test_*. Target: port to r5
-pending	alpine_a290/dashboards/Templates/a290_pretty_location.yaml	a290	only	1	a290 bundles the pretty-location template; r5 tells users to port it from upstream. Target: owner decision on bundling it in r5
 pending	alpine_a290/dashboards/INSTALLATION.md	a290	only	1	a290's dashboard install guide; r5 has CUSTOMISING.md instead. Target: reconcile the dashboard docs with r5's naming migration release
 pending	alpine_a290/dashboards/USER-GUIDE.md	a290	only	1	as INSTALLATION.md. Target: same
 pending	alpine_a290/dashboards/CUSTOMISING.md	r5	only	1	r5's dashboard customisation guide. Target: same as INSTALLATION.md
@@ -104,17 +103,16 @@ pending	justfile	both	hunk:parity|against r5-ha-addon through|against a290-ha-ad
 local	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant/base	2	the same comment on the build step, in a different place. Target: one place in both
 local	.github/workflows/ci.yaml	both	hunk:a VIN in a test fixture|pair of public add-on repos	6	each repo's own account of the same script (a290 dates its leaks, r5 names the twin); both true, so neither is drift
 local	.gitignore	both	*	3	section order differs; r5 ignores a local reference/ checkout. Target: one section order
-pending	.yamllint	a290	*	4	a290 exempts dashboards/ because it bundles upstream YAML packages there. Target: follows the Packages/Templates decision
 
 # --- UI gate coverage: dispatching-off pass and all Bubble pop-ups
 # Listed before the whole-file harness entries below so these lines are taken here, not there.
 local	ui-tests/seed.py	both	py:self_test	4	each repo's short-date self-test indexes its own bubble dashboard by name (a290 alpine-bubble, r5 renault-5-bubble); the function is otherwise identical
-pending	ui-tests/seed.py	both	py:<docstring>,<imports>,TOGGLES,MIN_POPUPS,TEMPLATE_DIR,HELPER_STATES,helper_states,state_for,derive_passes,TEXT_KEYS,IF_IS_STATE,ACTION_KEYS,_reads_state,expected_labels,popups_in,write_manifest,main	35	r5 ported the decision record (#124); residue is a290 deriving a pass per TOGGLES entry (the off-peak badge's "Peak rate"), seeding the bundled pretty-location template at a real length, and comment wording. Target: converge wording
+pending	ui-tests/seed.py	both	py:<docstring>,<imports>,TOGGLES,MIN_POPUPS,TEMPLATE_DIR,HELPER_STATES,helper_states,state_for,derive_passes,TEXT_KEYS,IF_IS_STATE,ACTION_KEYS,_reads_state,expected_labels,popups_in,write_manifest,main	17	both derive and seed the bundled pretty-location template; residue is MIN_POPUPS (a290 8, r5 9), template-seeding comment wording and helper_states's block/blk variable name. Target: retain each dashboard's pop-up floor until the dashboards converge; converge wording and variable naming
 pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_labels,POPUP_SHOT_NAMES,_open_popup,_capture_popup,run	89	r5 ported the decision record (#124) and the service-worker barrier and recoveries (#139, from a290 #218); residue is comment wording and JS_POPUP_SHOWS's match-by-hash, which r5 has not ported. Target: converge wording; r5 ports the match-by-hash; r5 still cites the decision records a290 has removed. Target: r5 strips them
 
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
 pending	ui-tests/check_overflow.py	both	*	78	residue after r5 #105 and #124 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow the decision record; r5 still cites the decision records a290 has removed. Target: r5 strips them
-pending	ui-tests/seed.py	both	*	104	residue after r5 #105 and #124: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow the decision record
+pending	ui-tests/seed.py	both	*	99	residue after r5 #105, #124 and #201: dashboard slugs, KNOWN's charging-time entity and number-state formatting, and comment/docstring wording (including legacy timestamp names). Target: converge wording and formatting; ids follow the decision record
 pending	ui-tests/README.md	both	*	75	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow the decision record; r5 still cites the decision records a290 has removed. Target: r5 strips them
 
 # ---------------------------------------------------------------- prose and tests, excused wholesale
