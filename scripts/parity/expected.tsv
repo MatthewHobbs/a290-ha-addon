@@ -69,7 +69,7 @@ model	alpine_a290/app/catalog.py	both	py:DEVICE	2	device name and manufacturer (
 pending	alpine_a290/app/catalog.py	both	py:SENSORS	6	r5 publishes Cabin Temperature, a290 retired it (the A290 never returns it; whether an R5 does is not established; open difference), plus comment wording. Target: owner decision on cabin temperature
 pending	alpine_a290/app/catalog.py	both	py:RETIRED_SENSORS	7	a290 retires cabin_temperature; comment wording. Target: follows the cabin-temperature decision
 pending	alpine_a290/app/catalog.py	both	py:OPTIONAL_ENDPOINTS,PESSIMISTIC_ENDPOINTS	10	a290 makes hvac-settings optional and pessimistic because the A290 answers 502000; r5 polls it always (R5 behaviour unobserved; open difference). Target: owner decision on hvac-settings
-pending	alpine_a290/app/catalog.py	both	py:BINARY_SENSORS,ICONS	9	comment wording, and a290 gives last_successful_poll an icon. Target: port the icon to r5, converge the wording
+pending	alpine_a290/app/catalog.py	both	py:BINARY_SENSORS,ICONS	10	comment wording, and a290 gives last_successful_poll an icon. Target: port the icon to r5, converge the wording
 legacy	alpine_a290/app/catalog.py	both	py:ACTION_BUTTONS,BUTTON_CMD_OVERRIDES	13	r5 keeps the legacy command names lights/horn/hvac_start/hvac_stop through BUTTON_CMD_OVERRIDES; table order and comments follow. Goes with stage B2
 legacy	alpine_a290/app/catalog.py	both	py:SOC_ENDPOINT,NUMBER_ROLES	7	r5 maps its legacy number names to set_battery_soc roles through NUMBER_ROLES. Goes with stage B2
 
@@ -88,8 +88,7 @@ pending	alpine_a290/app/main.py	both	py:run_command	8	refresh-location log wordi
 pending	alpine_a290/app/main.py	both	py:NUMBER_RANGES	2	the sliders' (min, max, step) table those bounds read. Target: r5 ports a290's runtime-hardening PR (charge-limit bounds)
 legacy	alpine_a290/app/main.py	both	py:_NUMBER_ROLE,set_soc_level	4	r5 resolves its legacy number names to roles through NUMBER_ROLES; a290 compares the name. Goes with stage B2
 pending	alpine_a290/app/main.py	both	py:poll_once	60	r5 publishes legacy data keys (battery_autonomy, charger_status, ...), cabin temperature and an ungated hvac-settings call; comment wording. Target: B2 makes the keys data; cabin temperature and hvac-settings follow their RFC decisions
-pending	alpine_a290/app/main.py	both	py:main	44	main loop: r5 installs signal handlers before startup (P-B2) and logs poll duration (P-B8); re-login after a failure differs (a290: auth error or every 3rd failure, r5: every failure; open difference, decided 2026-09-27: a290's policy wins, r5 to change); a290 saves state on the failure path (P-C2). Target: r5's re-login change, then B1 (main loop into the core).
-pending	alpine_a290/app/main.py	both	py:<main-guard>	2	a290 marks the __main__ guard `# pragma: no cover`; r5 does not. Target: port to r5
+pending	alpine_a290/app/main.py	both	py:main	43	main loop: r5 installs signal handlers before startup (P-B2) and logs poll duration (P-B8); re-login after a failure differs (a290: auth error or every 3rd failure, r5: every failure; open difference, decided 2026-09-27: a290's policy wins, r5 to change); a290 saves state on the failure path (P-C2). Target: r5's re-login change, then B1 (main loop into the core).
 
 # ---------------------------------------------------------------- deploy.py
 pending	alpine_a290/app/deploy.py	both	py:<docstring>	11	docstring wording. Target: converge the wording, or B (deploy engine into the core)
