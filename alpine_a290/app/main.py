@@ -285,15 +285,31 @@ async def detect_supported(vsession):
 
 
 def _precondition_temp():
-    """Target cabin temperature (°C) for Start Climate — set on the Configuration page."""
-    return float(cfg("A290_PRECONDITION_TEMPERATURE", "20") or "20")
+    """Target cabin temperature (°C) for Start Climate, or None to use the car's own setting.
+
+    Unset on the Configuration page means the car decides: its preconditioning temperature is
+    the one its own schedule uses, and it is what the dashboard shows as "Desired Temp"."""
+    raw = (cfg("A290_PRECONDITION_TEMPERATURE", "") or "").strip()
+    return float(raw) if raw else None
+
+
+async def _hvac_start_action(vehicle):
+    """Start Climate at the configured temperature, or at the car's own when none is set."""
+    temp = _precondition_temp()
+    if temp is None:
+        try:
+            temp = float(_find_precond(await vehicle.get_charge_schedule())
+                         .get("preconditioningTemperature") or 21)
+        except Exception:  # noqa: BLE001
+            temp = 21.0
+    await vehicle.set_ac_start(temp)
 
 
 COMMAND_ACTIONS = {
     "charge_start":     lambda v: v.set_charge_start(),
     "horn":             lambda v: v.start_horn(),
     "lights":           lambda v: v.start_lights(),
-    "climate_start":    lambda v: v.set_ac_start(_precondition_temp()),
+    "climate_start":    _hvac_start_action,
     "climate_stop":     lambda v: v.set_ac_stop(),
     "refresh_location": lambda v: v.refresh_location(),
 }
