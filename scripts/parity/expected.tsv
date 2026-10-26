@@ -43,9 +43,6 @@ model	alpine_a290/dashboards/Images/Map Markers/*	r5	only	6	r5's map markers per
 # ---------------------------------------------------------------- one repository only
 local	BACKLOG.md	a290	only	1	a290's own backlog; r5 tracks work in its issues
 local	docs/adr/0001-what-this-add-on-is-why-and-how.md	both	*	223	each repo's own retrospective record: the decisions and the evidence differ where the two cars and the two histories do
-pending	alpine_a290/.dockerignore	a290	only	1	a290 keeps tests and docs out of the image build context. Target: port to r5
-pending	alpine_a290/tests/test_charge.py	a290	only	1	a290's charge-session tests; whether r5's _parse_charge_session tests cover the same is not established. Target: compare, then port what is missing to r5
-pending	alpine_a290/tests/test_config.py	a290	only	1	ENV_PREFIX wiring and end-to-end redaction tests. Target: port to r5
 pending	alpine_a290/dashboards/Packages/a290_test.yaml	a290	only	1	a290's namespaced test-mode package; r5 uses bare sensor.test_*. Target: port to r5
 pending	alpine_a290/dashboards/Templates/a290_pretty_location.yaml	a290	only	1	a290 bundles the pretty-location template; r5 tells users to port it from upstream. Target: owner decision on bundling it in r5
 pending	alpine_a290/dashboards/INSTALLATION.md	a290	only	1	a290's dashboard install guide; r5 has CUSTOMISING.md instead. Target: reconcile the dashboard docs with r5's naming migration release
@@ -58,8 +55,6 @@ pending	alpine_a290/config.yaml	both	re:^  deploy_dashboard:	2	r5 defaults to de
 model	alpine_a290/config.yaml	r5	re:car_render	2	r5's render picker (see Images/Models)
 pending	alpine_a290/run.sh	a290	re:PRECONDITION_TEMPERATURE	1	as config.yaml precondition_temperature. Target: same
 model	alpine_a290/run.sh	r5	re:CAR_RENDER	1	r5's render picker
-pending	alpine_a290/Dockerfile	both	hunk:BUILD_VERSION|A290_VERSION	4	comment wording on the version ARG. Target: converge the wording, either way
-pending	alpine_a290/Dockerfile	both	hunk:COPY dashboards|Bundle	4	comment wording on the dashboard COPY. Target: converge the wording, either way
 legacy	alpine_a290/app/panel.html	both	re:num\(d\.	12	the panel reads poll_once's data keys, which r5 keeps under legacy names. Goes with the decision record
 
 # ---------------------------------------------------------------- catalog.py
@@ -92,8 +87,6 @@ pending	alpine_a290/app/main.py	both	py:main	43	main loop: r5 installs signal ha
 
 # ---------------------------------------------------------------- deploy.py
 pending	alpine_a290/app/deploy.py	both	py:<docstring>	11	docstring wording. Target: converge the wording, or B (deploy engine into the core)
-pending	alpine_a290/app/deploy.py	both	py:_REF,REF,CDN	4	the tag constant is _REF on a290 and REF on r5. Target: one name in both
-pending	alpine_a290/app/deploy.py	both	py:RESERVED_URL_PATHS,_validate_url_path	34	identical code at a different place in the file (a290 near the top, r5 beside run_deploy). Target: one position in both
 model	alpine_a290/app/deploy.py	both	py:IMG_MAP,_RENDER_TRIMS,_selected_render,_cdnify	18	r5's car_render option swaps the background for the chosen trim render
 model	alpine_a290/app/deploy.py	both	py:_CHARGE_TARGET_REC	4	"Alpine's recommended" vs "The recommended" charge target
 pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUTTON,_references,_drop_cards_referencing,_deploy_one,run_deploy	35	comment wording and the unrelated bubble/standard injection branches each add below the shared pruning logic. Target: converge wording.
@@ -102,19 +95,17 @@ pending	alpine_a290/app/deploy.py	both	py:_WS	4	one comment. Target: converge, e
 # ---------------------------------------------------------------- dashboards
 pending	alpine_a290/dashboards/front-end.txt	both	re:sensor\.(a290_)?test_	32	a290's test-mode package is namespaced a290_test_*; r5's is bare test_*. Target: port to r5 with Packages/a290_test.yaml
 pending	alpine_a290/dashboards/front-end.txt	r5	hunk:name: Cabin Temp	14	r5's Cabin Temp card; the A290 never returns cabin temperature. Target: follows the cabin-temperature decision
-pending	alpine_a290/dashboards/front-end.txt	r5	hunk:^\s+name: (Initial|Uplift)$	16	r5 still has duplicate Initial and Uplift tiles, and Initial is mislabelled. Target: remove from r5
 pending	alpine_a290/dashboards/front-end.txt	r5	hunk:name: Start Charging	18	r5's standard dashboard keeps a greyed-out Start Charging tile. Target: owner decision, then one dashboard
-pending	alpine_a290/dashboards/front-end.txt	both	re:API request failed due to an authentication|Auth Failure\*\* card	4	alarm-card wording ("An Alpine API" / "API Auth Failure" on a290). Target: port a290's wording to r5
+pending	alpine_a290/dashboards/front-end.txt	both	re:API request failed due to an authentication|Auth Failure\*\* card	2	alarm-card wording ("An Alpine API" / "API Auth Failure" on a290). Target: port a290's wording to r5
 model	alpine_a290/dashboards/front-end-bubble.txt	both	re:^  - title:	2	the Bubble view title names the car
-pending	alpine_a290/dashboards/front-end-bubble.txt	both	re:# Ghost tile:	2	comment wording on the disabled charge tile. Target: converge, either way
+model	alpine_a290/dashboards/front-end-bubble.txt	both	re:# Ghost tile|signal the limitation	4	the same sentence wrapped and worded per car (a290 says the A290's API, r5 the API). Only the wording around the car name differs, and both are accurate
 
 # ---------------------------------------------------------------- repo config and CI
 pending	.github/workflows/ci.yaml	both	hunk:name: Parity with r5|name: Parity with a290|fail on any difference from|Check out r5-ha-addon main|Check out a290-ha-addon main|differ only as listed|repository: MatthewHobbs/	8	r5 added its own reciprocal job (#126): symmetric wording (each names the other repo, checks out the other's main, names its own check "differ only as listed" the other way round). Target: converge wording; row 3 (required check) is a separate owner decision once r5's job has run stably
 pending	justfile	both	hunk:parity|against r5-ha-addon through|against a290-ha-addon through|twin=	8	r5 added its own reciprocal parity recipes (#126), symmetric wording (each names the other repo as its twin). Target: converge wording
-pending	.github/workflows/ci.yaml	both	hunk:a VIN in a test fixture|pair of public add-on repos	6	PII-step comment wording. Target: converge, either way
-pending	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant/base	4	the same comment on the build step, in a different place. Target: one place in both
-pending	.gitignore	both	*	18	section order differs; r5 ignores a local reference/ checkout. Target: one section order
-pending	.trivyignore	r5	*	3	r5 still ignores AVD-DS-0026 (no HEALTHCHECK) although its Dockerfile has one. Target: delete from r5
+local	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant/base	2	the same comment on the build step, in a different place. Target: one place in both
+local	.github/workflows/ci.yaml	both	hunk:a VIN in a test fixture|pair of public add-on repos	6	each repo's own account of the same script (a290 dates its leaks, r5 names the twin); both true, so neither is drift
+local	.gitignore	both	*	3	section order differs; r5 ignores a local reference/ checkout. Target: one section order
 pending	.yamllint	a290	*	4	a290 exempts dashboards/ because it bundles upstream YAML packages there. Target: follows the Packages/Templates decision
 
 # --- UI gate coverage: dispatching-off pass and all Bubble pop-ups
@@ -126,7 +117,7 @@ pending	ui-tests/check_overflow.py	both	py:<docstring>,JS_POPUP_SHOWS,_missing_l
 # ---------------------------------------------------------------- UI harness (r5's harness PR is in flight)
 pending	ui-tests/check_overflow.py	both	*	78	residue after r5 #105 and #124 ported the harness: dashboard slugs, diag comments and wording. Target: converge wording; slugs follow the decision record; r5 still cites the decision records a290 has removed. Target: r5 strips them
 pending	ui-tests/seed.py	both	*	104	residue after r5 #105 and #124: dashboard slugs, the r5 ids in KNOWN/DERIVED_AGE/IMPLIES, and comment wording. Target: converge wording; ids follow the decision record
-pending	ui-tests/README.md	both	*	56	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow the decision record; r5 still cites the decision records a290 has removed. Target: r5 strips them
+pending	ui-tests/README.md	both	*	75	residue after r5 #105: tile and timestamp names in the prose. Target: converge wording; names follow the decision record; r5 still cites the decision records a290 has removed. Target: r5 strips them
 
 # ---------------------------------------------------------------- prose and tests, excused wholesale
 # These are the only unguarded entries (count *): drift inside them is not caught. They are
