@@ -7,7 +7,8 @@ and docs-sync gates compare the tree against the tree, not the prose against eit
 
 This reads the Evidence column of each row and fails on a cited file that is not there,
 and on a cited symbol that appears in none of the files the row cites. Write
-``core.<name>`` for a symbol that lives in the pinned renault-mqtt commit instead.
+``core.<name>`` for a symbol that lives in the pinned renault-mqtt commit, and ``api.<name>``
+for a setting that lives in GitHub and is read with ``gh api``.
 
 Usage: python3 scripts/adr_evidence_check.py [ADR.md]
 """
@@ -23,8 +24,10 @@ import tempfile
 DEFAULT = "docs/adr/0001-what-this-add-on-is-why-and-how.md"
 RECORD_DIR = "docs/adr"
 IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
-PATH = re.compile(r"[A-Za-z0-9_./-]+\.(?:py|yaml|yml|sh|txt|json|md|toml|in|html)")
-BARE = re.compile(r"`(Dockerfile|justfile)`")
+PATH = re.compile(
+    r"[A-Za-z0-9_./-]+\.(?:py|yaml|yml|sh|txt|json|md|toml|in|html)"
+    r"|[A-Za-z0-9_./-]*(?:Dockerfile|justfile)"
+)
 FENCE = re.compile(r"`([^`]+)`")
 ROW_REF = re.compile(r"\brows? ([0-9][0-9,\sand–-]*)")
 LOCAL_ONLY = {"HANDOVER.md", "AGENTS.md", "CLAUDE.md"}
@@ -69,16 +72,19 @@ def rows(text: str) -> list[tuple[str, str]]:
 
 def cited(evidence: str) -> list[str]:
     """The file names a row points at, as written."""
-    return PATH.findall(evidence) + BARE.findall(evidence)
+    return PATH.findall(evidence)
+
+
+OUTSIDE = ("core.", "api.")
 
 
 def symbols(evidence: str) -> list[str]:
-    """Backticked bare identifiers that are not file names and not the core's."""
+    """Backticked identifiers that are neither file names nor outside the tree."""
     named = set(cited(evidence))
     return [
         s
         for s in FENCE.findall(evidence)
-        if IDENT.fullmatch(s) and s not in named and not s.startswith("core.")
+        if IDENT.fullmatch(s) and s not in named and not s.startswith(OUTSIDE)
     ]
 
 
@@ -147,12 +153,14 @@ def self_test() -> int:
     gone = good.replace("`app/main.py`", "`app/nowhere.py`")
     malformed = good.replace("| Done | `app/main.py` (`poll_once`) |", "| Done |")
     core = good.replace("(`poll_once`)", "(`core._redacted`)")
+    api = good.replace("(`poll_once`)", "(`api.required_signatures`)")
     tree = {"app/main.py": "async def poll_once():\n    pass\n"}
     cases = [
         ("a row that holds passes", good, []),
         ("a renamed symbol fails", renamed, ["poll_everything"]),
         ("a missing file fails", gone, ["nowhere.py"]),
         ("a core symbol is exempt", core, []),
+        ("a GitHub setting is exempt", api, []),
     ]
     bad = 0
     for name, text, expect in cases:
@@ -179,6 +187,13 @@ def self_test() -> int:
     else:
         print("self-test FAIL  a five-column row is required")
         bad += 1
+    bare = (
+        "| # | Decision | Owner | Status | Evidence |\n| --- | --- | --- | --- | --- |\n"
+        "| 1 | It builds | a290 | Done | `Dockerfile` |\n"
+    )
+    ok = not check(bare, {"Dockerfile": "FROM scratch\n"}) and bool(check(bare, {}))
+    print(f"self-test {'ok  ' if ok else 'FAIL'} a bare Dockerfile is resolved, not skipped")
+    bad += not ok
     with tempfile.TemporaryDirectory() as tmp:
         (pathlib.Path(tmp) / "0001-one.md").write_text("x")
         one = not single_record(pathlib.Path(tmp))
