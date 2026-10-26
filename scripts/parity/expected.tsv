@@ -77,7 +77,7 @@ pending	alpine_a290/app/main.py	both	py:resolve_account	7	comment wording on whi
 pending	alpine_a290/app/main.py	both	py:detect_supported	20	both default a pessimistic endpoint dark and add it back on a successful probe; the comment names different evidence. Target: converge the wording when the file is next opened
 pending	alpine_a290/app/main.py	both	py:_hvac_due	5	both now refuse the call when the car does not list it and keep the breaker; the docstrings differ in length. Target: B1 (the breaker moves into the core)
 pending	alpine_a290/app/main.py	both	py:_precondition_temp,_hvac_start_action,COMMAND_ACTIONS	11	both now resolve the temperature the same way; what remains is r5's legacy command keys. Target: B2
-pending	alpine_a290/app/main.py	both	py:run_command	8	refresh-location log wording in run_command: a290 'replaces', r5 'can replace'. The debounce itself is identical since r5 #104. Target: converge, either way
+pending	alpine_a290/app/main.py	both	py:run_command	6	one log line and the debounce body still differ in wording; nothing behavioural. Target: B1, when the command dispatcher moves into the core
 pending	alpine_a290/app/main.py	both	py:NUMBER_RANGES	2	the sliders' (min, max, step) table those bounds read. Target: r5 ports a290's runtime-hardening PR (charge-limit bounds)
 legacy	alpine_a290/app/main.py	both	py:_NUMBER_ROLE,set_soc_level	4	r5 resolves its legacy number names to roles through NUMBER_ROLES; a290 compares the name. Goes with stage B2
 pending	alpine_a290/app/main.py	both	py:poll_once	57	r5 publishes legacy data keys (battery_autonomy, charger_status, ...) and cabin temperature, plus comment wording. Target: B2 makes the keys data; cabin temperature follows its own decision
@@ -86,7 +86,7 @@ pending	alpine_a290/app/main.py	both	py:main	43	main loop: r5 installs signal ha
 # ---------------------------------------------------------------- deploy.py
 pending	alpine_a290/app/deploy.py	both	py:<docstring>	11	docstring wording. Target: converge the wording, or B (deploy engine into the core)
 model	alpine_a290/app/deploy.py	both	py:IMG_MAP,_RENDER_TRIMS,_selected_render,_cdnify	18	r5's car_render option swaps the background for the chosen trim render
-model	alpine_a290/app/deploy.py	both	py:_CHARGE_TARGET_REC	4	"Alpine's recommended" vs "The recommended" charge target
+model	alpine_a290/app/deploy.py	both	py:_CHARGE_TARGET_REC	2	one marker comment, now worded the same way apart from the car's name
 pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUTTON,_references,_drop_cards_referencing,_deploy_one,run_deploy	35	comment wording and the unrelated bubble/standard injection branches each add below the shared pruning logic. Target: converge wording.
 pending	alpine_a290/app/deploy.py	both	py:_WS	4	one comment. Target: converge, either way.
 
