@@ -138,8 +138,10 @@ Check **Developer Tools → YAML → Check Configuration**, then **Restart**.
 
 1. **Settings → Dashboards → + Add Dashboard → New dashboard from scratch.**
 2. Open it, then **⋮ → Edit Dashboard → ⋮ → Raw configuration editor**.
-3. Paste the entire contents of [`front-end.txt`](front-end.txt) (standard)
-   or [`front-end-bubble.txt`](front-end-bubble.txt) (Bubble), and **Save**.
+3. Replace the editor contents with `views:` on the first line, then paste the entire contents
+   of [`front-end.txt`](front-end.txt) (standard) or [`front-end-bubble.txt`](front-end-bubble.txt)
+   below it, keeping the file's indentation. Both files contain a list of views; the editor needs
+   a dashboard object containing that list. **Save**.
 
 ---
 
