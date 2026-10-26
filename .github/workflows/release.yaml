@@ -40,7 +40,7 @@ jobs:
 
       - name: Get add-on information
         id: info
-        uses: home-assistant/actions/helpers/info@06749dd8c0b54f350bc69c8752456cee498808a3  # master
+        uses: home-assistant/actions/helpers/info@cd6f3635a740c84d8a14f6121a90068b8ece6bf6  # master
         with:
           path: "./alpine_a290"
 
@@ -98,7 +98,7 @@ jobs:
 
       - name: Prepare build matrix
         id: matrix
-        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@4de35182ce1e329181bffcbcc84d33db5e2c7e10  # 2026.06.0
+        uses: home-assistant/builder/actions/prepare-multi-arch-matrix@7412f0023ea9b6e58e8bb5059f1660f51376f49a  # 2026.09.0
         with:
           architectures: ${{ steps.info.outputs.architectures }}
           image-name: ${{ steps.normalize.outputs.image_name }}
@@ -136,7 +136,7 @@ jobs:
       # multi-arch image), so no BUILD_FROM build-arg / build.yaml is needed — the builder picks
       # the right platform per matrix arch.
       - name: Build image
-        uses: home-assistant/builder/actions/build-image@4de35182ce1e329181bffcbcc84d33db5e2c7e10  # 2026.06.0
+        uses: home-assistant/builder/actions/build-image@7412f0023ea9b6e58e8bb5059f1660f51376f49a  # 2026.09.0
         with:
           arch: ${{ matrix.arch }}
           build-args: |
@@ -177,7 +177,7 @@ jobs:
       attestations: write  # publish the build-provenance attestation
     steps:
       - name: Publish multi-arch manifest
-        uses: home-assistant/builder/actions/publish-multi-arch-manifest@4de35182ce1e329181bffcbcc84d33db5e2c7e10  # 2026.06.0
+        uses: home-assistant/builder/actions/publish-multi-arch-manifest@7412f0023ea9b6e58e8bb5059f1660f51376f49a  # 2026.09.0
         with:
           architectures: ${{ needs.prepare.outputs.architectures }}
           # Disable the builder's Cosign manifest signing too — image verification is provided by
@@ -195,7 +195,7 @@ jobs:
       # Supervisor pulls for the tagless `image:` reference, and what a consumer
       # verifies.
       - name: Log in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4.6.0
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -270,7 +270,7 @@ jobs:
 
       - name: Upload diagnostics
         if: failure() && env.PILOT_RUN == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: release-pilot-${{ matrix.arch }}-${{ matrix.core }}
           path: ${{ runner.temp }}/pilot/diagnostics
