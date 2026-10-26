@@ -20,7 +20,7 @@ import subprocess
 import sys
 import tempfile
 
-DEFAULT = "docs/adr/0001-the-project-as-it-stands.md"
+DEFAULT = "docs/adr/0001-what-this-add-on-is-why-and-how.md"
 RECORD_DIR = "docs/adr"
 IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 PATH = re.compile(r"[A-Za-z0-9_./-]+\.(?:py|yaml|yml|sh|txt|json|md|toml|in|html)")

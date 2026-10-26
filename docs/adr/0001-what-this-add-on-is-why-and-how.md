@@ -1,4 +1,4 @@
-# ADR 0001 — The add-on as it stands
+# ADR 0001 — What this add-on is, why, and how to work on it
 
 - **Repo:** a290-ha-addon
 - **Status:** Accepted (2026-10-25), replacing the earlier records. Retrospective: the rows
