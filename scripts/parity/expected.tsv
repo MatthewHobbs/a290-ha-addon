@@ -50,7 +50,7 @@ pending	alpine_a290/dashboards/USER-GUIDE.md	a290	only	1	as INSTALLATION.md. Tar
 pending	alpine_a290/dashboards/CUSTOMISING.md	r5	only	1	r5's dashboard customisation guide. Target: same as INSTALLATION.md
 
 # ---------------------------------------------------------------- add-on config
-pending	alpine_a290/config.yaml	a290	re:precondition_temperature	2	Start Climate temperature. Decided 2026-09-26: the shared code keeps precondition_temperature but defaults to the car's own setting. Target: that option in both
+pending	alpine_a290/config.yaml	a290	re:precondition_temperature	1	Start Climate temperature. Decided 2026-09-26: the shared code keeps precondition_temperature but defaults to the car's own setting — done here, r5 gains the option next. Target: the same option in r5
 pending	alpine_a290/config.yaml	both	re:^  deploy_dashboard:	2	r5 defaults to deploying no dashboard, on the premise that its users run Topolino65's; every visible r5 user runs r5's bundled one (the decision record naming decision). Target: revisit r5's default with its naming migration release
 model	alpine_a290/config.yaml	r5	re:car_render	2	r5's render picker (see Images/Models)
 pending	alpine_a290/run.sh	a290	re:PRECONDITION_TEMPERATURE	1	as config.yaml precondition_temperature. Target: same
@@ -63,26 +63,26 @@ model	alpine_a290/app/catalog.py	both	py:OBJ_PREFIX,ENV_PREFIX,NODE	11	each comm
 model	alpine_a290/app/catalog.py	both	py:DEVICE	2	device name and manufacturer (Alpine / Renault)
 pending	alpine_a290/app/catalog.py	both	py:SENSORS	6	r5 publishes Cabin Temperature, a290 retired it (the A290 never returns it; whether an R5 does is not established; open difference), plus comment wording. Target: owner decision on cabin temperature
 pending	alpine_a290/app/catalog.py	both	py:RETIRED_SENSORS	7	a290 retires cabin_temperature; comment wording. Target: follows the cabin-temperature decision
-pending	alpine_a290/app/catalog.py	both	py:OPTIONAL_ENDPOINTS,PESSIMISTIC_ENDPOINTS	10	a290 makes hvac-settings optional and pessimistic because the A290 answers 502000; r5 polls it always (R5 behaviour unobserved; open difference). Target: owner decision on hvac-settings
+model	alpine_a290/app/catalog.py	both	py:OPTIONAL_ENDPOINTS,PESSIMISTIC_ENDPOINTS	13	both list hvac-settings as a pessimistic optional endpoint; only the comment differs, and each names its own evidence
 pending	alpine_a290/app/catalog.py	both	py:BINARY_SENSORS,ICONS	10	comment wording, and a290 gives last_successful_poll an icon. Target: port the icon to r5, converge the wording
 legacy	alpine_a290/app/catalog.py	both	py:ACTION_BUTTONS,BUTTON_CMD_OVERRIDES	13	r5 keeps the legacy command names lights/horn/hvac_start/hvac_stop through BUTTON_CMD_OVERRIDES; table order and comments follow. Goes with stage B2
 legacy	alpine_a290/app/catalog.py	both	py:SOC_ENDPOINT,NUMBER_ROLES	7	r5 maps its legacy number names to set_battery_soc roles through NUMBER_ROLES. Goes with stage B2
 
 # ---------------------------------------------------------------- main.py
 model	alpine_a290/app/main.py	both	py:<docstring>	27	each docstring states its own car's platform caveats, and r5's describes itself as Topolino65's data layer. B2 shrinks main.py to configuration
-pending	alpine_a290/app/main.py	both	py:<imports>	2	NUMBER_ROLES is r5's legacy role table; PESSIMISTIC_ENDPOINTS is a290's hvac-settings guard. Target: follows those two entries.
+pending	alpine_a290/app/main.py	both	py:<imports>	1	NUMBER_ROLES is r5's legacy role table, which goes with the naming migration. Target: B2, when the role table becomes data
 pending	alpine_a290/app/main.py	both	py:_P,LOCATION_CMDS,NUMBER_CMDS	19	a290 strips the object-id prefix with obj[_P:]; r5 uses str.removeprefix(OBJ_PREFIX), the better form. Target: port removeprefix to a290
 pending	alpine_a290/app/main.py	both	py:VERSION,CHARGE_STATUS_LABELS,RHD_LOCALES,MILES_LOCALES,PLUG_KM_DELTA,PLUG_SOC_DROP,PLUG_MIN_AGE,PLUG_MAX_AGE,setup_logging,API_TIMEOUT,start_health_server,save_state	26	comment and docstring wording only, plus an f-string vs concatenation in save_state; no behaviour differs. Target: converge when B1 moves this code into the core, or either way when touched
 pending	alpine_a290/app/main.py	both	py:freshness_fields	12	docstring wording (a290 cites its v1.24.0 history, r5 adds the parked-car note). Target: B1 moves freshness_fields into the core
 pending	alpine_a290/app/main.py	both	py:VehicleSession	16	docstring and comment wording only. Target: B1 moves VehicleSession into the core
 pending	alpine_a290/app/main.py	both	py:resolve_account	7	comment wording on which account type each car sits under. Target: B1 moves resolve_account into the core
-pending	alpine_a290/app/main.py	both	py:detect_supported	23	a290's PESSIMISTIC_ENDPOINTS machinery: hvac-settings defaults to unsupported when detection fails and a successful probe adds it back. Target: owner decision on hvac-settings, then one implementation
-pending	alpine_a290/app/main.py	both	py:_hvac_due	19	a290 skips hvac-settings when the car does not list it; r5 deliberately does not gate on that (its docstring says why). Target: owner decision on hvac-settings, then B1 (the breaker moves into the core)
-pending	alpine_a290/app/main.py	both	py:_precondition_temp,_hvac_start_action,COMMAND_ACTIONS	24	Start Climate: a290 sends the precondition_temperature option, r5 the car's own setting (fallback 21 C); r5 also keeps legacy command keys. Decided 2026-09-26: keep the option, default to the car's setting. Target: implement that in both; command keys go with B2
+pending	alpine_a290/app/main.py	both	py:detect_supported	20	both default a pessimistic endpoint dark and add it back on a successful probe; the comment names different evidence. Target: converge the wording when the file is next opened
+pending	alpine_a290/app/main.py	both	py:_hvac_due	5	both now refuse the call when the car does not list it and keep the breaker; the docstrings differ in length. Target: B1 (the breaker moves into the core)
+pending	alpine_a290/app/main.py	both	py:_precondition_temp,_hvac_start_action,COMMAND_ACTIONS	33	Start Climate now falls back to the car's own setting here; r5 still sends the car's setting unconditionally and keeps legacy command keys. Target: the same option in r5; the legacy keys go with B2
 pending	alpine_a290/app/main.py	both	py:run_command	8	refresh-location log wording in run_command: a290 'replaces', r5 'can replace'. The debounce itself is identical since r5 #104. Target: converge, either way
 pending	alpine_a290/app/main.py	both	py:NUMBER_RANGES	2	the sliders' (min, max, step) table those bounds read. Target: r5 ports a290's runtime-hardening PR (charge-limit bounds)
 legacy	alpine_a290/app/main.py	both	py:_NUMBER_ROLE,set_soc_level	4	r5 resolves its legacy number names to roles through NUMBER_ROLES; a290 compares the name. Goes with stage B2
-pending	alpine_a290/app/main.py	both	py:poll_once	60	r5 publishes legacy data keys (battery_autonomy, charger_status, ...), cabin temperature and an ungated hvac-settings call; comment wording. Target: B2 makes the keys data; cabin temperature and hvac-settings follow their RFC decisions
+pending	alpine_a290/app/main.py	both	py:poll_once	57	r5 publishes legacy data keys (battery_autonomy, charger_status, ...) and cabin temperature, plus comment wording. Target: B2 makes the keys data; cabin temperature follows its own decision
 pending	alpine_a290/app/main.py	both	py:main	43	main loop: r5 installs signal handlers before startup (P-B2) and logs poll duration (P-B8); re-login after a failure differs (a290: auth error or every 3rd failure, r5: every failure; open difference, decided 2026-09-27: a290's policy wins, r5 to change); a290 saves state on the failure path (P-C2). Target: r5's re-login change, then B1 (main loop into the core).
 
 # ---------------------------------------------------------------- deploy.py

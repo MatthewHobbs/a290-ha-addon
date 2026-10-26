@@ -32,7 +32,7 @@ export A290_STALE_HOURS="$(bashio::config 'stale_hours')"
 export A290_PUBLISH_LOCATION="$(bashio::config 'publish_location')"
 export A290_ENABLE_REFRESH_LOCATION="$(bashio::config 'enable_refresh_location')"
 export A290_GPS_PRECISION="$(bashio::config 'gps_precision')"
-export A290_PRECONDITION_TEMPERATURE="$(bashio::config 'precondition_temperature')"
+export A290_PRECONDITION_TEMPERATURE="$(bashio::config 'precondition_temperature' '')"
 export A290_LOG_LEVEL="$(bashio::config 'log_level')"
 export A290_DEBUG_DUMP="$(bashio::config 'debug_dump')"
 

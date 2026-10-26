@@ -37,7 +37,6 @@ options:
   publish_location: true
   enable_refresh_location: false
   gps_precision: 4
-  precondition_temperature: 20
   log_level: info
   debug_dump: false
   deploy_dashboard: standard
@@ -60,7 +59,7 @@ schema:
   publish_location: bool
   enable_refresh_location: bool
   gps_precision: int(1,6)
-  precondition_temperature: float(16,27)
+  precondition_temperature: float(16,27)?
   log_level: list(trace|debug|info|notice|warning|error|fatal)
   debug_dump: bool
   deploy_dashboard: list(none|standard|bubble|both)

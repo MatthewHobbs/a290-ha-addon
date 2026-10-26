@@ -161,23 +161,90 @@ def test_command_actions_cover_every_button():
     assert {obj[len("a290_"):] for obj in main.ACTION_BUTTONS} == set(main.COMMAND_ACTIONS)
 
 
-def test_command_actions_call_real_renault_api_methods():
+def test_command_actions_call_real_renault_api_methods(monkeypatch):
+    import asyncio
+
     from renault_api.renault_vehicle import RenaultVehicle
+
+    monkeypatch.delenv("A290_PRECONDITION_TEMPERATURE", raising=False)
 
     class Probe:
         def __getattr__(self, name):
             object.__setattr__(self, "called", name)
-            return lambda *a, **k: None
+
+            async def _noop(*a, **k):
+                return None
+            return _noop
+
+        async def get_charge_schedule(self):
+            object.__setattr__(self, "called", "get_charge_schedule")
+            return {}
 
     for name, fn in main.COMMAND_ACTIONS.items():
         probe = Probe()
-        fn(probe)
+        asyncio.run(fn(probe))
         assert hasattr(RenaultVehicle, probe.called), f"{name} -> nonexistent {probe.called}"
 
 
-def test_precondition_temp_default(monkeypatch):
+def test_precondition_temp_unset_means_the_car_decides(monkeypatch):
     monkeypatch.delenv("A290_PRECONDITION_TEMPERATURE", raising=False)
-    assert main._precondition_temp() == 20.0
+    assert main._precondition_temp() is None
+
+
+def test_precondition_temp_reads_the_option(monkeypatch):
+    monkeypatch.setenv("A290_PRECONDITION_TEMPERATURE", "18")
+    assert main._precondition_temp() == 18.0
+
+
+def test_start_climate_sends_the_option_when_set(monkeypatch):
+    import asyncio
+    monkeypatch.setenv("A290_PRECONDITION_TEMPERATURE", "23")
+
+    class V:
+        sent = None
+
+        async def get_charge_schedule(self):
+            raise AssertionError("the car's schedule is not read when the option is set")
+
+        async def set_ac_start(self, temp):
+            type(self).sent = temp
+
+    asyncio.run(main._hvac_start_action(V()))
+    assert V.sent == 23.0
+
+
+def test_start_climate_falls_back_to_the_cars_own_setting(monkeypatch):
+    import asyncio
+    monkeypatch.delenv("A290_PRECONDITION_TEMPERATURE", raising=False)
+
+    class V:
+        sent = None
+
+        async def get_charge_schedule(self):
+            return {"preconditioningTemperature": 19}
+
+        async def set_ac_start(self, temp):
+            type(self).sent = temp
+
+    asyncio.run(main._hvac_start_action(V()))
+    assert V.sent == 19.0
+
+
+def test_start_climate_falls_back_to_21c_without_a_schedule(monkeypatch):
+    import asyncio
+    monkeypatch.delenv("A290_PRECONDITION_TEMPERATURE", raising=False)
+
+    class V:
+        sent = None
+
+        async def get_charge_schedule(self):
+            raise RuntimeError("api down")
+
+        async def set_ac_start(self, temp):
+            type(self).sent = temp
+
+    asyncio.run(main._hvac_start_action(V()))
+    assert V.sent == 21.0
 
 
 # --------------------------------------------------------------------------- #
