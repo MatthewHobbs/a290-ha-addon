@@ -29,8 +29,8 @@ RUN pip3 install --no-cache-dir --break-system-packages --require-hashes -r /app
 # runtime deps of its own. Pinned by immutable commit SHA (the tag is kept for readability) —
 # a reproducible build. Bump deliberately when a core
 # change should ship; the build + container-verify gate confirms the new core boots clean.
-# renault-mqtt v0.20.0
-ARG CORE_REF=ce010048e6ae2b245456c55b332e29ea18d396f0
+# renault-mqtt v0.20.0 + retained snapshot delivery
+ARG CORE_REF=73fa2ab145b54d245b62f6bd5cab9bd21026c13f
 # git clones the pinned ref; py3-setuptools is the build backend for core's wheel. Both come from
 # the apk repo (pinned by the base-image @sha256 digest above), and --no-build-isolation makes pip
 # use that setuptools instead of fetching an unpinned one from PyPI — so the core install adds no

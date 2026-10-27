@@ -722,8 +722,7 @@ async def main():
     mqtt._MQTT_CTX["supported"], mqtt._MQTT_CTX["dist_unit"] = supported, dist_unit
     _LATEST["supported"] = sorted(supported)
     _LATEST["dist_unit"] = dist_unit  # so the status panel can label range/mileage
-    client = mqtt.mqtt_connect()
-    mqtt.publish_discovery(client, supported, dist_unit)
+    client = mqtt.mqtt_connect(snapshots=True)
     await deploy.run_deploy(refresh_location=bool(mqtt.PUBLISH_LOCATION and mqtt.ENABLE_REFRESH_LOCATION))
 
     stop = asyncio.Event()
@@ -758,14 +757,11 @@ async def main():
             data.update(freshness_fields(state, data.get("last_updated"), stale_secs,
                                          state["last_success"]))
             last_data = data
-            client.publish(mqtt.STATE_TOPIC, json.dumps(data), retain=True)
             _LATEST.update(ok=True, last_poll=iso(now_ts()), data=data)
             if location_attrs:
-                # Attributes only. The tracker declares no state topic: HA turns a state payload
-                # into location_name, which then wins over these lat/lon attributes and stops the
-                # entity ever resolving home or a zone. Connectivity belongs on AVAIL_TOPIC below.
-                client.publish(mqtt.ATTR_TOPIC, json.dumps(location_attrs), retain=True)
-            client.publish(mqtt.AVAIL_TOPIC, "online", retain=True)
+                client.snapshots.update(data, location=location_attrs)
+            else:
+                client.snapshots.update(data)
             save_state(state)
             LOG.info("Published: %s%% battery, plug=%s, charging=%s, suspect=%s",
                      data.get("battery_level"), data.get("plug_status"),
@@ -792,8 +788,7 @@ async def main():
                 "last_successful_poll": iso(last_ok),
                 **fresh,
             }
-            client.publish(mqtt.STATE_TOPIC, json.dumps(data), retain=True)
-            client.publish(mqtt.AVAIL_TOPIC, "online", retain=True)
+            client.snapshots.update(data)
             _LATEST.update(ok=False, last_poll=iso(now_ts()), error=redact(err), data=data)
             save_state(state)
         wait = interval if fails == 0 else min(interval * 2 ** (fails - 1), max_backoff)
@@ -805,9 +800,7 @@ async def main():
     LOG.info("Shutting down")
     await vsession.close()
     await health.cleanup()
-    client.publish(mqtt.AVAIL_TOPIC, "offline", retain=True)
-    client.loop_stop()
-    client.disconnect()
+    await client.snapshots.close()
 
 
 if __name__ == "__main__":  # pragma: no cover
