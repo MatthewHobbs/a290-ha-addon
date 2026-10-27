@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install, configure and probe the add-on under a real stable-channel
 # Supervisor and Core, inside the official add-on devcontainer.
-# Adapted from the polygonal-zones pilot (polygonal-zones/ADR 0001 rows 1, 3, 6, 11), which
+# Adapted from the polygonal-zones pilot, which
 # solved the image, floor-Core and AppArmor problems this relies on.
 #
 # One script for CI (.github/workflows/supervisor.yml) and for a local run:

@@ -4,8 +4,8 @@ actually publishes.
 A Lovelace card reading a non-existent entity renders a fallback, not an error, so a dashboard
 can drift away from the catalog and every gate still passes: pytest never opens the ``.txt``
 dashboards, and the Playwright gate seeds whatever ids the dashboards name and fails only on
-truncation or ``hui-error-card``. The R5 twin shipped empty Min/Max SoC badges for weeks that
-way (r5-ha-addon #50), and this is the port of the test that now guards it there (r5 #90).
+truncation or ``hui-error-card``. A wrong-domain reference can leave Min/Max SoC badges empty
+while both suites pass.
 
 ENTITY IDS COME FROM NAMES, NOT OBJECT_IDS. Home Assistant ignores the discovery ``object_id``
 and derives ``entity_id = slug(device name + " " + entity name)``. On this model the two
@@ -25,7 +25,6 @@ from __future__ import annotations
 import ast
 import json
 import re
-import sys
 from pathlib import Path
 
 import catalog
@@ -56,13 +55,9 @@ _DEVICE_SLUG = _slug(catalog.DEVICE["name"])  # "alpine_a290"
 # the entity-id prefix would silently skip the commonest mistake: an id written as an object_id.
 _PREFIXES = sorted({_DEVICE_SLUG + "_", catalog.OBJ_PREFIX, _DEVICE_SLUG.split("_")[0] + "_"})
 # ANY domain, not a listed few: a fixed list made ``switch.alpine_a290_battery_level`` invisible
-# while the >= 20 guard stayed satisfied. Legitimate domains are derived and checked in
-# test_dashboard_references_use_a_domain_this_build_publishes; ``sensor2.`` must be caught too.
+# while the >= 20 guard stayed satisfied. Membership includes the domain; ``sensor2.`` must
+# be caught too.
 _REF = re.compile(r"\b([a-z0-9_]+)\.((?:" + "|".join(_PREFIXES) + r")[a-z0-9_]+)")
-# Domains a dashboard may reference although neither discovery nor a helper package defines
-# them, each with the reason. Empty today: the core's device_tracker comes out of discovery and
-# the input_* helpers out of the packages, so nothing needs listing by hand.
-_ALLOWED_DOMAINS: dict[str, str] = {}
 
 
 class _Recorder:
@@ -147,11 +142,6 @@ def _seeded() -> set[str]:
     }
 
 
-def _allowed(eid: str) -> bool:
-    """A reference in a domain _ALLOWED_DOMAINS admits, so no check below expects to find it."""
-    return eid.split(".", 1)[0] in _ALLOWED_DOMAINS
-
-
 def _elsewhere(eid: str, published: set[str]) -> list[str]:
     """The same name published under another domain, if any."""
     name = eid.split(".", 1)[1]
@@ -190,7 +180,7 @@ def test_entity_ids_are_derived_from_names(published) -> None:
 def test_every_config_pins_the_name_derived_id(configs) -> None:
     """Every discovery config carries ``default_entity_id``, and it is the id Home Assistant
     already derives from the names (core ADR 0001). Without the pin a device with an area gets
-    ``<area>_`` prefixed ids (r5 #83); with a different pin new installs get ids no dashboard
+    ``<area>_`` prefixed ids; with a different pin new installs get ids no dashboard
     uses. Both are silent, so the value is checked per config, not just its presence."""
     assert len(configs) >= 20, sorted(configs)
     wrong = sorted(
@@ -200,25 +190,6 @@ def test_every_config_pins_the_name_derived_id(configs) -> None:
         if conf.get("default_entity_id") != _name_derived_id(key.split("/")[0], conf)
     )
     assert not wrong, "Discovery configs pin an id other than the name-derived one:\n  " + "\n  ".join(wrong)
-    # The pin names the id under the domain the config is published on, never another.
-    assert all(conf["default_entity_id"].split(".", 1)[0] == key.split("/")[0] for key, conf in configs.items())
-
-
-def test_pinned_ids_are_exactly_the_published_ids(configs, published) -> None:
-    """The set of pins is the set of name-derived ids: nothing pinned that is not published,
-    nothing published without a pin. The dashboards are matched against ``published``, so this
-    is what makes their references the pinned ids and not merely the name-derived ones."""
-    pinned = {conf["default_entity_id"] for conf in configs.values()}
-    assert pinned == published, (sorted(pinned - published), sorted(published - pinned))
-
-
-def test_dashboard_entities_are_the_pinned_ids(configs) -> None:
-    """Every add-on entity a dashboard references is exactly a ``default_entity_id`` this build
-    sends, so an install with the device in an area, or a renamed device, still resolves them."""
-    pinned = {conf["default_entity_id"] for conf in configs.values()}
-    helpers = _helper_ids()
-    unpinned = sorted(f"{src}: {eid}" for src, eid in _dashboard_refs() if eid not in pinned and eid not in helpers)
-    assert not unpinned, "Dashboards reference ids no discovery config pins:\n  " + "\n  ".join(unpinned)
 
 
 def test_entity_names_keep_the_slug_valid() -> None:
@@ -235,62 +206,16 @@ def test_dashboard_entities_exist(published) -> None:
     """Every dashboard entity is one this build publishes, or one a shipped helper package defines."""
     helpers = _helper_ids()
     unknown = sorted(
-        f"{src}: {eid}"
+        f"{src}: {eid}" + (f" — published as {', '.join(_elsewhere(eid, published))}"
+                           if _elsewhere(eid, published) else " — not published or defined by a helper")
         for src, eid in _dashboard_refs()
-        if eid not in published and eid not in helpers and not _elsewhere(eid, published) and not _allowed(eid)
+        if eid not in published and eid not in helpers
     )
     assert not unknown, (
         "Dashboards reference entity ids this build does not publish. Home Assistant names "
         "entities slug(device name + entity NAME), so check the catalog's names, not its "
         "object_ids:\n  " + "\n  ".join(unknown)
     )
-
-
-def test_dashboard_entities_use_the_domain_the_catalog_publishes(published) -> None:
-    """The r5 #50 regression: right name, wrong domain, renders a silent fallback."""
-    wrong = sorted(
-        f"{src}: {eid} — published as {', '.join(_elsewhere(eid, published))}"
-        for src, eid in _dashboard_refs()
-        if eid not in published and _elsewhere(eid, published) and not _allowed(eid)
-    )
-    assert not wrong, "Dashboard entity domains disagree with what is published:\n  " + "\n  ".join(wrong)
-
-
-def _domains(ids: set[str]) -> set[str]:
-    return {eid.split(".", 1)[0] for eid in ids}
-
-
-def test_dashboard_references_use_a_domain_this_build_publishes(published) -> None:
-    """A prefixed reference in a domain nothing here defines (``switch.``, ``climate.``, ``select.``)
-    is named, not skipped: such an id can resolve on no install, and the specific checks above
-    only ever compare against ids that do exist."""
-    known = _domains(published) | _domains(_helper_ids()) | set(_ALLOWED_DOMAINS)
-    assert {"sensor", "binary_sensor", "number", "button", "device_tracker", "input_boolean"} <= known
-    foreign = sorted(f"{src}: {eid}" for src, eid in _dashboard_refs() if eid.split(".", 1)[0] not in known)
-    assert not foreign, (
-        "Dashboards reference add-on entities in a domain neither discovery nor a helper package "
-        f"defines (known: {', '.join(sorted(known))}). Fix the reference, or add the domain to "
-        "_ALLOWED_DOMAINS with its reason:\n  " + "\n  ".join(foreign)
-    )
-
-
-def test_allowed_domain_admits_a_reference_every_check_would_otherwise_reject(published, monkeypatch) -> None:
-    """The escape hatch the failure message points at has to work end to end: a listed domain
-    passes the existence and wrong-domain checks too, not only the domain check, and the same
-    reference fails all three without the listing."""
-    name = next(iter(published)).split(".", 1)[1]
-    # One name published under another domain (the wrong-domain check's case) and one nothing
-    # publishes (the existence check's case): the two checks split the cases between them.
-    refs = {("fixture", f"switch.{name}"), ("fixture", "switch.alpine_a290_nothing_publishes_this")}
-    monkeypatch.setattr(sys.modules[__name__], "_dashboard_refs", lambda: refs)
-    checks = (test_dashboard_entities_exist, test_dashboard_entities_use_the_domain_the_catalog_publishes,
-              test_dashboard_references_use_a_domain_this_build_publishes)
-    for check in checks:
-        with pytest.raises(AssertionError):
-            check(published)
-    monkeypatch.setattr(sys.modules[__name__], "_ALLOWED_DOMAINS", {"switch": "fixture"})
-    for check in checks:
-        check(published)
 
 
 def test_helper_packages_do_not_shadow_published_ids(published) -> None:

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Start and Stop Climate are sent in order, even when sign-in is slow. Other controls remain independent.
+- Controls recover automatically after a temporary capability-check failure, without restarting the app.
+- Failed polls retain the last good vehicle readings and original timestamps, matching the status panel.
+- An expired sign-in turns on API Auth Failure and makes the next poll sign in again.
+
 ## 1.29.1
 
 - **Security: the image moves to Alpine 3.24.3**, with security fixes in musl (1.2.6-r3,

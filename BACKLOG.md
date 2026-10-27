@@ -19,42 +19,6 @@ dropped from its loop fails. The history was rewritten on 2026-10-21 (owner-appr
 finds nothing left; r5 runs the same file byte-for-byte. This file is public, so the values are
 not repeated here.
 
-## P1 — A failed poll blanks about 40 entities: the retained state document is replaced, not merged
-
-**Component:** `alpine_a290` (`main.py`, the `except` branch of the poll loop) · **Logged:** 2026-09-08
-
-On any exception in `poll_once` the `except` branch publishes a short document (`api_auth_failure`,
-`last_successful_poll` and the freshness fields) to `mqtt.STATE_TOPIC` with `retain=True`. That
-replaces the retained state rather than merging into it. Every other sensor's `value_template` is
-`{{ value_json.<key> }}`, so an absent key renders as an empty string. Only two entities carry the
-compound availability that would save them (`catalog.py` `DATA_GATED_SENSORS`).
-
-The intent was the opposite: the comment there says the last known car timestamp "simply ages",
-and the status panel's `_LATEST["data"].update(...)` does merge, so the panel and MQTT disagree.
-HA renders a JSON `null` safely, so emitting every catalog key as `null` or publishing
-`{**last_data, **fresh}` both work.
-
-`test_main_failure_path_publishes_both_signals` asserts the partial document but would still pass
-after a merge fix, so the suite fails to detect the bug rather than encoding it.
-
-**Fix:** merge instead of replace, and add a test that `battery_level` survives a failed poll.
-
-## P1 — Endpoint support is probed once at startup and never re-probed
-
-**Component:** `alpine_a290` (`main.py`) · **Logged:** 2026-09-08 · **Re-confirmed:** 2026-10-20
-
-A transient boot-time login failure (HA restarting after a power cut, DNS not yet up) leaves
-`supported` nearly empty. `publish_discovery` then writes empty retained configs, which is how HA
-deletes an entity, so all six buttons and both numbers vanish. `_MQTT_CTX` re-publishes that
-degraded set on every reconnect and `/healthz` still returns `ok`, so nothing restarts it. The
-buttons stay hidden until someone restarts the add-on. A container booted with the Renault hosts
-blackholed shows it: `Endpoint-support detection failed (publishing sensors, hiding action
-buttons)`, then `buttons=none`.
-
-**Fix:** re-probe after N consecutive failures, or whenever `supported` lacks the action
-endpoints, and re-publish discovery. Never delete a button on a detection error, only on a
-definite negative.
-
 ## P1 — A wedged poll loop is invisible: LWT catches process death, not a stalled producer
 
 **Component:** `alpine_a290` + `renault-mqtt` · **Logged:** 2026-09-05

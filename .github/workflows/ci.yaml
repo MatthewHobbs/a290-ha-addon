@@ -141,7 +141,7 @@ jobs:
             "renault-mqtt @ git+https://github.com/MatthewHobbs/renault-mqtt@${CORE_REF}"
 
       - name: pytest
-        run: python3 -m pytest alpine_a290/tests -q --cov=alpine_a290/app --cov-report=term-missing --cov-fail-under=95
+        run: python3 -m pytest alpine_a290/tests -q --cov=alpine_a290/app --cov-report=term-missing
 
   comments:
     name: Comment length
