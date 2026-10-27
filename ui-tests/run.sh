@@ -12,7 +12,7 @@ PY="${PYTHON:-python3}"
 # Pinned (not :stable) so the render is deterministic — a floating tag made the truncation
 # gate flake as HA/card versions moved under it. Nothing bumps these: they are raised by
 # hand, together, when the gate's HA floor allows it — and kept identical to the r5 twin's.
-HA_IMAGE="${HA_IMAGE:-ghcr.io/home-assistant/home-assistant:2026.10.2}"
+HA_IMAGE="${HA_IMAGE:-ghcr.io/home-assistant/home-assistant:2026.10.4}"
 CONFIG="$(mktemp -d)"
 
 cleanup() {
