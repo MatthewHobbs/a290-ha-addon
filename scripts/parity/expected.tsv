@@ -128,6 +128,8 @@ pending	alpine_a290/README.md	both	*	39	the add-on's store README. Target: same 
 # The probe is in both pilots now. Its only per-line residue is r5's deploy_dashboard default,
 # listed below; the rest of it is identical.
 # ---------------------------------------------------------------- Supervisor pilot as mirrored by r5 (#108, 4dd52bf)
+pending	scripts/supervisor-pilot.sh	both	re:Export only this leg|docker save --platform needs|docker pull .*REGISTRY_IMAGE|docker save .*REGISTRY_TAG	6	single-platform registry pull and archive export. Target: R5 ports the a290 pilot fix
+pending	scripts/supervisor-pilot.sh	a290	hunk:^docker_api\(\)|^  docker_api |Expand the override inside	31	host API and CLI export prerequisites and host/inner Docker diagnostics. Target: R5 ports with #203; remove immediately after #203 before cleanup publication
 model	scripts/supervisor-pilot.sh	both	re:a290-supervisor|r5-supervisor|local_alpine_a290|local_renault_5|pilot-registry|pilot-build|pilot-no-egress	16	the pilot's container, registry, provenance-label and egress-rule names carry each add-on's own short name
 local	scripts/supervisor-pilot.sh	both	hunk:deploy_dashboard	15	the same default difference in cmd_install (sets deploy_dashboard: standard) and the dashboard-probe comment (r5's deliberate choice, confirmed on r5 2026-09-27)
 local	scripts/supervisor-pilot.sh	both	hunk:poll-success line is|addon_log_has "Published	4	r5's poll-success log line is "Published in <s>s" where a290's is "Published: ", so each pilot greps its own; the guard follows each repo's main.py and r5 keeps its line (confirmed on r5 2026-09-27)
