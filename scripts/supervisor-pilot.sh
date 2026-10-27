@@ -211,7 +211,6 @@ cmd_build() {
   docker_api host "${DOCKER_API_VERSION-unset}" docker
   arch="$(docker_arch)"
   platform="linux/$([[ $arch == aarch64 ]] && echo arm64 || echo amd64)"
-  local registry_index registry_digest registry_ref
   version="$(config_value version)"
   [[ -n "$version" ]] || fail "could not read version: from config.yaml"
   tag="${LOCAL_REGISTRY}/alpine_a290:${version}"
@@ -260,26 +259,9 @@ cmd_build() {
     } >"$WORKDIR/build.env"
   fi
 
-  # Export only this leg's platform, not the registry's multiarch index.
+  # Export only this leg's add-on platform.
   # docker save --platform needs Docker 28+ (API 1.48+) on the host.
-  registry_index="$(docker buildx imagetools inspect --raw "$REGISTRY_IMAGE")" || fail "could not inspect pinned registry index"
-  registry_digest="$(jq -er --arg arch "${platform#linux/}" '
-    [.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch)
-     | select(.mediaType == "application/vnd.oci.image.manifest.v1+json" or
-              .mediaType == "application/vnd.docker.distribution.manifest.v2+json")
-     | select(.annotations["vnd.docker.reference.type"] != "attestation-manifest")] |
-    if length != 1 then error("expected exactly one runnable registry platform manifest")
-    else .[0].digest | if type == "string" and test("^sha256:[0-9a-f]{64}$")
-      then . else error("invalid registry platform digest") end end
-  ' <<<"$registry_index")" || fail "could not select registry manifest for $platform"
-  registry_ref="${REGISTRY_IMAGE%@*}@${registry_digest}"
-  log "Registry index=$REGISTRY_IMAGE platform=$platform manifest=$registry_digest"
-  docker pull --platform "$platform" --quiet "$registry_ref" >/dev/null
-  docker tag "$registry_ref" "$REGISTRY_TAG"
-  id="$(docker image inspect -f '{{.Id}}' "$REGISTRY_TAG")" || fail "no local registry image after pull/tag"
-  log "Registry tag=$REGISTRY_TAG image=$id"
   docker save --platform "$platform" "$tag" -o "$WORKDIR/images.tar"
-  docker save "$REGISTRY_TAG" -o "$WORKDIR/registry.tar"
   log "OK ${tag} staged for the registry, provenance ${provenance}"
 }
 
@@ -422,13 +404,19 @@ seed_core_version() {
 cmd_sideload() {
   # shellcheck source=/dev/null
   source "$WORKDIR/build.env"
-  local archive
+  local arch platform inner_arch
+  arch="$(docker_arch)"
+  platform="linux/$([[ $arch == aarch64 ]] && echo arm64 || echo amd64)"
+  inner_arch="$(dc docker version --format '{{.Server.Arch}}')"
+  [[ "$inner_arch" == "${platform#linux/}" ]] || fail "inner Docker arch $inner_arch does not match $platform"
   # /var/tmp: /tmp is a tmpfs that docker cp does not reach.
-  for archive in images.tar registry.tar; do
-    docker cp "$WORKDIR/$archive" "$NAME:/var/tmp/$archive"
-    dc docker load -i "/var/tmp/$archive"
-    dc rm -f "/var/tmp/$archive"
-  done
+  docker cp "$WORKDIR/images.tar" "$NAME:/var/tmp/images.tar"
+  dc docker load -i /var/tmp/images.tar
+  dc rm -f /var/tmp/images.tar
+  log "Pulling inner registry index=$REGISTRY_IMAGE platform=$platform"
+  dc docker pull --platform "$platform" --quiet "$REGISTRY_IMAGE" >/dev/null
+  dc docker tag "$REGISTRY_IMAGE" "$REGISTRY_TAG"
+  log "Inner registry: $(dc docker image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$REGISTRY_TAG")"
   # After supervisor_run, which removes every container on the inner daemon.
   if ! dc docker inspect a290-pilot-registry >/dev/null 2>&1; then
     dc docker run -d --restart=always --name a290-pilot-registry \
