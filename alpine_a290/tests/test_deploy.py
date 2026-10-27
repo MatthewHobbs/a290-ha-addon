@@ -22,18 +22,13 @@ import yaml
 # --------------------------------------------------------------------------- #
 def test_cdnify_maps_known_image_to_cdn():
     out = deploy._cdnify("image: /local/backgrounds/alpine_a290_background.webp")
-    assert "cdn.jsdelivr.net" in out
-    assert "/local/backgrounds/" not in out
+    assert out == (f"image: https://cdn.jsdelivr.net/gh/MatthewHobbs/a290-ha-addon@{deploy._REF}/"
+                   "alpine_a290/dashboards/Images/Background/alpine_a290_background.webp")
 
 
 def test_cdnify_leaves_unmapped_image_untouched():
     s = "image: /local/backgrounds/not_in_the_map.png"
     assert deploy._cdnify(s) == s   # unmapped -> left as-is (logged a warning)
-
-
-def test_cdnify_points_at_the_addon_repo():
-    out = deploy._cdnify("image: /local/backgrounds/alpine_a290_background.webp")
-    assert "a290-ha-addon" in out and "alpine_a290/dashboards" in out
 
 
 def test_redact_scrubs_supervisor_token_and_secrets(monkeypatch):
@@ -499,41 +494,50 @@ def test_run_deploy_skips_reserved_url_path(monkeypatch, caplog):
 # _WS WebSocket client (auth + every command + failure)
 # --------------------------------------------------------------------------- #
 class _FakeOKWS:
-    """Replies to every command with a matching successful result."""
+    """HA auth handshake followed by command replies with distinct result bodies."""
 
     def __init__(self):
         self.sent, self.n = [], 0
+        self.results = [[{"url_path": "alpine-a290"}], {"id": "dash-1"}, None,
+                        [{"id": "font-1"}], {"id": "font-2"}]
 
     async def send_json(self, payload):
         self.sent.append(payload)
 
     async def receive_json(self):
         self.n += 1
-        return {"id": self.n, "type": "result", "success": True, "result": None}
+        if self.n <= 2:
+            return {"type": "auth_required" if self.n == 1 else "auth_ok"}
+        command_id = self.n - 2
+        return {"id": command_id, "type": "result", "success": True,
+                "result": self.results[command_id - 1]}
 
 
 def test_ws_auth_then_commands():
-    class WS(_FakeOKWS):
-        async def receive_json(self):
-            # auth() consumes two frames before any command id-matching
-            if self.n == 0 and not getattr(self, "_authed", False):
-                self._authed = True
-                return {"type": "auth_required"}
-            if getattr(self, "_authed", False) and not getattr(self, "_ok", False):
-                self._ok = True
-                return {"type": "auth_ok"}
-            return await super().receive_json()
+    ws = _FakeOKWS()
+    config = {"views": [{"title": "Home", "cards": []}]}
 
     async def scenario():
-        api = deploy._WS(WS(), "token")
+        api = deploy._WS(ws, "token")
         await api.auth()
-        await api.dashboards()
-        await api.create_dashboard("p", "T")
-        await api.save_config("p", {"views": []})
-        await api.resources()
-        await api.create_resource("https://font")
+        results = [await api.dashboards(),
+                   await api.create_dashboard("alpine-a290", "Alpine A290"),
+                   await api.save_config("alpine-a290", config),
+                   await api.resources(),
+                   await api.create_resource("https://font")]
+        assert results == ws.results
 
     asyncio.run(scenario())
+    assert ws.sent == [
+        {"type": "auth", "access_token": "token"},
+        {"id": 1, "type": "lovelace/dashboards/list"},
+        {"id": 2, "type": "lovelace/dashboards/create", "url_path": "alpine-a290",
+         "title": "Alpine A290", "icon": "mdi:car-sports", "mode": "storage",
+         "show_in_sidebar": True, "require_admin": False},
+        {"id": 3, "type": "lovelace/config/save", "url_path": "alpine-a290", "config": config},
+        {"id": 4, "type": "lovelace/resources"},
+        {"id": 5, "type": "lovelace/resources/create", "url": "https://font", "res_type": "css"},
+    ]
 
 
 def test_ws_raises_on_failed_result():

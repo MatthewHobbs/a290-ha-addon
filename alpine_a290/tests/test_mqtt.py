@@ -17,10 +17,12 @@ class StubClient:
 
     def __init__(self):
         self.pub = {}
+        self.retains = {}
         self.subs = []
 
     def publish(self, topic, payload, retain=False):
         self.pub[topic] = payload
+        self.retains[topic] = retain
 
     def subscribe(self, topic):
         self.subs.append(topic)
@@ -121,6 +123,7 @@ def test_publish_discovery_location_enabled_vs_disabled(monkeypatch):
     c = StubClient()
     mqtt.publish_discovery(c, set(catalog.OPTIONAL_ENDPOINTS), "km")
     assert '"source_type": "gps"' in c.pub[tracker_topic]
+    assert c.retains[tracker_topic] is True
 
     # disabled: the tracker is cleared AND the retained GPS topics are wiped off the broker
     monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", False)
@@ -129,6 +132,7 @@ def test_publish_discovery_location_enabled_vs_disabled(monkeypatch):
     assert c.pub[tracker_topic] == ""
     assert c.pub[mqtt.ATTR_TOPIC] == ""
     assert c.pub[mqtt.TRACKER_STATE_TOPIC] == ""
+    assert all(c.retains[t] is True for t in (tracker_topic, mqtt.ATTR_TOPIC, mqtt.TRACKER_STATE_TOPIC))
 
 
 def test_refresh_location_button_cleared_when_location_disabled(monkeypatch):
@@ -144,12 +148,14 @@ def test_refresh_location_button_cleared_when_location_disabled(monkeypatch):
     c = StubClient()
     mqtt.publish_discovery(c, eps, "km")
     assert "command_topic" in c.pub[btn_topic]
+    assert c.retains[btn_topic] is True
 
     # location off: the button is cleared even though the endpoint is supported
     monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", False)
     c = StubClient()
     mqtt.publish_discovery(c, eps, "km")
     assert c.pub[btn_topic] == ""
+    assert c.retains[btn_topic] is True
 
     # opted out (the shipped default): cleared even with location on and the endpoint supported.
     # This is the case an existing install upgrades into, so the button must be actively cleared
@@ -159,6 +165,7 @@ def test_refresh_location_button_cleared_when_location_disabled(monkeypatch):
     c = StubClient()
     mqtt.publish_discovery(c, eps, "km")
     assert c.pub[btn_topic] == ""
+    assert c.retains[btn_topic] is True
 
 
 # --------------------------------------------------------------------------- #
@@ -222,39 +229,42 @@ class _Msg:
 
 
 def test_on_message_dispatches_via_injected_handler(monkeypatch):
-    recorded = []
+    recorded, created, scheduled = [], [], []
 
-    def fake_handler(cmd, payload=""):   # sync fake standing in for main.run_command
-        recorded.append((cmd, payload))
+    def fake_handler(cmd, payload=""):
+        async def dispatch():
+            recorded.append((cmd, payload))
 
-        async def _noop():
-            return None
-        return _noop()
-
-    scheduled = []
+        coro = dispatch()
+        created.append(coro)
+        return coro
 
     def fake_schedule(coro, loop):
-        scheduled.append(coro)
-        coro.close()                     # avoid 'never awaited' warning
+        scheduled.append((coro, loop))
+        mqtt.asyncio.run(coro)
 
+    loop = object()
     monkeypatch.setattr(mqtt, "_COMMAND_HANDLER", fake_handler)
-    monkeypatch.setattr(mqtt, "_LOOP", object())
+    monkeypatch.setattr(mqtt, "_LOOP", loop)
     monkeypatch.setattr(mqtt.asyncio, "run_coroutine_threadsafe", fake_schedule)
 
-    mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}horn", b"PRESS"))
-    assert recorded == [("horn", "PRESS")]
+    try:
+        mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}horn", b"PRESS"))
+        assert recorded == [("horn", "PRESS")]
 
-    # Since core v0.20.0 a retained command is never replayed, and an empty payload (how a
-    # retained command is cleared, delivered live) does not fire it either.
-    mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}horn", b"PRESS", retain=True))
-    mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}horn", b""))
-    assert recorded == [("horn", "PRESS")]
+        # Retained commands and live empty clears must not reach the car.
+        mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}horn", b"PRESS", retain=True))
+        mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}horn", b""))
+        assert recorded == [("horn", "PRESS")]
 
-    mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}soc_target", b"80"))
-    assert recorded[-1] == ("soc_target", "80")
-
-    mqtt._on_message(None, None, _Msg("unrelated/topic"))   # non-command -> ignored
-    assert len(recorded) == 2
+        mqtt._on_message(None, None, _Msg(f"{mqtt.CMD_PREFIX}soc_target", b"80"))
+        mqtt._on_message(None, None, _Msg("unrelated/topic", b"PRESS"))
+        assert recorded == [("horn", "PRESS"), ("soc_target", "80")]
+        assert len(created) == len(scheduled) == 2
+        assert scheduled == [(coro, loop) for coro in created]
+    finally:
+        for coro in created:
+            coro.close()  # also clean up a coroutine a broken scheduler never submitted
 
 
 def test_runtime_never_writes_the_tracker_state_topic():

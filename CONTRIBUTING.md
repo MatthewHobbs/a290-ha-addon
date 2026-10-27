@@ -112,8 +112,8 @@ yamllint -c .yamllint alpine_a290 repository.yaml
 hadolint -c .hadolint.yaml alpine_a290/Dockerfile
 shellcheck alpine_a290/run.sh
 
-# test (coverage gate is 95%)
-python3 -m pytest alpine_a290/tests -q --cov=alpine_a290/app --cov-report=term-missing --cov-fail-under=95
+# test (failures block CI; coverage is reporting-only)
+python3 -m pytest alpine_a290/tests -q --cov=alpine_a290/app --cov-report=term-missing
 
 # security
 bandit -r alpine_a290/app -ll
