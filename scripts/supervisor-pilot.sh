@@ -278,7 +278,8 @@ cmd_build() {
   docker tag "$registry_ref" "$REGISTRY_TAG"
   id="$(docker image inspect -f '{{.Id}}' "$REGISTRY_TAG")" || fail "no local registry image after pull/tag"
   log "Registry tag=$REGISTRY_TAG image=$id"
-  docker save --platform "$platform" "$tag" "$REGISTRY_TAG" -o "$WORKDIR/images.tar"
+  docker save --platform "$platform" "$tag" -o "$WORKDIR/images.tar"
+  docker save "$REGISTRY_TAG" -o "$WORKDIR/registry.tar"
   log "OK ${tag} staged for the registry, provenance ${provenance}"
 }
 
@@ -421,10 +422,13 @@ seed_core_version() {
 cmd_sideload() {
   # shellcheck source=/dev/null
   source "$WORKDIR/build.env"
+  local archive
   # /var/tmp: /tmp is a tmpfs that docker cp does not reach.
-  docker cp "$WORKDIR/images.tar" "$NAME:/var/tmp/images.tar"
-  dc docker load -i /var/tmp/images.tar
-  dc rm -f /var/tmp/images.tar
+  for archive in images.tar registry.tar; do
+    docker cp "$WORKDIR/$archive" "$NAME:/var/tmp/$archive"
+    dc docker load -i "/var/tmp/$archive"
+    dc rm -f "/var/tmp/$archive"
+  done
   # After supervisor_run, which removes every container on the inner daemon.
   if ! dc docker inspect a290-pilot-registry >/dev/null 2>&1; then
     dc docker run -d --restart=always --name a290-pilot-registry \
