@@ -42,7 +42,7 @@ set -euo pipefail
 # Raise these by hand, matching the quoted "name:tag@digest"; the tag must exist
 # upstream, and the pilot's own run is what proves the pinned set boots.
 DEVCONTAINER_IMAGE="ghcr.io/home-assistant/devcontainer:6-apps@sha256:9c08de75a4d91938dab76d44846a2d297d4ce92bf80024ff15a4f6dff766855e"
-REGISTRY_IMAGE="docker.io/library/registry:3@sha256:ddf754342cfc8acc51a56d5d0ab6af06826461864460636d8bd5c546dab2a7b8"
+REGISTRY_IMAGE="docker.io/library/registry:3@sha256:d4032d4cc323c1731c707931ecada07a53076eac38e3b61ae57533f170f2c6c3"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ADDON_DIR="alpine_a290"
@@ -148,6 +148,34 @@ docker_arch() {
   esac
 }
 
+# Client.ApiVersion is reported by docker version; bound it by the server and
+# any explicit override, without claiming to observe a separate save request.
+docker_api() {
+  local scope="$1" override="$2" info effective help
+  shift 2
+  info="$("$@" version --format '{{json .}}')" || fail "$scope Docker version failed"
+  log "$scope Docker: $(jq -c '{client: (.Client | {Version, ApiVersion, DefaultAPIVersion}), server: (.Server | {Version, ApiVersion, MinAPIVersion})}' <<<"$info") DOCKER_API_VERSION=$override"
+  effective="$(jq -er --arg override "$override" '
+    def api: if type == "string" and test("^[0-9]+\\.[0-9]+$")
+      then split(".") | map(tonumber) else error("missing or invalid API version") end;
+    (.Client.ApiVersion | api) as $client |
+    (.Server.ApiVersion | api) as $server |
+    (.Server.MinAPIVersion | api) as $minimum |
+    (if $override == "unset" or $override == "" then [$client, $server] | min
+     else $override | api end) as $effective |
+    if $effective < $minimum or $effective > $server or $effective > $client
+    then error("effective API outside reported client/server range")
+    else $effective | map(tostring) | join(".") end
+  ' <<<"$info")" || fail "$scope Docker API compatibility could not be established"
+  log "$scope Docker effective API=$effective (reported client/server bounds and override)"
+  if [[ "$scope" == host ]]; then
+    jq -en --arg api "$effective" '$api | split(".") | map(tonumber) | . >= [1,48]' >/dev/null ||
+      fail "host docker save --platform requires effective API >=1.48 (got $effective)"
+    help="$("$@" image save --help)" || fail "host Docker CLI image save capability check failed"
+    [[ "$help" == *--platform* ]] || fail "host Docker CLI image save lacks --platform support"
+  fi
+}
+
 config_value() {
   sed -n "s/^$1: *\"\{0,1\}\([^\"]*\)\"\{0,1\} *\$/\1/p" "$REPO_ROOT/$ADDON_DIR/config.yaml"
 }
@@ -180,6 +208,7 @@ checkout_revision() {
 # --- build: the image that would ship, built the way release.yaml builds it -
 cmd_build() {
   local arch platform version tag nonce provenance id
+  docker_api host "${DOCKER_API_VERSION-unset}" docker
   arch="$(docker_arch)"
   platform="linux/$([[ $arch == aarch64 ]] && echo arm64 || echo amd64)"
   version="$(config_value version)"
@@ -230,9 +259,9 @@ cmd_build() {
     } >"$WORKDIR/build.env"
   fi
 
-  docker pull --quiet "$REGISTRY_IMAGE" >/dev/null
-  docker tag "$REGISTRY_IMAGE" "$REGISTRY_TAG"
-  docker save "$tag" "$REGISTRY_TAG" -o "$WORKDIR/images.tar"
+  # Export only this leg's add-on platform.
+  # docker save --platform needs Docker 28+ (API 1.48+) on the host.
+  docker save --platform "$platform" "$tag" -o "$WORKDIR/images.tar"
   log "OK ${tag} staged for the registry, provenance ${provenance}"
 }
 
@@ -255,6 +284,9 @@ cmd_up() {
   # supervisor_run has no readiness check of its own and dies under set -e
   # if dockerd is not up yet.
   poll "inner Docker daemon ready" 120 2 dc docker info
+  # Expand the override inside the devcontainer, not on the host.
+  # shellcheck disable=SC2016
+  docker_api inner "$(dc sh -c 'printf "%s" "${DOCKER_API_VERSION-unset}"')" dc docker
 
   cmd_copy_addon
 
@@ -372,10 +404,19 @@ seed_core_version() {
 cmd_sideload() {
   # shellcheck source=/dev/null
   source "$WORKDIR/build.env"
+  local arch platform inner_arch
+  arch="$(docker_arch)"
+  platform="linux/$([[ $arch == aarch64 ]] && echo arm64 || echo amd64)"
+  inner_arch="$(dc docker version --format '{{.Server.Arch}}')"
+  [[ "$inner_arch" == "${platform#linux/}" ]] || fail "inner Docker arch $inner_arch does not match $platform"
   # /var/tmp: /tmp is a tmpfs that docker cp does not reach.
   docker cp "$WORKDIR/images.tar" "$NAME:/var/tmp/images.tar"
   dc docker load -i /var/tmp/images.tar
   dc rm -f /var/tmp/images.tar
+  log "Pulling inner registry index=$REGISTRY_IMAGE platform=$platform"
+  dc docker pull --platform "$platform" --quiet "$REGISTRY_IMAGE" >/dev/null
+  dc docker tag "$REGISTRY_IMAGE" "$REGISTRY_TAG"
+  log "Inner registry: $(dc docker image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$REGISTRY_TAG")"
   # After supervisor_run, which removes every container on the inner daemon.
   if ! dc docker inspect a290-pilot-registry >/dev/null 2>&1; then
     dc docker run -d --restart=always --name a290-pilot-registry \
