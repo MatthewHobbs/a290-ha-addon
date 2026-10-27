@@ -3,7 +3,7 @@
 # `input_boolean.a290_test_mode`, or press **Run Test Charge** for a scripted five-minute preview.
 
 # Every helper is `a290_test_*` and reads only itself, so it never collides with the Renault 5
-# add-on's unprefixed test mode on a shared instance. No entity here touches the car.
+# add-on's test mode on a shared instance. No entity here touches the car.
 input_boolean:
   a290_test_mode:
     name: A290 Test Mode

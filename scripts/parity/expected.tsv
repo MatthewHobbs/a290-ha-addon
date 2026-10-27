@@ -42,14 +42,9 @@ model	alpine_a290/dashboards/Images/Map Markers/*	r5	only	6	r5's map markers per
 
 # ---------------------------------------------------------------- one repository only
 local	BACKLOG.md	a290	only	1	a290's own backlog; r5 tracks work in its issues
-local	docs/adr/0001-what-this-add-on-is-why-and-how.md	both	*	223	each repo's own retrospective record: the decisions and the evidence differ where the two cars and the two histories do
-pending	alpine_a290/dashboards/Packages/a290_test.yaml	a290	only	1	a290's namespaced test-mode package; r5 uses bare sensor.test_*. Target: port to r5
-pending	alpine_a290/dashboards/INSTALLATION.md	a290	only	1	a290's dashboard install guide; r5 has CUSTOMISING.md instead. Target: reconcile the dashboard docs with r5's naming migration release
-pending	alpine_a290/dashboards/USER-GUIDE.md	a290	only	1	as INSTALLATION.md. Target: same
-pending	alpine_a290/dashboards/CUSTOMISING.md	r5	only	1	r5's dashboard customisation guide. Target: same as INSTALLATION.md
+local	docs/adr/0001-what-this-add-on-is-why-and-how.md	both	*	225	each repo's own retrospective record: the decisions and the evidence differ where the two cars and the two histories do
 
 # ---------------------------------------------------------------- add-on config
-pending	alpine_a290/config.yaml	both	re:^  deploy_dashboard:	2	r5 defaults to deploying no dashboard, on the premise that its users run Topolino65's; every visible r5 user runs r5's bundled one (the decision record naming decision). Target: revisit r5's default with its naming migration release
 model	alpine_a290/config.yaml	r5	re:car_render	2	r5's render picker (see Images/Models)
 model	alpine_a290/run.sh	r5	re:CAR_RENDER	1	r5's render picker
 legacy	alpine_a290/app/panel.html	both	re:num\(d\.	12	the panel reads poll_once's data keys, which r5 keeps under legacy names. Goes with the decision record
@@ -90,7 +85,26 @@ pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUT
 pending	alpine_a290/app/deploy.py	both	py:_WS	4	one comment. Target: converge, either way.
 
 # ---------------------------------------------------------------- dashboards
-pending	alpine_a290/dashboards/front-end.txt	both	re:sensor\.(a290_)?test_	32	a290's test-mode package is namespaced a290_test_*; r5's is bare test_*. Target: port to r5 with Packages/a290_test.yaml
+model	alpine_a290/dashboards/Packages/a290_test.yaml	both	hunk:Every helper	2	each package names the OTHER car's test mode
+model	alpine_a290/dashboards/INSTALLATION.md	both	hunk:^> \*\*Charging control:	12	r5 retains the greyed-out Start Charging tile and distinguishes the A290's measured scheduling outcome from the R5 inference
+local	alpine_a290/dashboards/INSTALLATION.md	both	hunk:Entities, filter	4	r5's current production range and plug names, plus its entity-picker filter
+model	alpine_a290/dashboards/INSTALLATION.md	r5	re:^\| `car_render`	1	r5's trim and colour dropdown links to its retained customisation guidance
+local	alpine_a290/dashboards/INSTALLATION.md	r5	re:^Existing users who selected	1	r5's default-change migration preserves an existing user's none selection
+model	alpine_a290/dashboards/INSTALLATION.md	both	hunk:start_air_conditioner	11	r5 keeps its production control names and greyed-out charge tile; refresh-location evidence is from an A290, not an R5
+model	alpine_a290/dashboards/INSTALLATION.md	both	hunk:never clashes	2	each guide names the OTHER car's test-mode namespace
+local	alpine_a290/dashboards/INSTALLATION.md	r5	hunk:^### Migrating an existing	7	r5-only instructions for migrating the previously bare test sensor IDs and reloading the replacement package
+local	alpine_a290/dashboards/INSTALLATION.md	both	hunk:^- \*\*No `	2	the entity-picker prefix is r5 in r5's guide and alpine_a290 in a290's
+model	alpine_a290/dashboards/INSTALLATION.md	r5	hunk:^## Customising your	44	r5's trim and colour renders and map markers, preserved from CUSTOMISING in the installation guide; a290 has one render
+model	alpine_a290/dashboards/USER-GUIDE.md	both	hunk:^> unreliable	3	cabin temperature is still published on R5 with support unestablished; a290 retired it
+local	alpine_a290/dashboards/USER-GUIDE.md	both	hunk:^\| Range \|	14	abbreviated production sensor tails retain R5's existing names; full entity-ID normalisation intentionally does not rewrite prose suffixes
+local	alpine_a290/dashboards/USER-GUIDE.md	both	hunk:…_gps_last_activity	2	r5's current production battery timestamp is battery_last_activity, not last_updated
+model	alpine_a290/dashboards/USER-GUIDE.md	r5	hunk:That observation is from	1	the parked-car measurements are from an A290, not an R5
+local	alpine_a290/dashboards/USER-GUIDE.md	both	hunk:button\.alpine_a290_sound_horn	2	r5 keeps start_air_conditioner and stop_air_conditioner production control names
+model	alpine_a290/dashboards/USER-GUIDE.md	both	hunk:Refresh Location is off by default	18	r5's retained greyed-out tile and climate naming/temperature fallback; observed A290 refresh and charge behaviour is explicitly inferred for R5
+model	alpine_a290/dashboards/USER-GUIDE.md	both	hunk:`soc-levels` endpoint	2	a290's guide states A290 support; R5's guide leaves the displayed control gated on the car's supported endpoint
+local	alpine_a290/dashboards/USER-GUIDE.md	both	hunk:screen are real but old	7	r5's guide states the actual stale_hours threshold rather than promising an overnight stale warning with a 36-hour default
+local	alpine_a290/dashboards/USER-GUIDE.md	both	hunk:battery percentage on the dashboard	2	r5's current production battery timestamp remains battery_last_activity
+model	alpine_a290/dashboards/USER-GUIDE.md	both	hunk:The same entities and data, styled	5	r5 retains the standard dashboard's greyed-out charge tile, so a290's neither-dashboard statement cannot be copied; charger controls remain separate
 pending	alpine_a290/dashboards/front-end.txt	r5	hunk:name: Cabin Temp	14	r5's Cabin Temp card; the A290 never returns cabin temperature. Target: follows the cabin-temperature decision
 pending	alpine_a290/dashboards/front-end.txt	r5	hunk:name: Start Charging	18	r5's standard dashboard keeps a greyed-out Start Charging tile. Target: owner decision, then one dashboard
 pending	alpine_a290/dashboards/front-end.txt	both	re:API request failed due to an authentication|Auth Failure\*\* card	2	alarm-card wording ("An Alpine API" / "API Auth Failure" on a290). Target: port a290's wording to r5
@@ -122,14 +136,12 @@ pending	alpine_a290/tests/test_*.py	both	*	*	tests are largely rewritten per rep
 pending	alpine_a290/DOCS.md	both	*	*	each add-on's options page; 38% shared. r5's claim that its entities bind straight to Topolino65 was corrected in r5 #102. Target: reconcile with r5's naming migration release
 pending	CONTRIBUTING.md	both	*	*	each repo's contributor notes, worded for its own car (names, model codes, endpoint facts, the boot recipe's env vars). Target: same as DOCS.md
 pending	README.md	both	*	*	repository README; 44% shared. Target: same as DOCS.md
-pending	alpine_a290/README.md	both	*	39	the add-on's store README. Target: same as DOCS.md
+pending	alpine_a290/README.md	both	*	40	the add-on's store README. Target: same as DOCS.md
 # ---------------------------------------------------------------- Supervisor pilot + AppArmor pin (a290 #160, r5 #108)
 # --- pilot dashboard probe (a290 #165, mirrored by r5 in #108)
-# The probe is in both pilots now. Its only per-line residue is r5's deploy_dashboard default,
-# listed below; the rest of it is identical.
+# Both pilots now test the manifest's dashboard default without overriding it.
 # ---------------------------------------------------------------- Supervisor pilot as mirrored by r5 (#108, 4dd52bf)
 model	scripts/supervisor-pilot.sh	both	re:a290-supervisor|r5-supervisor|local_alpine_a290|local_renault_5|pilot-registry|pilot-build|pilot-no-egress	16	the pilot's container, registry, provenance-label and egress-rule names carry each add-on's own short name
-local	scripts/supervisor-pilot.sh	both	hunk:deploy_dashboard	15	the same default difference in cmd_install (sets deploy_dashboard: standard) and the dashboard-probe comment (r5's deliberate choice, confirmed on r5 2026-09-27)
 local	scripts/supervisor-pilot.sh	both	hunk:poll-success line is|addon_log_has "Published	4	r5's poll-success log line is "Published in <s>s" where a290's is "Published: ", so each pilot greps its own; the guard follows each repo's main.py and r5 keeps its line (confirmed on r5 2026-09-27)
 local	ui-tests/run.sh	both	re:^\# hand, together, when the gate's HA floor allows it	2	each copy names the other as the twin it must match; the sentence is otherwise the same
 pending	justfile	both	*	4	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite; and a290 has a `tag` recipe. Target: r5 takes it; r5 still cites the decision records a290 has removed. Target: r5 strips them
