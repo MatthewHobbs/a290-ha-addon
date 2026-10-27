@@ -30,17 +30,6 @@
 #
 # "open difference" means a behaviour still to be decided between the two.
 
-# Temporary leader-first transition against R5 main 4dae748. Remove these eight
-# rows immediately after the follower cleanup/runtime merge; restore the three
-# annotated counts below before claiming final paired parity.
-pending	alpine_a290/app/main.py	both	py:SUPPORT_ENDPOINTS,detect_supported	33	capability retry implementation awaiting follower. Target: R5 cleanup/runtime merge, then delete this row
-pending	alpine_a290/app/main.py	both	py:_command_locks,_command_lock_loop,_command_lock_get,_soc_lock,_soc_lock_loop,_soc_lock_get	21	separate shared climate and SoC group locks awaiting follower. Target: R5 cleanup/runtime merge, then delete this row
-pending	alpine_a290/app/main.py	a290	re:^from (contextlib import nullcontext|renault_api.exceptions import NotAuthenticatedException)$	2	new runtime imports awaiting follower. Target: R5 cleanup/runtime merge, then delete this row
-pending	alpine_a290/app/main.py	both	re:^    async with (_command_lock_get\("soc"\)|_soc_lock_get\(\)):$	2	SoC group helper rename awaiting follower. Target: R5 cleanup/runtime merge, then delete this row
-pending	.github/workflows/ci.yaml	both	re:^        run: python3 -m pytest .* --cov-report=term-missing( --cov-fail-under=95)?$	2	coverage reporting-only policy awaiting follower. Target: R5 cleanup/runtime merge, then delete this row
-pending	justfile	both	re:^    .venv/bin/python -m pytest .* --cov-report=term-missing( --cov-fail-under=95)?$	2	coverage reporting-only policy awaiting follower. Target: R5 cleanup/runtime merge, then delete this row
-pending	scripts/supervisor-pilot.sh	both	re:^# Adapted from the polygonal-zones pilot.*which$	2	obsolete personal citation cleanup awaiting follower. Target: R5 cleanup/runtime merge, then delete this row
-
 # ---------------------------------------------------------------- releases, binaries
 noise	alpine_a290/CHANGELOG.md	both	*	*	each add-on has its own release history and version numbers
 noise	alpine_a290/config.yaml	both	re:^version:	2	each add-on is versioned independently
@@ -53,7 +42,7 @@ model	alpine_a290/dashboards/Images/Map Markers/*	r5	only	6	r5's map markers per
 
 # ---------------------------------------------------------------- one repository only
 local	BACKLOG.md	a290	only	1	a290's own backlog; r5 tracks work in its issues
-local	docs/adr/0001-what-this-add-on-is-why-and-how.md	both	*	225	each repo's own retrospective record: the decisions and the evidence differ where the two cars and the two histories do. Temporary leader-first count; restore 227 immediately after R5 cleanup/runtime merge
+local	docs/adr/0001-what-this-add-on-is-why-and-how.md	both	*	227	each repo's own retrospective record: the decisions and the evidence differ where the two cars and the two histories do
 
 # ---------------------------------------------------------------- add-on config
 model	alpine_a290/config.yaml	r5	re:car_render	2	r5's render picker (see Images/Models)
@@ -81,12 +70,11 @@ pending	alpine_a290/app/main.py	both	py:VehicleSession	16	docstring and comment 
 pending	alpine_a290/app/main.py	both	py:resolve_account	7	comment wording on which account type each car sits under. Target: move resolve_account into the core
 pending	alpine_a290/app/main.py	both	py:_hvac_due	5	both now refuse the call when the car does not list it and keep the breaker; the docstrings differ in length. Target: move the breaker into the core
 pending	alpine_a290/app/main.py	both	py:_precondition_temp,_hvac_start_action,COMMAND_ACTIONS	11	both now resolve the temperature the same way; what remains is r5's legacy command keys. Target: move command keys into model data
-legacy	alpine_a290/app/main.py	both	re:lock = _command_lock_get\("climate"\) if cmd in \{"(?:climate|hvac)_start", "(?:climate|hvac)_stop"\} else nullcontext\(\)	1	the climate ordering guard uses each model's existing MQTT button suffixes. Temporary leader-first count; restore 2 immediately after R5 cleanup/runtime merge
-pending	alpine_a290/app/main.py	both	py:run_command	15	climate login/dispatch ordering and cancellation comment awaiting follower; legacy command line remains separately counted. Target: R5 cleanup/runtime merge, then delete this row
+legacy	alpine_a290/app/main.py	both	re:lock = _command_lock_get\("climate"\) if cmd in \{"(?:climate|hvac)_start", "(?:climate|hvac)_stop"\} else nullcontext\(\)	2	the climate ordering guard uses each model's existing MQTT button suffixes
 pending	alpine_a290/app/main.py	both	py:NUMBER_RANGES	2	the sliders' (min, max, step) table those bounds read. Target: r5 ports a290's runtime-hardening PR (charge-limit bounds)
 legacy	alpine_a290/app/main.py	both	py:_NUMBER_ROLE,set_soc_level	4	r5 resolves its legacy number names to roles through NUMBER_ROLES; a290 compares the name. Goes with moving number roles into model data
 pending	alpine_a290/app/main.py	both	py:poll_once	57	r5 publishes legacy data keys (battery_autonomy, charger_status, ...) and cabin temperature, plus comment wording. Target: move the keys into model data; cabin temperature follows its own decision
-pending	alpine_a290/app/main.py	both	py:main	73	main loop: r5 installs signal handlers before startup and logs poll duration; re-login after a failure differs (a290: auth error or every 3rd failure, r5: every failure; open difference, decided 2026-09-27: a290's policy wins, r5 to change); a290 saves state on the failure path. Temporary leader-first count includes capability retry, last-good snapshots and auth classification; restore 43 immediately after R5 cleanup/runtime merge. Target: r5's re-login change, then move the main loop into the core.
+pending	alpine_a290/app/main.py	both	py:main	43	main loop: r5 installs signal handlers before startup and logs poll duration; re-login after a failure differs (a290: auth error or every 3rd failure, r5: every failure; open difference, decided 2026-09-27: a290's policy wins, r5 to change); a290 saves state on the failure path. Target: r5's re-login change, then move the main loop into the core.
 
 # ---------------------------------------------------------------- deploy.py
 pending	alpine_a290/app/deploy.py	both	py:<docstring>	11	docstring wording. Target: converge the wording, or move the deploy engine into the core
