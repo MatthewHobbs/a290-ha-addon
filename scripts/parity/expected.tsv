@@ -141,8 +141,6 @@ pending	alpine_a290/README.md	both	*	40	the add-on's store README. Target: same 
 # --- pilot dashboard probe (a290 #165, mirrored by r5 in #108)
 # Both pilots now test the manifest's dashboard default without overriding it.
 # ---------------------------------------------------------------- Supervisor pilot as mirrored by r5 (#108, 4dd52bf)
-pending	scripts/supervisor-pilot.sh	a290	hunk:^docker_api\(\)|^  docker_api |Expand the override inside	31	host API and CLI export prerequisites and host/inner Docker diagnostics. Target: R5 ports with #203; remove immediately after #203 before cleanup publication
-pending	scripts/supervisor-pilot.sh	both	hunk:Export only this leg|docker save .*images.tar|local arch platform inner_arch|Pulling inner registry	15	platform-filtered add-on export and direct pinned inner registry bootstrap. Target: R5 ports the a290 pilot fix; remove immediately after #203 before cleanup publication
 model	scripts/supervisor-pilot.sh	both	re:a290-supervisor|r5-supervisor|local_alpine_a290|local_renault_5|pilot-registry|pilot-build|pilot-no-egress	16	the pilot's container, registry, provenance-label and egress-rule names carry each add-on's own short name
 local	scripts/supervisor-pilot.sh	both	hunk:poll-success line is|addon_log_has "Published	4	r5's poll-success log line is "Published in <s>s" where a290's is "Published: ", so each pilot greps its own; the guard follows each repo's main.py and r5 keeps its line (confirmed on r5 2026-09-27)
 local	ui-tests/run.sh	both	re:^\# hand, together, when the gate's HA floor allows it	2	each copy names the other as the twin it must match; the sentence is otherwise the same
