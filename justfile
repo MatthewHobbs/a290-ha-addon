@@ -18,6 +18,7 @@ docs-sync-self-test:
     python3 scripts/prepare_release.py --self-test
     python3 scripts/adr_evidence_check.py --self-test
     scripts/test-check-version-order.sh
+    scripts/test-check-release-gates.sh
 
 # Cut a release: turn `## Unreleased` into `## <version>` and move config.yaml's version to match,
 # and nothing else. Commit the result as its own PR, titled `chore(release): <version>`;
@@ -50,27 +51,7 @@ tag version:
     { git tag -l 'v*'; echo "v{{version}}"; } | scripts/check-version-order.sh "{{version}}"
     git merge-base --is-ancestor "$sha" origin/main ||
         { echo "$sha is not on origin/main"; exit 1; }
-    echo "Waiting for workflows on ${sha} (timeout ${TAG_WAIT_SECONDS:-1800}s)..."
-    deadline=$(( SECONDS + ${TAG_WAIT_SECONDS:-1800} ))
-    while :; do
-      (( SECONDS < deadline )) || { echo "timed out waiting for workflows on ${sha}"; exit 1; }
-      runs="$(gh run list --commit "$sha" --limit 50 --json workflowName,status,conclusion,url)"
-      failed="$(jq -r '.[] | select(.status == "completed" and
-        (.conclusion | IN("success","skipped","neutral") | not)) |
-        "\(.workflowName): \(.conclusion) \(.url)"' <<<"$runs")"
-      [[ -z "$failed" ]] || { echo "$failed"; exit 1; }
-      count="$(jq 'length' <<<"$runs")"
-      pending="$(jq '[.[] | select(.status != "completed")] | length' <<<"$runs")"
-      # A workflow registers its run seconds after the push, so an empty pending set is
-      # not proof every gate ran. Settle, then require the run count to be unchanged.
-      if (( count > 0 && pending == 0 )); then
-        sleep "${TAG_SETTLE_SECONDS:-60}"
-        settled="$(gh run list --commit "$sha" --limit 50 --json workflowName)"
-        if [[ "$(jq 'length' <<<"$settled")" == "$count" ]]; then break; fi
-        continue
-      fi
-      sleep 20
-    done
+    scripts/check-release-gates.sh "$sha"
 
     git tag -s "v{{version}}" -m "Alpine A290 {{version}}" "$sha"
     git push origin "v{{version}}"
@@ -130,7 +111,7 @@ ha-min:
 
 lint:
     yamllint -c .yamllint alpine_a290 repository.yaml
-    shellcheck alpine_a290/run.sh scripts/supervisor-pilot.sh scripts/check-version-order.sh scripts/test-check-version-order.sh
+    shellcheck alpine_a290/run.sh scripts/supervisor-pilot.sh scripts/check-version-order.sh scripts/test-check-version-order.sh scripts/check-release-gates.sh scripts/test-check-release-gates.sh
     # The ruff ruff.toml requires (required-version), so a local pass means what CI's pinned ruff means.
     uvx "ruff$(sed -n 's/^required-version = "\(.*\)"$/\1/p' ruff.toml)" check alpine_a290/app alpine_a290/tests scripts ui-tests
 
