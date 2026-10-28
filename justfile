@@ -18,6 +18,7 @@ docs-sync-self-test:
     python3 scripts/prepare_release.py --self-test
     python3 scripts/adr_evidence_check.py --self-test
     scripts/test-check-version-order.sh
+    scripts/test-check-release-gates.sh
 
 # Cut a release: turn `## Unreleased` into `## <version>` and move config.yaml's version to match,
 # and nothing else. Commit the result as its own PR, titled `chore(release): <version>`;
@@ -30,11 +31,28 @@ release version *flags:
 tag version:
     #!/usr/bin/env bash
     set -euo pipefail
-    git fetch --quiet origin main
+    git fetch --quiet --tags origin main
     sha="$(git log origin/main -1 --format=%H --grep="^chore(release): {{version}} ")"
     [[ -n "$sha" ]] || { echo "no merged chore(release): {{version}} commit on origin/main"; exit 1; }
     [[ "$(git show "$sha:alpine_a290/config.yaml" | awk -F'"' '/^version:/{print $2}')" == "{{version}}" ]] ||
         { echo "config.yaml at $sha is not version {{version}}"; exit 1; }
+    ! git rev-parse -q --verify "refs/tags/v{{version}}" >/dev/null ||
+        { echo "v{{version}} already exists locally"; exit 1; }
+    rc=0
+    git ls-remote --exit-code --tags origin "refs/tags/v{{version}}" >/dev/null 2>&1 || rc=$?
+    case "$rc" in
+      0) echo "v{{version}} already exists on origin"; exit 1 ;;
+      2) : ;;
+      *) echo "could not check origin for v{{version}} (git ls-remote exit $rc)"; exit 1 ;;
+    esac
+
+    # Every check runs before the irreversible tag: version order, on main, and the
+    # workflows that validated this exact merge commit. A failure costs nothing yet.
+    { git tag -l 'v*'; echo "v{{version}}"; } | scripts/check-version-order.sh "{{version}}"
+    git merge-base --is-ancestor "$sha" origin/main ||
+        { echo "$sha is not on origin/main"; exit 1; }
+    scripts/check-release-gates.sh "$sha"
+
     git tag -s "v{{version}}" -m "Alpine A290 {{version}}" "$sha"
     git push origin "v{{version}}"
 
@@ -93,7 +111,7 @@ ha-min:
 
 lint:
     yamllint -c .yamllint alpine_a290 repository.yaml
-    shellcheck alpine_a290/run.sh scripts/supervisor-pilot.sh scripts/check-version-order.sh scripts/test-check-version-order.sh
+    shellcheck alpine_a290/run.sh scripts/supervisor-pilot.sh scripts/check-version-order.sh scripts/test-check-version-order.sh scripts/check-release-gates.sh scripts/test-check-release-gates.sh
     # The ruff ruff.toml requires (required-version), so a local pass means what CI's pinned ruff means.
     uvx "ruff$(sed -n 's/^required-version = "\(.*\)"$/\1/p' ruff.toml)" check alpine_a290/app alpine_a290/tests scripts ui-tests
 

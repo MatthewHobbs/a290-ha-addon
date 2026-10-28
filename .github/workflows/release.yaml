@@ -1,8 +1,8 @@
 name: Release
 
-# A release is a signed v* tag I push after the release PR merges. The tag run
-# builds, boots under the Supervisor, waits for CI, then publishes the manifest and cuts the
-# Release. A PR or dispatch is a dry run: it builds and pushes nothing.
+# A signed v* tag pushed after the release PR merges. The tag run builds, scans each arch
+# by digest, boots it under the Supervisor, waits for CI, attests the staged manifest, then
+# publishes the version tag and cuts the Release. A PR or dispatch is a local dry run.
 
 on:
   push:
@@ -136,6 +136,7 @@ jobs:
       # multi-arch image), so no BUILD_FROM build-arg / build.yaml is needed — the builder picks
       # the right platform per matrix arch.
       - name: Build image
+        id: build
         uses: home-assistant/builder/actions/build-image@7412f0023ea9b6e58e8bb5059f1660f51376f49a  # 2026.09.0
         with:
           arch: ${{ matrix.arch }}
@@ -160,9 +161,37 @@ jobs:
             io.hass.description=${{ needs.prepare.outputs.description }}
             ${{ needs.prepare.outputs.url && format('io.hass.url={0}', needs.prepare.outputs.url) || '' }}
           # Per-arch images are pushed only from a tag run. Users pull the manifest, which
-          # `manifest` publishes after the pilot and CI pass, so these are not yet a release.
+          # `manifest` publishes after the pilot, scan and CI pass, so these are not yet a
+          # release. A re-run reuses an existing version tag, so scan and attest see the same
+          # bytes rather than a rebuild.
+          load: ${{ needs.prepare.outputs.publish != 'true' }}
           push: ${{ needs.prepare.outputs.publish == 'true' }}
+          skip-existing: ${{ needs.prepare.outputs.publish == 'true' && needs.prepare.outputs.version || '' }}
           version: ${{ needs.prepare.outputs.version }}
+
+      # The image is the release. Scan the pushed digest, or the locally loaded image on a
+      # dry run, before any user-facing version tag exists.
+      - name: Set up Trivy
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567  # v0.3.1
+        with:
+          version: v0.76.0
+
+      - name: Trivy image scan (vulns)
+        env:
+          PUBLISH: ${{ needs.prepare.outputs.publish }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          IMAGE: ${{ matrix.image }}
+        run: |
+          set -euo pipefail
+          if [[ "$PUBLISH" == "true" ]]; then
+            raw="$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --raw)"
+            [[ -n "$raw" ]] || { echo "::error::no pushed image for ${IMAGE}:${VERSION}"; exit 1; }
+            ref="${IMAGE}@sha256:$(printf '%s' "$raw" | sha256sum | cut -d' ' -f1)"
+          else
+            ref="${IMAGE}:${VERSION}"
+          fi
+          echo "Scanning ${ref}"
+          trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$ref"
 
   manifest:
     name: Publish multi-arch manifest
@@ -176,24 +205,6 @@ jobs:
       packages: write      # push the multi-arch manifest + the attestation to GHCR
       attestations: write  # publish the build-provenance attestation
     steps:
-      - name: Publish multi-arch manifest
-        uses: home-assistant/builder/actions/publish-multi-arch-manifest@7412f0023ea9b6e58e8bb5059f1660f51376f49a  # 2026.09.0
-        with:
-          architectures: ${{ needs.prepare.outputs.architectures }}
-          # Disable the builder's Cosign manifest signing too — image verification is provided by
-          # the build-provenance attestation below, not Cosign (see the build job).
-          cosign: "false"
-          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
-          image-name: ${{ needs.prepare.outputs.image_name }}
-          # Version tag only — no mutable `latest` (see the build job for the rationale).
-          image-tags: |
-            ${{ needs.prepare.outputs.version }}
-          registry-prefix: ${{ needs.prepare.outputs.registry_prefix }}
-
-      # build-image/publish-multi-arch-manifest expose no pushed digest, so resolve
-      # the manifest-list digest from the registry and attest that: it is what a
-      # Supervisor pulls for the tagless `image:` reference, and what a consumer
-      # verifies.
       - name: Log in to GHCR
         uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6  # v4.7.0
         with:
@@ -201,35 +212,55 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Resolve published manifest digest
-        id: digest
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e  # v4.3.0
+
+      # Stage the index under a scratch tag so its digest exists before the version tag.
+      # The scratch tag is a second name for the same bytes; the Supervisor never pulls it.
+      - name: Stage the multi-arch manifest
+        id: stage
         env:
-          IMAGE_REF: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}:${{ needs.prepare.outputs.version }}
+          ARCHITECTURES: ${{ needs.prepare.outputs.architectures }}
+          REGISTRY_PREFIX: ${{ needs.prepare.outputs.registry_prefix }}
+          IMAGE_NAME: ${{ needs.prepare.outputs.image_name }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          # Compute the index digest from its raw bytes: `--format
-          # '{{.Manifest.Digest}}'` falls back to verbose output on this buildx.
-          # Capture first, so a failed inspect cannot hash an empty stream and attest
-          # that.
-          raw="$(docker buildx imagetools inspect "$IMAGE_REF" --raw)"
-          if [[ -z "$raw" ]]; then
-            echo "::error::imagetools inspect returned no data for ${IMAGE_REF}"
-            exit 1
-          fi
+          sources=()
+          for arch in $(jq -r '.[]' <<< "$ARCHITECTURES"); do
+            sources+=("${REGISTRY_PREFIX}/${arch}-${IMAGE_NAME}:${VERSION}")
+          done
+          staging="${REGISTRY_PREFIX}/${IMAGE_NAME}:staging-${VERSION}"
+          docker buildx imagetools create --tag "$staging" "${sources[@]}"
+          raw="$(docker buildx imagetools inspect "$staging" --raw)"
+          [[ -n "$raw" ]] || { echo "::error::staged manifest has no content"; exit 1; }
           digest="sha256:$(printf '%s' "$raw" | sha256sum | cut -d' ' -f1)"
-          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-            echo "::error::could not resolve a valid digest for ${IMAGE_REF} (got '${digest}')"
-            exit 1
-          fi
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::bad digest ${digest}"; exit 1; }
           echo "digest=${digest}" >> "$GITHUB_OUTPUT"
-          echo "::notice::Resolved ${IMAGE_REF} → ${digest}"
+          echo "::notice::Staged ${staging} -> ${digest}"
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
         with:
           subject-name: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}
-          subject-digest: ${{ steps.digest.outputs.digest }}
+          subject-digest: ${{ steps.stage.outputs.digest }}
           push-to-registry: true
+
+      # Copy the attested index, not a new one, so the version tag names the attested digest.
+      - name: Publish the version tag
+        env:
+          IMAGE: ${{ needs.prepare.outputs.registry_prefix }}/${{ needs.prepare.outputs.image_name }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          DIGEST: ${{ steps.stage.outputs.digest }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create \
+            --tag "${IMAGE}:${VERSION}" "${IMAGE}@${DIGEST}" --prefer-index=false
+          raw="$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --raw)"
+          final="sha256:$(printf '%s' "$raw" | sha256sum | cut -d' ' -f1)"
+          [[ "$final" == "$DIGEST" ]] || {
+            echo "::error::${IMAGE}:${VERSION} is ${final}, attested ${DIGEST}"; exit 1; }
+          echo "::notice::Published ${IMAGE}:${VERSION} as ${DIGEST}"
 
   pilot:
     name: Published image (${{ matrix.arch }}, Core ${{ matrix.core }})

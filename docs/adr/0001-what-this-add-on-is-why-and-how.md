@@ -111,11 +111,11 @@ a mask that stops matching is the signal a pin has moved.
 
 **Releasing.** A change adds its entry under `## Unreleased` and leaves `version` alone. On
 request, `just release <version>` turns that heading into the version and moves the manifest;
-that PR is merged, then `just tag <version>` signs `v<version>` on the merge commit. The tag run
-does the rest: it checks the tag, pushes the images, boots them under a stable Supervisor, waits
-for CI and the render gate, and only then publishes the manifest and the Release. Tags are
-immutable and signing is on by default, so `git tag` needs `-m` or it hangs, and a tag pushed
-early burns the version.
+that PR is merged, then `just tag <version>` refuses unless version order, on-main and every workflow
+on that exact commit passed; then it signs `v<version>`. The tag run scans each architecture image by
+digest, boots it under a stable Supervisor, waits for CI and the render gate, attests the staged
+manifest and only then publishes the version tag and the Release. Tags are immutable and signing is on
+by default, so `git tag` needs `-m` or it hangs, and a tag pushed early burns the version.
 
 **Traps, in the order they have cost time.** Home Assistant derives an entity's id from the
 device and friendly names, not from the discovery `object_id`, so tests and dashboards must
