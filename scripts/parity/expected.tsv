@@ -107,7 +107,6 @@ model	alpine_a290/dashboards/front-end-bubble.txt	both	re:^  - title:	2	the Bubb
 model	alpine_a290/dashboards/front-end-bubble.txt	both	re:# Ghost tile|signal the limitation	4	the same sentence wrapped and worded per car (a290 says the A290's API, r5 the API). Only the wording around the car name differs, and both are accurate
 
 # ---------------------------------------------------------------- repo config and CI
-pending	.github/workflows/release.yaml	both	*	8	pass --platform to trivy image for each per-arch build. Target: r5 mirrors
 pending	.github/workflows/ci.yaml	both	hunk:name: Parity with r5|name: Parity with a290|fail on any difference from|Check out r5-ha-addon main|Check out a290-ha-addon main|differ only as listed|repository: MatthewHobbs/	8	r5 added its own reciprocal job (#126): symmetric wording (each names the other repo, checks out the other's main, names its own check "differ only as listed" the other way round). Target: converge wording; whether r5's parity job becomes a required check is a separate owner decision once it has run stably
 pending	justfile	both	hunk:parity|against r5-ha-addon through|against a290-ha-addon through|twin=|refused rather than silently walked	12	r5 added its own reciprocal parity recipes (#126), symmetric wording (each names the other repo as its twin). Target: converge wording
 local	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant/base	2	the same comment on the build step, in a different place. Target: one place in both
@@ -139,5 +138,4 @@ pending	alpine_a290/README.md	both	*	40	the add-on's store README. Target: same 
 # ---------------------------------------------------------------- Supervisor pilot as mirrored by r5 (#108, 4dd52bf)
 model	scripts/supervisor-pilot.sh	both	re:a290-supervisor|r5-supervisor|local_alpine_a290|local_renault_5|pilot-registry|pilot-build|pilot-no-egress	16	the pilot's container, registry, provenance-label and egress-rule names carry each add-on's own short name
 local	scripts/supervisor-pilot.sh	both	hunk:poll-success line is|addon_log_has "Published	4	r5's poll-success log line is "Published in <s>s" where a290's is "Published: ", so each pilot greps its own; the guard follows each repo's main.py and r5 keeps its line (confirmed on r5 2026-09-27)
-pending	scripts/supervisor-pilot.sh	both	*	162	compare published-image config digest and RootFS.Layers instead of daemon Id. Target: r5 mirrors
 local	ui-tests/run.sh	both	re:^\# hand, together, when the gate's HA floor allows it	2	each copy names the other as the twin it must match; the sentence is otherwise the same
