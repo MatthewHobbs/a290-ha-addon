@@ -302,3 +302,20 @@ others changed nothing. Kamereon can invalidate tokens on concurrent login, so t
 principle and worth a line in the README. Open question: should the add-on publish location at all
 when core `renault` already provides a fresh `device_tracker`? Its distinct value is climate,
 charge control and the dashboards.
+
+## P3 — The `staging-<version>` image tag has no cleanup
+
+**Component:** release workflow · **Logged:** 2026-10-28
+
+The tag run stages the multi-arch index under `staging-<version>` so it can be attested before the
+version tag exists (#296). Nothing deletes it afterwards. The Supervisor never pulls it, so this is
+clutter, not a user-facing fault.
+
+Observed on 2026-10-28: the 1.30.2 tag run left `staging-1.30.2` in the `alpine_a290` package. It
+shares one package version with `1.30.2` (same digest, one GHCR version carrying both tags), so
+pruning must remove the tag only: deleting that version would delete the published image. The 1.30.0
+and 1.30.1 runs failed before staging, so 1.30.2 is the only evidence so far.
+
+The check that shows it:
+`gh api user/packages/container/alpine_a290/versions --jq '[.[]|select(.metadata.container.tags|any(startswith("staging-")))|.metadata.container.tags]'`.
+Whether to prune, and how to remove a tag without deleting its version, is a choice for an RFC.
