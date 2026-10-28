@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Base image updated** to the current Home Assistant 3.24 build (Python 3.14.10, curl 8.23.0). No change in behaviour.
+- **Start Climate uses the car's own preconditioning temperature by default** (shown as Desired Temp on the dashboard) instead of a fixed 20 °C. Leave `precondition_temperature` empty to use the car's setting, or enter 16–27 °C to override it.
 - The latest poll reaches MQTT after a delayed broker connection or reconnect, without waiting for another poll.
 - Start and Stop Climate are sent in order, even when sign-in is slow. Other controls remain independent.
 - Controls recover automatically after a temporary capability-check failure, without restarting the app.
