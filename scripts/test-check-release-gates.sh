@@ -2,7 +2,8 @@
 # Checks for scripts/check-release-gates.sh: a failed run, a pending run, a run
 # count that changes during the settle window, a timeout, and a clean pass.
 # gh is stubbed from a scenario file (one JSON array per line, one per call) and
-# sleep is stubbed to advance a virtual clock, so every case runs in milliseconds.
+# sleep is stubbed to record the requested waits, so no case sleeps. The timeout
+# case sets TAG_WAIT_SECONDS=0 so the deadline is already due on the first poll.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 SHA=0123456789abcdef0123456789abcdef01234567
@@ -29,7 +30,7 @@ printf '%s\n' "$1" >> "$CASE_DIR/slept"
 EOF
   chmod +x "$dir/bin/gh" "$dir/bin/sleep"
   : > "$dir/slept"
-  out=$(CASE_DIR="$dir" PATH="$dir/bin:$PATH" TAG_WAIT_SECONDS=90 TAG_SETTLE_SECONDS=60 \
+  out=$(CASE_DIR="$dir" PATH="$dir/bin:$PATH" TAG_WAIT_SECONDS="${TAG_WAIT_SECONDS:-90}" TAG_SETTLE_SECONDS=60 \
     ./check-release-gates.sh "${TEST_SHA_OVERRIDE:-$SHA}" 2>&1) || got=crash
   [[ "$got" = crash ]] && [[ "$want" == refuse:* ]] && [[ "$out" == *"${want#refuse:}"* ]] && got="$want"
   if [ "$got" = "$want" ]; then
@@ -45,17 +46,16 @@ BAD='[{"workflowName":"CI","status":"completed","conclusion":"failure","url":"ht
 TWO='[{"workflowName":"CI","status":"completed","conclusion":"success","url":"https://x/ok"},{"workflowName":"UI","status":"completed","conclusion":"skipped","url":"https://x/skip"}]'
 
 check "a clean pass with one run" pass "$OK" pass1
-check "a failing run is refused with its url" refuse:"failure" "$BAD" fail1
-check "a failed run is refused before it can time out" refuse:"https://x/bad" "$BAD" fail2
+check "a failing run is refused, named with its url" refuse:"CI: failure https://x/bad" "$BAD" fail1
 check "a run still pending eventually passes" pass "$(printf '%s\n%s\n%s\n%s\n' "$PEND" "$PEND" "$OK" "$OK")" pend
 check "a new run during settle is waited on, then passes" pass "$(printf '%s\n%s\n%s\n' "$OK" "$TWO" "$TWO")" settle
 check "a new run during settle that fails is refused" refuse:"failure" \
   "$(printf '%s\n%s\n' "$OK" '[{"workflowName":"CI","status":"completed","conclusion":"success","url":"u"},{"workflowName":"UI","status":"completed","conclusion":"failure","url":"https://x/bad"}]')" settlefail
-check "no runs at all times out" refuse:"timed out" '[]' timeout
+TAG_WAIT_SECONDS=0 check "no runs at all times out" refuse:"timed out" '[]' timeout
 TEST_SHA_OVERRIDE=notasha check "a malformed SHA is refused" refuse:"expected a full commit SHA" "$OK" badsha
 check "a cancelled run is refused" refuse:"cancelled" \
   '[{"workflowName":"CI","status":"completed","conclusion":"cancelled","url":"u"}]' cancelled
-check "skipped and neutral count as passing" pass "$TWO" skipped
+check "skipped and neutral count as passing" pass "$(printf '%s\n%s\n' "$TWO" '[{"workflowName":"UI","status":"completed","conclusion":"neutral","url":"u"}]')" skipped
 
 if [ "$fails" -gt 0 ]; then echo "FAILED: $fails check(s)" >&2; exit 1; fi
 echo "All check-release-gates.sh checks passed"

@@ -29,4 +29,3 @@ secrets.yaml
 
 # Session handovers: local only, never committed.
 .orchestrate
-.orchestrate/*

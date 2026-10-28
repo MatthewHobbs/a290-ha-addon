@@ -115,7 +115,7 @@ pending	.github/workflows/ci.yaml	both	hunk:name: Parity with r5|name: Parity wi
 pending	justfile	both	hunk:parity|against r5-ha-addon through|against a290-ha-addon through|twin=	8	r5 added its own reciprocal parity recipes (#126), symmetric wording (each names the other repo as its twin). Target: converge wording
 local	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant/base	2	the same comment on the build step, in a different place. Target: one place in both
 local	.github/workflows/ci.yaml	both	hunk:a VIN in a test fixture|pair of public add-on repos	6	each repo's own account of the same script (a290 dates its leaks, r5 names the twin); both true, so neither is drift
-local	.gitignore	both	*	6	section order differs; r5 ignores a local reference/ checkout. Target: one section order
+local	.gitignore	both	*	5	section order differs; r5 ignores a local reference/ checkout. Target: one section order
 
 # --- UI gate coverage: dispatching-off pass and all Bubble pop-ups
 # Listed before the whole-file harness entries below so these lines are taken here, not there.
