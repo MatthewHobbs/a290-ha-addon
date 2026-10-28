@@ -164,6 +164,80 @@ def test_precondition_temp_reads_the_option(monkeypatch):
     assert main._precondition_temp() == 18.0
 
 
+@pytest.mark.parametrize("options,expected_temp,expected_acct", [
+    ({}, None, ""),
+    ({"precondition_temperature": None, "account_id": None}, None, ""),
+    ({"precondition_temperature": "", "account_id": ""}, None, ""),
+    ({"precondition_temperature": 22, "account_id": "acct-42"}, 22.0, "acct-42"),
+])
+def test_run_sh_normalises_bashio_null_for_optional_settings(
+    tmp_path, monkeypatch, options, expected_temp, expected_acct
+):
+    """bashio::config uses `local default_value=${2:-null}`, so passing '' still outputs "null"
+    when an optional setting is absent or null. Execute run.sh under that exact bashio::config
+    implementation and verify precondition_temperature and account_id reach the app as empty."""
+    import json
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from renault_mqtt import config
+
+    run_sh = Path(main.__file__).resolve().parents[1] / "run.sh"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    probe = fake_bin / "python3"
+    probe.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os\n"
+        "print(json.dumps({k: os.environ[k] for k in ("
+        "'A290_PRECONDITION_TEMPERATURE', 'A290_ACCOUNT_ID')}))\n",
+        encoding="utf-8",
+    )
+    probe.chmod(0o755)
+
+    # Real /usr/lib/bashio/config.sh semantics: `local default_value=${2:-null}` substitutes
+    # "null" even when $2 is passed as "".
+    script = f"""
+set -e
+bashio::log.info() {{ :; }}
+bashio::log.warning() {{ :; }}
+bashio::services.available() {{ return 1; }}
+bashio::config() {{
+    local key=${{1}}
+    local default_value=${{2:-null}}
+    local result
+    result=$("{sys.executable}" -c '
+import json, sys
+opts, k = json.loads(sys.argv[1]), sys.argv[2]
+v = opts.get(k)
+print("null" if v is None else v, end="")
+' "$OPTIONS_JSON" "$key")
+    if [[ "${{result}}" == "null" ]]; then
+        echo "${{default_value}}"
+    else
+        printf "%s" "${{result}}"
+    fi
+}}
+export PATH="{fake_bin}:$PATH"
+source "{run_sh}"
+"""
+    proc = subprocess.run(
+        ["bash", "-c", script],
+        env={**os.environ, "OPTIONS_JSON": json.dumps(options)},
+        capture_output=True, text=True, check=True,
+    )
+    exported = json.loads(proc.stdout.strip())
+    monkeypatch.setenv("A290_PRECONDITION_TEMPERATURE", exported["A290_PRECONDITION_TEMPERATURE"])
+    monkeypatch.setenv("A290_ACCOUNT_ID", exported["A290_ACCOUNT_ID"])
+    monkeypatch.setenv("A290_VIN", "VF1TESTVIN0000001")
+    assert main._precondition_temp() == expected_temp
+    assert exported["A290_PRECONDITION_TEMPERATURE"] == ("" if expected_temp is None else "22")
+    assert exported["A290_ACCOUNT_ID"] == expected_acct
+    assert config.redact("payload has null field") == "payload has null field"
+
+
 def test_start_climate_sends_the_option_when_set(monkeypatch):
     import asyncio
     monkeypatch.setenv("A290_PRECONDITION_TEMPERATURE", "23")

@@ -20,10 +20,18 @@ else
     bashio::log.warning "No MQTT service found — install/enable the Mosquitto broker add-on."
 fi
 
+# bashio::config uses ${2:-null}, so an empty default still prints "null" when an
+# optional setting is unset or cleared. Normalise "null" to the empty string.
+opt() {
+    local v
+    v="$(bashio::config "$1")"
+    [[ "$v" == "null" ]] || printf '%s' "$v"
+}
+
 # Add-on options (the dedicated config page).
 export A290_USERNAME="$(bashio::config 'username')"
 export A290_PASSWORD="$(bashio::config 'password')"
-export A290_ACCOUNT_ID="$(bashio::config 'account_id')"
+export A290_ACCOUNT_ID="$(opt 'account_id')"
 export A290_VIN="$(bashio::config 'vin')"
 export A290_LOCALE="$(bashio::config 'locale')"
 export A290_POLL_INTERVAL="$(bashio::config 'poll_interval')"
@@ -32,7 +40,7 @@ export A290_STALE_HOURS="$(bashio::config 'stale_hours')"
 export A290_PUBLISH_LOCATION="$(bashio::config 'publish_location')"
 export A290_ENABLE_REFRESH_LOCATION="$(bashio::config 'enable_refresh_location')"
 export A290_GPS_PRECISION="$(bashio::config 'gps_precision')"
-export A290_PRECONDITION_TEMPERATURE="$(bashio::config 'precondition_temperature' '')"
+export A290_PRECONDITION_TEMPERATURE="$(opt 'precondition_temperature')"
 export A290_LOG_LEVEL="$(bashio::config 'log_level')"
 export A290_DEBUG_DUMP="$(bashio::config 'debug_dump')"
 

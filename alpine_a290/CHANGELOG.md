@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed: Start Climate works when `precondition_temperature` is left empty.** On installs where
+  the temperature was left empty — the default on new installs of 1.30.2, or after clearing the
+  field — pressing Start Climate reported an error instead of using the car's own setting; this
+  release fixes it. Until you update, enter a temperature (16–27 °C) in `precondition_temperature`
+  on the Configuration page.
+- **Fixed: clearing Account ID auto-detects the account again.** Clearing `account_id` used to send
+  the literal word `null` as the account id instead of auto-detecting the account.
+
 ## 1.30.2
 
 - 1.30.0 and 1.30.1 were tagged but never published because their release runs failed; this release contains their changes.
