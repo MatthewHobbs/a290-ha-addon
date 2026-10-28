@@ -1,9 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- 1.30.0 was tagged but never published because its release run failed; this release contains its changes.
+- **Base image updated** to the current Home Assistant 3.24 build (Python 3.14.10, curl 8.23.0). No change in behaviour.
+- **Start Climate uses the car's own preconditioning temperature on new installs** (shown as Desired Temp on the dashboard) instead of a fixed 20 °C. Existing installs keep the value already saved (from the Supervisor source); empty `precondition_temperature` to use the car's own, or enter 16–27 °C to override it, and if the car's setting cannot be read the add-on uses 21 °C without logging it.
+- The latest poll reaches MQTT after a delayed broker connection or reconnect, without waiting for another poll.
+- Start and Stop Climate are sent in order, even when sign-in is slow. Other controls remain independent.
+- Controls recover automatically after a temporary capability-check failure, without restarting the app.
+- Failed polls retain the last good vehicle readings and original timestamps, matching the status panel.
+- An expired sign-in turns on API Auth Failure and makes the next poll sign in again.
+
 ## 1.30.0
 
+*Never published: its release run failed. Everything below shipped in 1.30.1.*
+
 - **Base image updated** to the current Home Assistant 3.24 build (Python 3.14.10, curl 8.23.0). No change in behaviour.
-- **Start Climate uses the car's own preconditioning temperature by default** (shown as Desired Temp on the dashboard) instead of a fixed 20 °C. Leave `precondition_temperature` empty to use the car's setting, or enter 16–27 °C to override it.
+- **Start Climate uses the car's own preconditioning temperature on new installs** (shown as Desired Temp on the dashboard) instead of a fixed 20 °C. Existing installs keep the value already saved (from the Supervisor source); empty `precondition_temperature` to use the car's own, or enter 16–27 °C to override it, and if the car's setting cannot be read the add-on uses 21 °C without logging it.
 - The latest poll reaches MQTT after a delayed broker connection or reconnect, without waiting for another poll.
 - Start and Stop Climate are sent in order, even when sign-in is slow. Other controls remain independent.
 - Controls recover automatically after a temporary capability-check failure, without restarting the app.
