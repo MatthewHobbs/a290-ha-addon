@@ -181,8 +181,14 @@ jobs:
           PUBLISH: ${{ needs.prepare.outputs.publish }}
           VERSION: ${{ needs.prepare.outputs.version }}
           IMAGE: ${{ matrix.image }}
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
+          case "$ARCH" in
+            amd64) platform="linux/amd64" ;;
+            aarch64) platform="linux/arm64" ;;
+            *) echo "::error::unsupported arch ${ARCH}"; exit 1 ;;
+          esac
           if [[ "$PUBLISH" == "true" ]]; then
             raw="$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --raw)"
             [[ -n "$raw" ]] || { echo "::error::no pushed image for ${IMAGE}:${VERSION}"; exit 1; }
@@ -191,7 +197,7 @@ jobs:
             ref="${IMAGE}:${VERSION}"
           fi
           echo "Scanning ${ref}"
-          trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$ref"
+          trivy image --platform "$platform" --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$ref"
 
   manifest:
     name: Publish multi-arch manifest
