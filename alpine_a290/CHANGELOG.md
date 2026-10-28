@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.30.1
 
 - 1.30.0 was tagged but never published because its release run failed; this release contains its changes.
 - **Base image updated** to the current Home Assistant 3.24 build (Python 3.14.10, curl 8.23.0). No change in behaviour.
