@@ -754,7 +754,7 @@ def _wire_main(monkeypatch, poll):
         unresolved.clear()
         return set()
 
-    async def fake_health():
+    async def fake_health(health_state=None):
         return ns(cleanup=_acoro)
 
     monkeypatch.setattr(main, "VehicleSession", FakeVS)

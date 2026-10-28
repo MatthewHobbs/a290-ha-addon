@@ -381,13 +381,14 @@ async def _panel_state(_req):
     return await panel_state(_LATEST)
 
 
-async def start_health_server():
+async def start_health_server(health_state=None):
     """/healthz (backs the Dockerfile HEALTHCHECK) plus the read-only ingress status panel
-    (GET / and GET /api/state) on the poll loop. A deadlocked loop can't answer /healthz,
-    so the container is marked unhealthy and restarted."""
+    (GET / and GET /api/state) on the poll loop. The shared server answers 503 once the loop
+    misses its expected-progress deadline, so a stalled container is marked unhealthy and
+    restarted; a deadlocked loop cannot answer at all."""
     return await shared_start_health_server(
         panel_file=_PANEL_FILE, latest=_LATEST, log=LOG, port=HEALTH_PORT,
-        panel_page_fn=_panel_page, panel_state_fn=_panel_state,
+        panel_page_fn=_panel_page, panel_state_fn=_panel_state, health_state=health_state,
     )
 
 
