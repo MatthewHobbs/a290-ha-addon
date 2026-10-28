@@ -26,3 +26,7 @@ secrets.yaml
 # Machine-local *.local.json files never belong in the repo.
 *.local.json
 *.local.json.bak*
+
+# Session handovers: local only, never committed.
+.orchestrate
+.orchestrate/*
