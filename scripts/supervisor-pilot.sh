@@ -31,11 +31,13 @@
 #   PILOT_APPARMOR_CHECK=skip  local runs only (Docker Desktop's kernel has no
 #                  AppArmor); refused under GitHub Actions.
 #   PILOT_EXPECT_SUPERVISOR / PILOT_EXPECT_CORE / PILOT_EXPECT_NODE /
-#   PILOT_EXPECT_DASHBOARD  override what is expected; only for showing a
+#   PILOT_EXPECT_DASHBOARD / PILOT_EXPECT_IMAGE_CONFIG /
+#   PILOT_EXPECT_IMAGE_LAYERS  override what is expected; only for showing a
 #                  check can fail.
 #   PILOT_IMAGE    a published per-arch image (release.yaml's pilot job): it is
 #                  pulled and installed instead of building the checkout, and
-#                  provenance becomes the image id the registry served.
+#                  provenance becomes the config digest and layer diff IDs the
+#                  registry served.
 
 set -euo pipefail
 
@@ -206,8 +208,46 @@ checkout_revision() {
 }
 
 # --- build: the image that would ship, built the way release.yaml builds it -
+# Read the config blob from a docker-save archive and hash it: store-independent
+# across classic graphdriver (`<hex>.json`) and containerd (`blobs/sha256/<hex>`).
+archive_config_digest() {
+  local tar_path="$1" cfg_path digest
+  cfg_path="$(tar -xOf "$tar_path" manifest.json |
+    jq -er 'if type == "array" and length == 1 and (.[0].Config | type == "string" and length > 0)
+            then .[0].Config else error("expected a single manifest Config entry") end')" || return 1
+  digest="sha256:$(tar -xOf "$tar_path" "$cfg_path" | sha256sum | awk '{print $1}')" || return 1
+  [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || return 1
+  echo "$digest"
+}
+
+# Ordered uncompressed layer diff IDs (`RootFS.Layers`) as compact JSON.
+image_layers() {
+  local target="$1" raw
+  shift
+  raw="$("$@" image inspect -f '{{json .RootFS.Layers}}' "$target")" || return 1
+  jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and test("^sha256:[0-9a-f]{64}$"))
+          then . else error("missing or invalid RootFS.Layers") end' <<<"$raw"
+}
+
+# Resolve an inner daemon image ID to its OCI config digest: containerd image
+# stores report a manifest digest as `.Image`, whereas classic graphdriver
+# daemons report the config digest directly.
+inner_config_digest() {
+  local img_id="$1" blob digest
+  [[ "$img_id" =~ ^sha256:[0-9a-f]{64}$ ]] || return 1
+  if blob="$(dc ctr -n moby content get "$img_id" 2>/dev/null)" && [[ -n "$blob" ]]; then
+    digest="$(jq -er 'if (.config.digest | type) == "string" then .config.digest
+                      elif (.rootfs.diff_ids | type) == "array" then "'"$img_id"'"
+                      else error("unrecognised content blob") end' <<<"$blob")" || return 1
+  else
+    digest="$img_id"
+  fi
+  [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]] || return 1
+  echo "$digest"
+}
+
 cmd_build() {
-  local arch platform version tag nonce provenance id
+  local arch platform version tag nonce provenance cfg_digest layers
   docker_api host "${DOCKER_API_VERSION-unset}" docker
   arch="$(docker_arch)"
   platform="linux/$([[ $arch == aarch64 ]] && echo arm64 || echo amd64)"
@@ -221,17 +261,21 @@ cmd_build() {
     log "Pulling published image ${PILOT_IMAGE}"
     docker pull --platform "$platform" --quiet "$PILOT_IMAGE" >/dev/null ||
       fail "could not pull ${PILOT_IMAGE}"
-    id="$(docker image inspect -f '{{.Id}}' "$PILOT_IMAGE")" ||
-      fail "no image ${PILOT_IMAGE} after the pull"
     docker tag "$PILOT_IMAGE" "$tag"
-    provenance="published/${id}"
+    docker save --platform "$platform" "$tag" -o "$WORKDIR/images.tar"
+    cfg_digest="$(archive_config_digest "$WORKDIR/images.tar")" ||
+      fail "could not read config digest from saved ${PILOT_IMAGE}"
+    layers="$(image_layers "$PILOT_IMAGE" docker)" ||
+      fail "could not read RootFS.Layers for ${PILOT_IMAGE}"
+    provenance="published/${cfg_digest}"
     {
       echo "PILOT_TAG=$tag"
       echo "PILOT_PROVENANCE=$provenance"
       echo "PILOT_PUBLISHED=1"
-      echo "PILOT_IMAGE_ID=$id"
+      echo "PILOT_IMAGE_CONFIG=$cfg_digest"
+      printf 'PILOT_IMAGE_LAYERS=%q\n' "$layers"
     } >"$WORKDIR/build.env"
-    log "OK pulled ${PILOT_IMAGE} as ${tag}, image id ${id}"
+    log "OK pulled ${PILOT_IMAGE} as ${tag}, config=${cfg_digest} layers=$(jq length <<<"$layers")"
   else
     # Revision plus a per-build nonce: a published image built from this very
     # commit still cannot carry it.
@@ -257,11 +301,11 @@ cmd_build() {
       echo "PILOT_PROVENANCE=$provenance"
       echo "PILOT_PUBLISHED=0"
     } >"$WORKDIR/build.env"
+    # Export only this leg's add-on platform.
+    # docker save --platform needs Docker 28+ (API 1.48+) on the host.
+    docker save --platform "$platform" "$tag" -o "$WORKDIR/images.tar"
   fi
 
-  # Export only this leg's add-on platform.
-  # docker save --platform needs Docker 28+ (API 1.48+) on the host.
-  docker save --platform "$platform" "$tag" -o "$WORKDIR/images.tar"
   log "OK ${tag} staged for the registry, provenance ${provenance}"
 }
 
@@ -601,7 +645,7 @@ cmd_install() {
 
 # --- provenance: the running container came from this checkout ---------------
 cmd_provenance() {
-  local got image want_rev
+  local got image want_rev inner_id got_cfg got_layers want_cfg want_layers
   [[ -s "$WORKDIR/build.env" ]] || fail "no build.env in $WORKDIR (run 'build' first)"
   # shellcheck source=/dev/null
   source "$WORKDIR/build.env"
@@ -610,14 +654,26 @@ cmd_provenance() {
   image="$(dc docker inspect -f '{{.Config.Image}}' "$ADDON_CONTAINER")"
   log "Add-on container image=$image"
   if [[ "${PILOT_PUBLISHED:-0}" == 1 ]]; then
-    # Content addressing, not a label: the container's image id must equal the
-    # one the registry served, which is the whole claim of this mode.
-    got="$(dc docker inspect -f '{{.Image}}' "$ADDON_CONTAINER")"
-    log "Published image expected=${PILOT_IMAGE_ID} observed=${got}"
-    [[ "$got" == "$PILOT_IMAGE_ID" ]] ||
-      fail "the add-on runs ${got}, not the published image ${PILOT_IMAGE_ID}"
+    # Store-independent content addressing: compare the OCI config digest and
+    # the ordered uncompressed RootFS.Layers diff IDs, not the daemon's .Id.
+    want_cfg="${PILOT_EXPECT_IMAGE_CONFIG:-${PILOT_IMAGE_CONFIG:-}}"
+    want_layers="${PILOT_EXPECT_IMAGE_LAYERS:-${PILOT_IMAGE_LAYERS:-}}"
+    [[ -n "$want_cfg" && -n "$want_layers" ]] ||
+      fail "build.env is missing PILOT_IMAGE_CONFIG or PILOT_IMAGE_LAYERS"
+    inner_id="$(dc docker inspect -f '{{.Image}}' "$ADDON_CONTAINER")" ||
+      fail "could not read inner image id for $ADDON_CONTAINER"
+    got_cfg="$(inner_config_digest "$inner_id")" ||
+      fail "could not resolve config digest for inner image $inner_id"
+    got_layers="$(image_layers "$inner_id" dc docker)" ||
+      fail "could not read RootFS.Layers for inner image $inner_id"
+    log "Published image config expected=${want_cfg} observed=${got_cfg} (inner id=${inner_id})"
+    log "Published image layers expected=$(jq length <<<"$want_layers") observed=$(jq length <<<"$got_layers")"
+    [[ "$got_cfg" == "$want_cfg" ]] ||
+      fail "the add-on runs config ${got_cfg}, not the published config ${want_cfg}"
+    [[ "$got_layers" == "$want_layers" ]] ||
+      fail "the add-on runs layers ${got_layers}, not the published layers ${want_layers}"
     [[ "$image" == "$PILOT_TAG" ]] || fail "the add-on runs $image, not $PILOT_TAG"
-    log "OK the running add-on is the published image ${PILOT_IMAGE}"
+    log "OK the running add-on matches published image ${PILOT_IMAGE:-$PILOT_TAG} (config and layers)"
     return 0
   fi
   want_rev="$(checkout_revision)"
@@ -965,14 +1021,84 @@ cmd_all() {
   fi
 }
 
+# Self-test for published-image provenance across classic and containerd stores.
+cmd_self_test() {
+  local cfg_json cfg_digest l1 l2 layers manifest_id index_id
+  cfg_json='{"architecture":"arm64","os":"linux","rootfs":{"type":"layers","diff_ids":[]}}'
+  cfg_digest="sha256:$(printf '%s' "$cfg_json" | sha256sum | awk '{print $1}')"
+  l1="sha256:1111111111111111111111111111111111111111111111111111111111111111"
+  l2="sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  layers="[\"$l1\",\"$l2\"]"
+  manifest_id="sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  index_id="sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+  mkdir -p "$WORKDIR/classic" "$WORKDIR/oci/blobs/sha256"
+  printf '%s' "$cfg_json" >"$WORKDIR/classic/${cfg_digest#sha256:}.json"
+  printf '[{"Config":"%s.json","Layers":[]}]' "${cfg_digest#sha256:}" >"$WORKDIR/classic/manifest.json"
+  tar -cf "$WORKDIR/classic.tar" -C "$WORKDIR/classic" .
+  [[ "$(archive_config_digest "$WORKDIR/classic.tar")" == "$cfg_digest" ]] ||
+    fail "self-test: classic tar config digest mismatch"
+
+  printf '%s' "$cfg_json" >"$WORKDIR/oci/blobs/sha256/${cfg_digest#sha256:}"
+  printf '[{"Config":"blobs/sha256/%s","Layers":[]}]' "${cfg_digest#sha256:}" >"$WORKDIR/oci/manifest.json"
+  tar -cf "$WORKDIR/oci.tar" -C "$WORKDIR/oci" .
+  [[ "$(archive_config_digest "$WORKDIR/oci.tar")" == "$cfg_digest" ]] ||
+    fail "self-test: containerd tar config digest mismatch"
+
+  {
+    echo "PILOT_TAG=${LOCAL_REGISTRY}/test:1.0.0"
+    echo "PILOT_PROVENANCE=published/${cfg_digest}"
+    echo "PILOT_PUBLISHED=1"
+    echo "PILOT_IMAGE_CONFIG=$cfg_digest"
+    printf 'PILOT_IMAGE_LAYERS=%q\n' "$layers"
+  } >"$WORKDIR/build.env"
+
+  # Stub dc: outer Id would be $index_id, inner .Image is $manifest_id, whose
+  # containerd manifest points to $cfg_digest and whose RootFS.Layers is $layers.
+  dc() {
+    if [[ "$1" == ctr ]]; then
+      printf '{"config":{"digest":"%s"}}' "${MOCK_INNER_CFG:-$cfg_digest}"
+      return 0
+    fi
+    if [[ "$1" == docker && "$2" == image && "$3" == inspect ]]; then
+      printf '%s\n' "${MOCK_INNER_LAYERS:-$layers}"
+      return 0
+    fi
+    if [[ "$1" == docker && "$2" == inspect ]]; then
+      case "$4" in
+        *Labels*) printf '\n' ;;
+        '{{.Config.Image}}') printf '%s\n' "${MOCK_INNER_TAG:-${LOCAL_REGISTRY}/test:1.0.0}" ;;
+        '{{.Image}}') printf '%s\n' "$manifest_id" ;;
+        *) return 1 ;;
+      esac
+      return 0
+    fi
+    return 1
+  }
+  [[ "$index_id" != "$manifest_id" && "$manifest_id" != "$cfg_digest" ]] ||
+    fail "self-test: ids must differ"
+  (cmd_provenance >/dev/null 2>&1) ||
+    fail "self-test: matching config and layers should pass when daemon IDs differ"
+  ! (MOCK_INNER_CFG="$index_id" cmd_provenance >/dev/null 2>&1) ||
+    fail "self-test: mismatched config digest must fail"
+  ! (MOCK_INNER_LAYERS="[\"$l2\",\"$l1\"]" cmd_provenance >/dev/null 2>&1) ||
+    fail "self-test: reordered RootFS.Layers must fail"
+  ! (MOCK_INNER_LAYERS="[\"$l1\"]" cmd_provenance >/dev/null 2>&1) ||
+    fail "self-test: truncated RootFS.Layers must fail"
+  ! (MOCK_INNER_TAG="wrong:tag" cmd_provenance >/dev/null 2>&1) ||
+    fail "self-test: mismatched container image tag must fail"
+  log "self-test: PASS"
+}
+
 case "${1:-}" in
-  build | up | wait-core | versions | sideload | egress | broker | install | provenance | probe | diagnostics | down | all | copy-addon)
-    cmd="${1//-/_}"
+  build | up | wait-core | versions | sideload | egress | broker | install | provenance | probe | diagnostics | down | all | copy-addon | self-test | --self-test)
+    cmd="${1#--}"
+    cmd="${cmd//-/_}"
     shift
     "cmd_$cmd" "$@"
     ;;
   *)
-    echo "usage: $0 {all|build|up|wait-core|versions|sideload|egress|broker|install|provenance|probe|diagnostics|down}" >&2
+    echo "usage: $0 {all|build|up|wait-core|versions|sideload|egress|broker|install|provenance|probe|diagnostics|down|self-test}" >&2
     exit 2
     ;;
 esac
