@@ -145,4 +145,5 @@ local	scripts/supervisor-pilot.sh	both	hunk:poll-success line is|addon_log_has "
 local	ui-tests/run.sh	both	re:^\# hand, together, when the gate's HA floor allows it	2	each copy names the other as the twin it must match; the sentence is otherwise the same
 pending	.github/workflows/release.yaml	both	*	106	per-arch Trivy scan by digest and staged attestation before the version tag. Target: R5 mirrors in #205; drop after #205 merges
 pending	alpine_a290/Dockerfile	both	re:^FROM ghcr\.io/home-assistant/base:	2	base image digest refreshed (992dc6a -> 8800161). Target: R5 mirrors in #205; drop after #205 merges
+pending	scripts/*check-release-gates.sh	a290	only	2	the tag gate wait moved into a script with its self-test. Target: R5 mirrors in #205; drop after #205 merges
 pending	justfile	both	*	24	same comment rewrite on both sides (word cap) plus the `just tag` preflight. Target: R5 mirrors in #205; drop the preflight count after #205 merges
