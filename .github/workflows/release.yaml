@@ -170,16 +170,13 @@ jobs:
           version: ${{ needs.prepare.outputs.version }}
 
       # The image is the release. Scan the pushed digest, or the locally loaded image on a
-      # dry run, before any user-facing version tag exists. A dry run reports only: an
-      # upstream base-image CVE must not block a pull request that ships nothing.
+      # dry run, before any user-facing version tag exists.
       - name: Set up Trivy
         uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567  # v0.3.1
         with:
           version: v0.76.0
 
       - name: Trivy image scan (vulns)
-        # Refuse only what ships. A tag run fails on a finding; a dry run shows it and passes.
-        continue-on-error: ${{ needs.prepare.outputs.publish != 'true' }}
         env:
           PUBLISH: ${{ needs.prepare.outputs.publish }}
           VERSION: ${{ needs.prepare.outputs.version }}
