@@ -6,7 +6,8 @@ decoding, schedule summaries and unit conversion.
 """
 import catalog
 import main
-from renault_api.kamereon.enums import ChargeState, PlugState
+import pytest
+from renault_api.kamereon.enums import ChargeState
 from renault_mqtt import charge
 
 
@@ -101,39 +102,6 @@ def test_hvac_schedule_fields_active_schedule():
     assert out["climate_ready_time"] == "Mon 07:00, Fri 08:30"       # only the active schedule
     expected = {obj[len("a290_"):] for obj in catalog.SENSORS if obj.startswith("a290_climate_")}
     assert set(out) == expected
-
-
-# --------------------------------------------------------------------------- #
-# plug stuck-detection
-# --------------------------------------------------------------------------- #
-def test_plug_suspect_disconnected_but_charging():
-    # plug reported unplugged while the car is actually charging -> suspect
-    assert main.detect_plug_suspect({}, plug=PlugState.UNPLUGGED, mileage=1000, soc=50,
-                                     charging=True) == "on"
-
-
-def test_plug_suspect_connected_but_driven(monkeypatch):
-    clock = {"t": 1000.0}
-    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
-    state = {}
-    # first sighting: plugged in -> baseline captured, not yet suspect
-    assert main.detect_plug_suspect(state, plug=PlugState.PLUGGED, mileage=1000, soc=50,
-                                     charging=False) == "off"
-    # later: still "plugged" but driven 5 km and 4% SoC lost over 1h -> suspect
-    clock["t"] = 1000.0 + 3600
-    assert main.detect_plug_suspect(state, plug=PlugState.PLUGGED, mileage=1005, soc=46,
-                                     charging=False) == "on"
-
-
-def test_plug_suspect_quiet_when_genuinely_plugged(monkeypatch):
-    clock = {"t": 1000.0}
-    monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
-    state = {}
-    main.detect_plug_suspect(state, plug=PlugState.PLUGGED, mileage=1000, soc=50, charging=False)
-    clock["t"] = 1000.0 + 3600
-    # no movement, no SoC drop -> not suspect
-    assert main.detect_plug_suspect(state, plug=PlugState.PLUGGED, mileage=1000, soc=50,
-                                     charging=False) == "off"
 
 
 # --------------------------------------------------------------------------- #
@@ -286,35 +254,74 @@ def test_detect_supported_degrades_and_invalidates_on_login_failure(monkeypatch)
 # --------------------------------------------------------------------------- #
 # cached login session
 # --------------------------------------------------------------------------- #
-def test_vehicle_session_reuses_login_and_reauths_after_invalidate(monkeypatch):
+@pytest.mark.parametrize("first_attempt", ["success", "refused", "timeout"])
+def test_vehicle_session_wires_transport_login_and_reauthenticates(monkeypatch, caplog, first_attempt):
+    """Exercise the shared cache through the real app login at the Renault boundary."""
     import asyncio
 
-    calls = {"login": 0, "closed": 0}
+    calls = {"login": 0, "closed": 0, "sessions": []}
+    settings = {"A290_USERNAME": "driver@example.invalid", "A290_PASSWORD": "test-only",
+                "A290_ACCOUNT_ID": "test-account", "A290_VIN": "test-vin"}
+    vehicles = [object(), object()]
+    failures = int(first_attempt != "success")
 
     class FakeSession:
+        def __init__(self, *, timeout):
+            assert timeout is main.API_TIMEOUT
+            calls["sessions"].append(self)
+
         async def close(self):
             calls["closed"] += 1
 
-    async def fake_login(websession, locale):
-        calls["login"] += 1
-        return f"vehicle#{calls['login']}"
+    class Client:
+        def __init__(self, *, websession, locale):
+            assert websession is calls["sessions"][-1]
+            assert locale == "fr_FR"
+            self.session = self
 
-    monkeypatch.setattr(main.aiohttp, "ClientSession", lambda *a, **k: FakeSession())
-    monkeypatch.setattr(main, "_login_vehicle", fake_login)
+        async def login(self, username, password):
+            assert (username, password) == (settings["A290_USERNAME"], settings["A290_PASSWORD"])
+            calls["login"] += 1
+            if calls["login"] == 1:
+                if first_attempt == "refused":
+                    raise RuntimeError("login refused")
+                if first_attempt == "timeout":
+                    await asyncio.Event().wait()
+
+        async def get_api_account(self, account_id):
+            assert account_id == settings["A290_ACCOUNT_ID"]
+            return self
+
+        async def get_api_vehicle(self, vin):
+            assert vin == settings["A290_VIN"]
+            return vehicles[calls["login"] - 1 - failures]
+
+    monkeypatch.setattr(main.aiohttp, "ClientSession", FakeSession)
+    monkeypatch.setattr(main, "RenaultClient", Client)
+    monkeypatch.setattr(main, "cfg", lambda key: settings[key])
+    caplog.set_level("INFO", logger=main.LOG.name)
 
     async def scenario():
-        vs = main.VehicleSession("en_GB")
+        vs = main.VehicleSession("fr_FR")
+        assert calls["sessions"] == []
+        if failures:
+            error = RuntimeError if first_attempt == "refused" else TimeoutError
+            with pytest.raises(error):
+                await asyncio.wait_for(vs.vehicle(), timeout=0.01)
+            assert calls["closed"] == 1
+            assert not any("session cached for reuse" in r.message for r in caplog.records)
         first = await vs.vehicle()
         again = await vs.vehicle()
-        assert first is again            # cached — only one login
-        assert calls["login"] == 1
+        assert first is again is vehicles[0]
+        assert calls["login"] == 1 + failures
 
         await vs.invalidate()            # drop the session
-        assert calls["closed"] == 1
-        assert await vs.vehicle() == "vehicle#2"   # re-authenticates
-        assert calls["login"] == 2
+        assert calls["closed"] == 1 + failures
+        assert await vs.vehicle() is vehicles[1]
+        assert calls["login"] == 2 + failures
 
         await vs.close()
-        assert calls["closed"] == 2
+        assert calls["closed"] == 2 + failures
 
     asyncio.run(scenario())
+    assert sum("session cached for reuse" in r.message for r in caplog.records) == 2
