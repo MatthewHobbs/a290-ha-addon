@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.30.3
 
 - **Fixed: Start Climate works when `precondition_temperature` is left empty.** On installs where
   the temperature was left empty — the default on new installs of 1.30.2, or after clearing the
