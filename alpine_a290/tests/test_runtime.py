@@ -13,7 +13,7 @@ from renault_api.exceptions import NotAuthenticatedException
 from renault_api.gigya.exceptions import PendingTwoFactorAuthenticationException
 from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.kamereon.exceptions import InvalidInputException, UnauthorizedException
-from renault_mqtt import charge, config, debug, mqtt
+from renault_mqtt import config, debug, mqtt
 
 
 def ns(**kw):
@@ -158,50 +158,6 @@ def test_poll_once_produces_every_catalog_key(monkeypatch):
     assert {"battery_level", "plug_status", "charging", "plug_suspect"} <= set(data)
 
 
-def test_poll_once_available_energy_falls_back_to_soc_estimate(monkeypatch):
-    monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
-
-    class NoEnergyBattery(FakeBattery):
-        def __init__(self, **kw):
-            super().__init__(**kw)
-            del self.batteryAvailableEnergy          # car doesn't report it (e.g. the R5)
-
-    class V(FakeVehicle):
-        async def get_battery_status(self):
-            return NoEnergyBattery()
-
-    data, _ = asyncio.run(main.poll_once(FakeVSession(V()), {}, 52.0, set(), "km"))
-    assert data["available_energy"] == 31.2          # 60 % SoC × 52 kWh, not unknown
-
-
-def test_poll_once_uses_charges_endpoint_when_supported(monkeypatch):
-    monkeypatch.setattr(main, "now_ts", lambda: 1000.0)
-    monkeypatch.setattr(charge, "now_ts", lambda: 1000.0)   # charges_last_fetch is stamped in charge's ns
-    state = {}
-    data, _ = asyncio.run(
-        main.poll_once(FakeVSession(FakeVehicle()), state, 52.0, {"charges"}, "km"))
-    # Last Charge comes from the authoritative charges endpoint, not the (empty) inference
-    assert data["last_charge_end"] == "2026-06-21T03:00:00+00:00"
-    assert data["last_charge_recovered_pct"] == 45
-    assert data["last_charge_duration_min"] == 180          # 3 h from timestamps
-    assert state["real_last_charge"]["last_charge_end_soc"] == 80
-    assert state["charges_last_fetch"] == 1000.0            # throttle timestamp recorded
-
-
-class ChargesFailVehicle(FakeVehicle):
-    async def get_charges(self, start, end):
-        raise RuntimeError("charges forbidden")
-
-
-def test_poll_once_charges_failure_is_non_fatal(monkeypatch):
-    monkeypatch.setattr(main, "now_ts", lambda: 0.0)
-    # endpoint errors -> poll still succeeds, just no authoritative Last Charge
-    data, _ = asyncio.run(
-        main.poll_once(FakeVSession(ChargesFailVehicle()), {}, 52.0, {"charges"}, "km"))
-    assert data["battery_level"] == 60
-    assert "last_charge_end" not in data
-
-
 class BatteryUnauthorizedVehicle(FakeVehicle):
     async def get_battery_status(self):
         raise UnauthorizedException("err.func.wired.unauthorized", "Not authorized")
@@ -226,73 +182,6 @@ def test_unauthorized_on_an_optional_request_is_swallowed_by_poll_once():
         main.poll_once(FakeVSession(CockpitUnauthorizedVehicle()), {}, 52.0, set(), "km"))
     assert data["battery_level"] == 60
     assert "mileage" not in data
-
-
-class FlakyVehicle(FakeVehicle):
-    async def get_cockpit(self):
-        raise RuntimeError("cockpit down")
-
-    async def get_hvac_status(self):
-        raise RuntimeError("hvac down")
-
-    async def get_hvac_settings(self):
-        raise RuntimeError("hvac-settings down")
-
-    async def get_charge_schedule(self):
-        raise RuntimeError("settings down")
-
-    async def get_battery_soc(self):
-        raise RuntimeError("soc down")
-
-    async def get_location(self):
-        return ns(gpsLatitude=None, gpsLongitude=None, lastUpdateTime=None)
-
-
-def test_poll_once_tolerates_endpoint_failures(monkeypatch):
-    monkeypatch.setattr(main, "now_ts", lambda: 0.0)
-    data, attrs = asyncio.run(
-        main.poll_once(FakeVSession(FlakyVehicle(), locale="fr_FR"), {}, 52.0, set(), "mi"))
-    assert attrs is None                 # no GPS fix
-    assert "mileage" not in data         # cockpit failed
-    assert data["drive_side"] == "LHD"   # fr_FR is left-hand drive
-
-
-class OptionalFailVehicle(FakeVehicle):
-    async def get_tyre_pressure(self):
-        raise RuntimeError("tpms down")
-
-    async def get_charge_mode(self):
-        raise RuntimeError("mode down")
-
-    async def get_location(self):
-        raise RuntimeError("gps down")
-
-
-def test_poll_once_optional_endpoint_failures(monkeypatch):
-    monkeypatch.setattr(main, "now_ts", lambda: 0.0)
-    data, attrs = asyncio.run(
-        main.poll_once(FakeVSession(OptionalFailVehicle()), {}, 52.0,
-                       {"pressure", "charge-mode"}, "km"))
-    assert attrs is None                 # location fetch raised
-    assert "tyre_pressure_fl" not in data
-    assert "charge_mode" not in data
-
-
-def test_poll_once_skips_location_when_publish_disabled(monkeypatch):
-    monkeypatch.setattr(main, "now_ts", lambda: 0.0)
-    monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", False)
-    calls = []
-
-    class NoLocVehicle(FakeVehicle):
-        async def get_location(self):
-            calls.append("get_location")
-            return await super().get_location()
-
-    data, attrs = asyncio.run(
-        main.poll_once(FakeVSession(NoLocVehicle()), {}, 52.0, set(), "km"))
-    assert attrs is None                       # nothing published
-    assert "gps_last_activity" not in data     # and no location-derived field set
-    assert calls == []
 
 
 # Every logger renault-api 0.5.13 creates. At DEBUG they log unredacted Kamereon bodies (VIN,
@@ -360,91 +249,9 @@ def _fake_client_session(monkeypatch):
     monkeypatch.setattr(main.aiohttp, "ClientSession", lambda *a, **k: S())
 
 
-def test_run_command_dispatches(monkeypatch):
-    v = FakeVehicle()
-    _fake_client_session(monkeypatch)
-
-    async def fake_login(ws, locale):
-        return v
-
-    monkeypatch.setattr(main, "_login_vehicle", fake_login)
-    asyncio.run(main.run_command("horn"))
-    assert v.horned is True
-
-
-def test_run_command_unknown_is_ignored():
-    asyncio.run(main.run_command("does-not-exist"))
-
-
-def test_run_command_error_is_swallowed(monkeypatch):
-    _fake_client_session(monkeypatch)
-
-    async def boom(ws, locale):
-        raise RuntimeError("login failed")
-
-    monkeypatch.setattr(main, "_login_vehicle", boom)
-    asyncio.run(main.run_command("horn"))
-
-
-def test_run_command_debounces_repeat(monkeypatch):
-    monkeypatch.setattr(main, "_debounce_now", lambda: 1000.0)
-    main._last_command["horn"] = 998.0               # 2s ago, inside the 5s window
-    called = {"login": 0}
-
-    async def login(ws, loc):
-        called["login"] += 1
-
-    _fake_client_session(monkeypatch)
-    monkeypatch.setattr(main, "_login_vehicle", login)
-    asyncio.run(main.run_command("horn"))
-    assert called["login"] == 0                       # suppressed, never logged in
-
-
-def test_debounce_is_per_command_and_ends_after_the_window(monkeypatch):
-    sent = []
-
-    class V:
-        async def start_horn(self):
-            sent.append("horn")
-
-        async def start_lights(self):
-            sent.append("lights")
-
-    _login_as(monkeypatch, V())
-    clock = {"t": 1000.0}
-    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
-    for t, cmd in ((1000.0, "horn"), (1004.9, "horn"), (1004.9, "lights"), (1005.0, "horn")):
-        clock["t"] = t
-        asyncio.run(main.run_command(cmd))
-    assert sent == ["horn", "lights", "horn"]         # only the repeat inside 5s was dropped
-
-
-def test_a_wall_clock_step_back_does_not_hold_the_button(monkeypatch):
-    """An NTP or manual correction moved the wall clock back 100s between two presses, 10s apart
-    in real time. The debounce must measure the real gap, not the wall-clock difference."""
-    v = _Horn()
-    _login_as(monkeypatch, v)
-    wall, mono = {"t": 1000.0}, {"t": 5000.0}
-    monkeypatch.setattr(main, "now_ts", lambda: wall["t"])
-    monkeypatch.setattr(main, "_debounce_now", lambda: mono["t"], raising=False)
-    asyncio.run(main.run_command("horn"))              # completed; no longer in flight
-    wall["t"], mono["t"] = 900.0, 5010.0
-    asyncio.run(main.run_command("horn"))
-    assert v.honks == 2
-
-
 def test_the_debounce_clock_is_monotonic(monkeypatch):
     monkeypatch.setattr(main.time, "monotonic", lambda: 42.0)
     assert main._debounce_now() == 42.0
-
-
-def test_a_first_press_soon_after_boot_is_sent(monkeypatch):
-    """Monotonic time starts near zero at boot; a button never pressed must not read as pressed at 0."""
-    v = _Horn()
-    _login_as(monkeypatch, v)
-    monkeypatch.setattr(main, "_debounce_now", lambda: 1.0, raising=False)
-    asyncio.run(main.run_command("horn"))
-    assert v.honks == 1
 
 
 class _Horn:
@@ -457,85 +264,10 @@ class _Horn:
             raise RuntimeError("action failed at the car")
 
 
-def test_a_press_that_never_reached_the_car_does_not_block_the_retry(monkeypatch):
-    """The login failed, so nothing was sent; the retry inside the window must go through."""
-    v, logins = _Horn(), {"n": 0}
-
-    async def login(ws, loc):
-        logins["n"] += 1
-        if logins["n"] == 1:
-            raise RuntimeError("login failed")
-        return v
-
-    _fake_client_session(monkeypatch)
-    monkeypatch.setattr(main, "_login_vehicle", login)
-    clock = {"t": 1000.0}
-    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
-    asyncio.run(main.run_command("horn"))
-    clock["t"] = 1001.0                                # well inside the 5s window
-    asyncio.run(main.run_command("horn"))
-    assert (logins["n"], v.honks) == (2, 1)
-
-
-def test_a_press_that_failed_during_the_action_still_debounces(monkeypatch):
-    """Once the action has started the outcome is unknown, so a retry could send it twice."""
-    v = _Horn(fail=True)
-    _login_as(monkeypatch, v)
-    clock = {"t": 1000.0}
-    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
-    asyncio.run(main.run_command("horn"))
-    clock["t"] = 1001.0
-    asyncio.run(main.run_command("horn"))
-    assert v.honks == 1
-
-
-@pytest.mark.parametrize("login_fails", [False, True])
-def test_simultaneous_presses_pass_the_debounce_once(monkeypatch, login_fails):
-    """Two presses scheduled together: only one gets past the check. If that one then fails at
-    login, the other has already been dropped, so nothing is sent; that is accepted, and the
-    cleared stamp lets the next press through straight away."""
-    v, logins = _Horn(), {"n": 0}
-
-    async def login(ws, loc):
-        logins["n"] += 1
-        await asyncio.sleep(0)                         # the second press arrives mid-login
-        if login_fails:
-            raise RuntimeError("login failed")
-        return v
-
-    _fake_client_session(monkeypatch)
-    monkeypatch.setattr(main, "_login_vehicle", login)
-    monkeypatch.setattr(main, "_debounce_now", lambda: 1000.0)
-
-    async def both():
-        await asyncio.gather(main.run_command("horn"), main.run_command("horn"))
-
-    asyncio.run(both())
-    assert logins["n"] == 1
-    assert v.honks == (0 if login_fails else 1)
-    assert ("horn" in main._last_command) is not login_fails
-
-
 def _bounded(coro):
     """Run a scenario that parks logins on an event, failing instead of hanging if a regression
     leaves a command waiting on a login nobody releases."""
     return asyncio.run(asyncio.wait_for(coro, 2))
-
-
-def _blocking_login(monkeypatch, vehicle, fail=False):
-    """Every login waits on the returned event, then succeeds (or raises if `fail`)."""
-    gate, logins = asyncio.Event(), {"n": 0}
-
-    async def login(ws, loc):
-        logins["n"] += 1
-        await gate.wait()
-        if fail:
-            raise RuntimeError("login timed out")
-        return vehicle
-
-    _fake_client_session(monkeypatch)
-    monkeypatch.setattr(main, "_login_vehicle", login)
-    return gate, logins
 
 
 def test_climate_stop_waits_for_the_earlier_start_login(monkeypatch):
@@ -584,180 +316,6 @@ def test_climate_stop_waits_for_the_earlier_start_login(monkeypatch):
     _bounded(scenario())
 
 
-def test_blocked_horn_login_does_not_block_independent_lights(monkeypatch):
-    async def scenario():
-        entered, release, lit = asyncio.Event(), asyncio.Event(), asyncio.Event()
-
-        class V(FakeVehicle):
-            async def start_lights(self):
-                lit.set()
-
-        async def login(ws, loc):
-            if asyncio.current_task().get_name() == "horn":
-                entered.set()
-                await release.wait()
-            return V()
-
-        _fake_client_session(monkeypatch)
-        monkeypatch.setattr(main, "_login_vehicle", login)
-        tasks = [asyncio.create_task(main.run_command("horn"), name="horn")]
-        try:
-            await entered.wait()
-            tasks.append(asyncio.create_task(main.run_command("lights")))
-            await lit.wait()
-            assert not tasks[0].done()
-            release.set()
-            await asyncio.gather(*tasks)
-        finally:
-            release.set()
-            for task in tasks:
-                task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
-
-    _bounded(scenario())
-
-
-@pytest.mark.parametrize("stage", ["queued", "login", "action"])
-def test_cancelled_climate_command_releases_queue_and_preserves_retry_rules(monkeypatch, stage):
-    monkeypatch.setattr(main, "_debounce_now", lambda: 1000.0)
-
-    async def scenario():
-        entered, release, submitted = asyncio.Event(), asyncio.Event(), asyncio.Event()
-        actions = []
-
-        class V(FakeVehicle):
-            async def set_ac_start(self, temp):
-                actions.append("start")
-                if stage == "action":
-                    entered.set()
-                    await release.wait()
-
-            async def set_ac_stop(self):
-                actions.append("stop")
-
-        async def login(ws, loc):
-            if asyncio.current_task().get_name() == "start" and stage != "action":
-                entered.set()
-                await release.wait()
-            return V()
-
-        async def stop():
-            submitted.set()
-            await main.run_command("climate_stop")
-
-        _fake_client_session(monkeypatch)
-        monkeypatch.setattr(main, "_login_vehicle", login)
-        tasks = [asyncio.create_task(main.run_command("climate_start"), name="start")]
-        try:
-            await entered.wait()
-            tasks.append(asyncio.create_task(stop()))
-            await submitted.wait()
-            cancelled = tasks[1] if stage == "queued" else tasks[0]
-            cancelled.cancel()
-            with pytest.raises(asyncio.CancelledError):
-                await cancelled
-            if stage == "queued":
-                tasks.append(asyncio.create_task(main.run_command("climate_stop")))
-            release.set()
-            await asyncio.gather(*(task for task in tasks if task is not cancelled))
-            if stage != "queued":
-                await main.run_command("climate_start")
-            assert actions == (["stop", "start"] if stage == "login" else ["start", "stop"])
-        finally:
-            release.set()
-            for task in tasks:
-                task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
-
-    _bounded(scenario())
-
-
-def test_a_repeat_after_the_window_is_ignored_while_the_first_is_still_being_sent(monkeypatch):
-    """A login can take up to the 60s API timeout, so the 5s window alone let a second identical
-    press through while the first was still logging in, and both reached the car."""
-    v, clock = _Horn(), {"t": 1000.0}
-    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
-
-    async def scenario():
-        gate, logins = _blocking_login(monkeypatch, v)
-        first = asyncio.create_task(main.run_command("horn"))
-        await asyncio.sleep(0)                         # first is now waiting in login
-        clock["t"] = 1006.0                            # past the 5s window
-        second = asyncio.create_task(main.run_command("horn"))
-        await asyncio.sleep(0)
-        gate.set()                                     # release every login, successfully
-        await asyncio.gather(first, second)
-        return logins["n"]
-
-    assert _bounded(scenario()) == 1
-    assert v.honks == 1
-
-
-def test_a_failed_slow_login_frees_the_button_for_the_next_press(monkeypatch):
-    """The repeat that arrived mid-login was dropped; once the login fails and nothing was sent,
-    the next press goes through."""
-    v, clock = _Horn(), {"t": 1000.0}
-    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
-
-    async def scenario():
-        gate, logins = _blocking_login(monkeypatch, v, fail=True)
-        first = asyncio.create_task(main.run_command("horn"))
-        await asyncio.sleep(0)
-        clock["t"] = 1006.0
-        await main.run_command("horn")                 # in flight: ignored, no login
-        gate.set()
-        await first                                    # fails at login
-        assert logins["n"] == 1
-        monkeypatch.setattr(main, "_login_vehicle", lambda ws, loc: _acoro_value(v))
-        clock["t"] = 1006.5
-        await main.run_command("horn")
-
-    _bounded(scenario())
-    assert v.honks == 1
-    assert "horn" not in main._in_flight
-
-
-async def _acoro_value(value):
-    return value
-
-
-@pytest.mark.parametrize("stage", ["login", "action"])
-def test_a_cancelled_command_does_not_wedge_the_button(monkeypatch, stage):
-    """A cancelled task must clear the in-flight mark. Before dispatch nothing was sent, so the
-    stamp goes too and the next press is sent at once; once the action has started the outcome is
-    unknown, so the stamp stays and the 5s window applies."""
-    clock = {"t": 1000.0}
-    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
-
-    class Hangs(_Horn):
-        async def start_horn(self):
-            self.honks += 1
-            if self.honks == 1 and stage == "action":
-                await asyncio.Event().wait()
-
-    v = Hangs()
-
-    async def scenario():
-        gate, _ = _blocking_login(monkeypatch, v)
-        if stage == "action":
-            gate.set()
-        task = asyncio.create_task(main.run_command("horn"))
-        for _ in range(3):
-            await asyncio.sleep(0)                     # reach the login or the action
-        assert "horn" in main._in_flight
-        task.cancel()
-        with pytest.raises(asyncio.CancelledError):
-            await task
-        assert "horn" not in main._in_flight
-        gate.set()
-        before = v.honks
-        clock["t"] = 1001.0
-        await main.run_command("horn")                 # inside the 5s window
-        return v.honks - before
-
-    assert _bounded(scenario()) == (1 if stage == "login" else 0)
-
-
 # --------------------------------------------------------------------------- #
 # charge-limit numbers (set_battery_soc)
 # --------------------------------------------------------------------------- #
@@ -795,126 +353,56 @@ def test_set_soc_min_sends_both_limits(monkeypatch):
     assert v.soc_set == (30, 80)         # target unchanged, min updated
 
 
-def test_set_soc_ignores_non_numeric(monkeypatch):
+def test_set_soc_enforces_catalog_number_ranges(monkeypatch):
     v = SocVehicle()
     _login_as(monkeypatch, v)
-    asyncio.run(main.run_command("soc_target", "not-a-number"))
-    assert v.soc_set is None             # never written
-
-
-# Bounds are read from the catalog so the test follows the sliders, not a copy of their literals.
-_MIN_LO, _MIN_HI = main.NUMBERS["a290_soc_min"][2:4]
-_TGT_LO, _TGT_HI = main.NUMBERS["a290_soc_target"][2:4]
-
-
-@pytest.mark.parametrize("cmd,payload", [
-    ("soc_target", str(_TGT_HI + 1)),
-    ("soc_target", str(_TGT_LO - 1)),
-    ("soc_target", "500"),
-    ("soc_target", "-5"),
-    ("soc_target", "0"),
-    ("soc_min", str(_MIN_HI + 1)),
-    ("soc_min", str(_MIN_LO - 1)),
-    ("soc_target", "inf"),
-    ("soc_target", "-inf"),
-    ("soc_min", "nan"),
-    ("soc_min", "45.9"),     # fractional: would truncate to an in-range 45
-    ("soc_min", "17"),       # in range, off the slider's step of 5
-    ("soc_target", "57"),
-])
-def test_set_soc_rejects_out_of_range_or_non_finite(monkeypatch, caplog, cmd, payload):
-    v = SocVehicle()
-    _login_as(monkeypatch, v)
-    with caplog.at_level(logging.WARNING, logger=main.LOG.name):
-        asyncio.run(main.run_command(cmd, payload))
-    assert v.soc_set is None             # nothing sent to the car
-    assert any(r.levelno == logging.WARNING and cmd in r.getMessage() for r in caplog.records)
-
-
-@pytest.mark.parametrize("cmd,payload,expected", [
-    ("soc_target", str(_TGT_LO), (20, _TGT_LO)),
-    ("soc_target", str(_TGT_HI), (20, _TGT_HI)),
-    ("soc_min", str(_MIN_LO), (_MIN_LO, 80)),
-    ("soc_min", str(_MIN_HI), (_MIN_HI, 80)),
-])
-def test_set_soc_accepts_range_edges(monkeypatch, cmd, payload, expected):
-    v = SocVehicle()
-    _login_as(monkeypatch, v)
-    asyncio.run(main.run_command(cmd, payload))
-    assert v.soc_set == expected
-
-
-@pytest.mark.parametrize("car_target", [_MIN_HI - 5, _MIN_HI])   # below, and equal (the >= edge)
-def test_set_soc_rejects_min_not_below_target(monkeypatch, caplog, car_target):
-    # In range on its own, but the car's current target (set elsewhere, e.g. the My Alpine app)
-    # is not above it, so the pair is invalid.
-    class LowTarget(SocVehicle):
-        async def get_battery_soc(self):
-            return ns(socTarget=car_target, socMin=_MIN_LO)
-
-    v = LowTarget()
-    _login_as(monkeypatch, v)
-    with caplog.at_level(logging.WARNING, logger=main.LOG.name):
-        asyncio.run(main.run_command("soc_min", str(_MIN_HI)))
+    min_lo, min_hi, min_step = main.NUMBER_RANGES["soc_min"]
+    tgt_lo, tgt_hi, tgt_step = main.NUMBER_RANGES["soc_target"]
+    assert (min_lo, min_hi, min_step) == main.NUMBERS["a290_soc_min"][2:5]
+    assert (tgt_lo, tgt_hi, tgt_step) == main.NUMBERS["a290_soc_target"][2:5]
+    asyncio.run(main.run_command("soc_target", str(tgt_hi + 1)))
+    asyncio.run(main.run_command("soc_min", str(min_lo + 1)))
     assert v.soc_set is None
-    assert any("must be below target" in r.getMessage() for r in caplog.records)
+    asyncio.run(main.run_command("soc_min", str(min_lo)))
+    assert v.soc_set == (min_lo, 80)
 
 
-def test_set_soc_bails_when_opposing_limit_missing(monkeypatch):
-    class NoLimits(SocVehicle):
-        async def get_battery_soc(self):
-            return ns(socTarget=None, socMin=None)
+def test_run_command_debounces_and_clears_stamp_when_login_fails(monkeypatch):
+    v, logins = _Horn(), {"n": 0}
+    gate = None
 
-    v = NoLimits()
-    _login_as(monkeypatch, v)
-    asyncio.run(main.run_command("soc_target", "90"))
-    assert v.soc_set is None             # bailed: current limits unavailable
-
-
-def test_concurrent_soc_sets_do_not_clobber(monkeypatch):
-    car = {"min": 20, "target": 80}
-
-    class V:
-        async def get_battery_soc(self):
-            return ns(socMin=car["min"], socTarget=car["target"])
-
-        async def set_battery_soc(self, *, min, target):
-            await asyncio.sleep(0)               # yield — interleaves without the lock
-            car["min"], car["target"] = min, target
+    async def login(ws, loc):
+        logins["n"] += 1
+        if gate is not None:
+            await gate.wait()
+        if logins["n"] == 1:
+            raise RuntimeError("login failed")
+        return v
 
     _fake_client_session(monkeypatch)
+    monkeypatch.setattr(main, "_login_vehicle", login)
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(main, "_debounce_now", lambda: clock["t"])
 
-    async def fake_login(ws, locale):
-        return V()
+    async def in_flight_check():
+        nonlocal gate
+        gate = asyncio.Event()
+        first = asyncio.create_task(main.run_command("horn"))
+        await asyncio.sleep(0)
+        assert "horn" in main._in_flight
+        clock["t"] = 1006.0
+        await main.run_command("horn")
+        gate.set()
+        await first
+        assert "horn" not in main._in_flight
 
-    monkeypatch.setattr(main, "_login_vehicle", fake_login)
-
-    async def both():
-        await asyncio.gather(main.run_command("soc_min", "30"),
-                             main.run_command("soc_target", "90"))
-
-    asyncio.run(both())
-    assert car == {"min": 30, "target": 90}      # both survived -> writes serialised
-
-
-def test_set_soc_error_is_swallowed(monkeypatch):
-    _fake_client_session(monkeypatch)
-
-    async def boom(ws, locale):
-        raise RuntimeError("login failed")
-
-    monkeypatch.setattr(main, "_login_vehicle", boom)
-    asyncio.run(main.run_command("soc_target", "90"))   # no raise
-
-
-def test_numbers_not_debounced(monkeypatch):
-    # A number set must not be dropped by the button debounce window.
-    monkeypatch.setattr(main, "_debounce_now", lambda: 1000.0)
-    v = SocVehicle()
-    _login_as(monkeypatch, v)
-    asyncio.run(main.run_command("soc_target", "70"))
-    asyncio.run(main.run_command("soc_target", "75"))   # immediate repeat still applies
-    assert v.soc_set == (20, 75)
+    _bounded(in_flight_check())
+    gate = None
+    clock["t"] = 1007.0
+    asyncio.run(main.run_command("horn"))
+    clock["t"] = 1008.0
+    asyncio.run(main.run_command("horn"))
+    assert (logins["n"], v.honks) == (2, 1)
 
 
 def test_detect_supported_adds_soc_levels(monkeypatch):
@@ -926,23 +414,82 @@ def test_detect_supported_adds_soc_levels(monkeypatch):
     assert main.SOC_ENDPOINT in supported
 
 
-# --------------------------------------------------------------------------- #
-# detect_supported (success path)
-# --------------------------------------------------------------------------- #
-def test_detect_supported_success(monkeypatch):
+def test_detection_wires_catalog_defaults_probe_logging_and_pending_retry(caplog):
+    calls, failed = [], []
+
     class V:
-        def __init__(self, s):
-            self._s = s
-
         async def supports_endpoint(self, ep):
-            return ep in self._s
+            calls.append(ep)
+            if len(failed) < len(main.SUPPORT_ENDPOINTS):
+                failed.append(ep)
+                raise RuntimeError("probe unavailable")
+            return ep == main.SOC_ENDPOINT
 
-    vs = FakeVSession(V({"pressure", "actions/horn-start", "actions/hvac-start"}))
-    supported = asyncio.run(main.detect_supported(vs))
-    assert "pressure" in supported
-    assert "charge-mode" not in supported          # not supported -> discarded
-    assert "actions/horn-start" in supported
-    assert "actions/charge-start" not in supported  # forbidden -> not added
+    vs = FakeVSession(V())
+    pending = set(main.SUPPORT_ENDPOINTS)
+    with caplog.at_level(logging.INFO):
+        supported = asyncio.run(main.detect_supported(vs, unresolved=pending))
+        assert supported == set(main.OPTIONAL_ENDPOINTS) - main.PESSIMISTIC_ENDPOINTS
+        assert pending == main.SUPPORT_ENDPOINTS
+        assert calls == sorted(main.SUPPORT_ENDPOINTS)
+        assert not vs.invalidated
+        assert asyncio.run(main.detect_supported(vs, supported, pending)) is supported
+    assert supported == {main.SOC_ENDPOINT} and pending == set()
+    assert calls == sorted(main.SUPPORT_ENDPOINTS) * 2
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING]
+    assert warnings == [f"supports_endpoint({ep}) check failed: probe unavailable" for ep in sorted(main.SUPPORT_ENDPOINTS)]
+    assert [r.getMessage() for r in caplog.records if r.levelno == logging.INFO] == [
+        f"Supported optional endpoints: {sorted(set(main.OPTIONAL_ENDPOINTS) - main.PESSIMISTIC_ENDPOINTS)}",
+        f"Supported optional endpoints: {[main.SOC_ENDPOINT]}",
+    ]
+
+
+def test_detection_preserves_model_defaults_and_completed_answers_on_cancellation():
+    class V:
+        async def supports_endpoint(self, ep):
+            if ep == "actions/charge-start":
+                return True
+            raise asyncio.CancelledError
+
+    defaults = set(main.OPTIONAL_ENDPOINTS) - main.PESSIMISTIC_ENDPOINTS
+    supported, pending = set(defaults), {"actions/charge-start", main.SOC_ENDPOINT}
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(main.detect_supported(FakeVSession(V()), supported, pending))
+    assert defaults | {"actions/charge-start"} <= supported
+    assert "actions/charge-start" not in pending
+    assert main.SOC_ENDPOINT in pending
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_detection_outer_failure_adapters_preserve_sets_and_propagate_cancellation(monkeypatch, caplog, cancelled):
+    error = asyncio.CancelledError() if cancelled else RuntimeError("synthetic outer failure")
+    invalidated, redacted = [], []
+
+    class VS:
+        async def vehicle(self):
+            raise error
+
+        async def invalidate(self):
+            invalidated.append(True)
+
+    def redact(err):
+        redacted.append(err)
+        return "masked failure"
+
+    monkeypatch.setattr(main, "redact", redact)
+    supported, pending = {"known"}, set(main.SUPPORT_ENDPOINTS)
+    if cancelled:
+        with pytest.raises(asyncio.CancelledError) as caught:
+            asyncio.run(main.detect_supported(VS(), supported, pending))
+        assert caught.value is error
+        assert invalidated == redacted == [] and caplog.records == []
+    else:
+        assert asyncio.run(main.detect_supported(VS(), supported, pending)) is supported
+        assert invalidated == [True] and redacted == [error]
+        assert [r.getMessage() for r in caplog.records] == [
+            "Endpoint-support detection failed (keeping prior support): masked failure",
+        ]
+    assert supported == {"known"} and pending == main.SUPPORT_ENDPOINTS
 
 
 # --------------------------------------------------------------------------- #
@@ -1108,20 +655,6 @@ def test_save_state_swallows_oserror(monkeypatch, tmp_path):
     main.save_state({"a": 1})   # logged + swallowed
 
 
-def test_vehicle_session_invalidate_swallows_close_error():
-    class BadSession:
-        async def close(self):
-            raise RuntimeError("close failed")
-
-    async def scenario():
-        vs = main.VehicleSession("en_GB")
-        vs._websession = BadSession()
-        await vs.invalidate()
-        assert vs._websession is None
-
-    asyncio.run(scenario())
-
-
 def test_detect_supported_handles_probe_errors():
     class V:
         async def supports_endpoint(self, ep):
@@ -1182,6 +715,37 @@ def _wire_main(monkeypatch, poll):
 
         def __init__(self):
             self.pubs = []
+            self.snapshots = self
+            self.connected = True
+            self.latest = None
+            self.location = None
+            self.closed = False
+
+        def update(self, data, **kwargs):
+            self.latest = json.dumps(data)
+            if not mqtt.PUBLISH_LOCATION:
+                self.location = ""
+            elif "location" in kwargs:
+                self.location = json.dumps(kwargs["location"]) if kwargs["location"] else ""
+            self.replay()
+
+        def replay(self):
+            if self.connected and self.latest is not None and not self.closed:
+                self.publish(mqtt.STATE_TOPIC, self.latest, retain=True)
+                if self.location is not None:
+                    self.publish(mqtt.ATTR_TOPIC, self.location, retain=True)
+                self.publish(mqtt.AVAIL_TOPIC, "online", retain=True)
+
+        def connect(self):
+            self.connected = True
+            mqtt.publish_discovery(self, mqtt._MQTT_CTX["supported"], mqtt._MQTT_CTX["dist_unit"])
+            self.replay()
+
+        async def close(self):
+            self.closed = True
+            self.publish(mqtt.AVAIL_TOPIC, "offline", retain=True)
+            self.disconnect()
+            self.loop_stop()
 
         def publish(self, topic, payload="", retain=False):
             self.pubs.append((topic, payload, retain))
@@ -1202,17 +766,21 @@ def _wire_main(monkeypatch, poll):
         async def close(self):
             pass
 
-    async def fake_detect(vs, *, unresolved):
+    async def fake_detect(vs, supported=None, unresolved=None):
         unresolved.clear()
-        return set()
+        return supported
 
-    async def fake_health():
+    async def fake_health(health_state=None):
         return ns(cleanup=_acoro)
 
     monkeypatch.setattr(main, "VehicleSession", FakeVS)
     monkeypatch.setattr(main, "detect_supported", fake_detect)
     fc = FakeClient()
-    monkeypatch.setattr(mqtt, "mqtt_connect", lambda: fc)
+    def connect(*, snapshots=False):
+        assert snapshots, "The app must opt into startup snapshot delivery"
+        return fc
+
+    monkeypatch.setattr(mqtt, "mqtt_connect", connect)
     monkeypatch.setattr(mqtt, "publish_discovery", lambda *a, **k: None)
     monkeypatch.setattr(main, "start_health_server", fake_health)
     monkeypatch.setattr(main.deploy, "run_deploy", _acoro)
@@ -1276,9 +844,16 @@ def test_main_recovers_discovery_after_transient_detection_failure(monkeypatch, 
     monkeypatch.setattr(main, "VehicleSession", VS)
     monkeypatch.setattr(main, "detect_supported", real_detect)
     monkeypatch.setattr(mqtt, "publish_discovery", real_discovery)
+    fc.connected = False
     snapshots = []
 
     async def after_cycle(n):
+        if n == 0:
+            fc.connect()
+            if failure == "probe":
+                configs = {t: p for t, p, _ in fc.pubs if t.endswith("/config")}
+                assert not configs[f"{mqtt.DISCOVERY_PREFIX}/button/{mqtt.NODE}/horn/config"]
+                assert configs[f"{mqtt.DISCOVERY_PREFIX}/button/{mqtt.NODE}/lights/config"]
         snapshots.append((dict(mqtt._MQTT_CTX, supported=set(mqtt._MQTT_CTX["supported"])),
                           json.loads((await main._panel_state(None)).text)))
 
@@ -1340,6 +915,8 @@ def test_timed_out_support_retry_keeps_resolved_answers_and_successful_poll(monk
 
 
 def test_main_retains_last_good_snapshot_through_failure_and_recovery(monkeypatch, wire_main):
+    from renault_mqtt import freshness
+
     real_poll = main.poll_once
     base = 1767225600.0  # 2026-01-01T00:00:00Z
     clock, cycle = {"t": base}, {"n": 0}
@@ -1362,6 +939,7 @@ def test_main_retains_last_good_snapshot_through_failure_and_recovery(monkeypatc
     fc = wire_main(real_poll)
     monkeypatch.setattr(main, "VehicleSession", lambda locale: FakeVSession(V(), locale))
     monkeypatch.setattr(main, "now_ts", lambda: clock["t"])
+    monkeypatch.setattr(freshness, "now_ts", lambda: clock["t"])
     monkeypatch.setenv("A290_STALE_HOURS", "1")
     monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", True)
     snapshots = []
@@ -1402,6 +980,74 @@ def test_main_failure_before_first_success_does_not_invent_vehicle_data(monkeypa
     assert data["poll_failing"] == "on" and data["api_auth_failure"] == "off"
     assert not data.get("last_successful_poll")
     assert {"battery_level", "last_updated", "gps_last_activity", "data_stale"}.isdisjoint(data)
+
+
+@pytest.mark.parametrize("first_failure", [False, True])
+def test_main_delayed_connect_delivers_latest_poll_without_another_poll(monkeypatch, wire_main, first_failure):
+    cycle = {"n": 0}
+    location = {"latitude": 1, "longitude": 2}
+
+    async def poll(*args):
+        if first_failure or cycle["n"] == 1:
+            raise RuntimeError("temporary outage")
+        return {"battery_level": 50, "last_updated": "2026-01-01T00:00:00Z"}, location
+
+    fc = wire_main(poll)
+    fc.connected = False
+    monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", True)
+
+    async def after_cycle(n):
+        assert not [p for t, p, _ in fc.pubs if t == mqtt.STATE_TOPIC]
+        if n == 1:
+            fc.connect()
+            data = json.loads([p for t, p, _ in fc.pubs if t == mqtt.STATE_TOPIC][-1])
+            assert data == main._LATEST["data"]
+            assert main._LATEST["ok"] is False
+            if first_failure:
+                assert "battery_level" not in data and fc.location is None
+            else:
+                assert data["battery_level"] == 50
+                assert data["last_updated"] == "2026-01-01T00:00:00Z"
+                assert json.loads(fc.location) == location
+        cycle["n"] += 1
+
+    _main_cycles(monkeypatch, 2, after_cycle)
+    assert fc.closed
+    assert fc.pubs[-1] == (mqtt.AVAIL_TOPIC, "offline", True)
+
+
+@pytest.mark.parametrize("location_enabled", [False, True])
+def test_main_snapshot_location_no_fix_and_optout(monkeypatch, wire_main, location_enabled):
+    real_poll = main.poll_once
+    cycle = {"n": 0}
+
+    class V(FakeVehicle):
+        async def get_location(self):
+            assert location_enabled, "Privacy opt-out must not fetch coordinates"
+            if cycle["n"]:
+                raise RuntimeError("no new fix")
+            return await super().get_location()
+
+    fc = wire_main(real_poll)
+    fc.connected = False
+    monkeypatch.setattr(main, "VehicleSession", lambda locale: FakeVSession(V(), locale))
+    monkeypatch.setattr(mqtt, "PUBLISH_LOCATION", location_enabled)
+    fixes = []
+
+    async def after_cycle(n):
+        fixes.append(fc.location)
+        if n == 1:
+            fc.connect()
+        cycle["n"] += 1
+
+    _main_cycles(monkeypatch, 2, after_cycle)
+    assert fixes[0] == fixes[1]
+    attrs = [p for t, p, _ in fc.pubs if t == mqtt.ATTR_TOPIC]
+    assert attrs == [fixes[0]]
+    if location_enabled:
+        assert set(json.loads(attrs[0])) >= {"latitude", "longitude"}
+    else:
+        assert attrs == [""]
 
 
 def test_main_one_successful_iteration(wire_main):
@@ -1641,30 +1287,6 @@ def test_state_roundtrip(monkeypatch, tmp_path):
     assert main.load_state() == {}            # corrupt file
 
 
-def test_vehicle_session_invalidates_on_login_failure(monkeypatch):
-    closed = {"n": 0}
-
-    class FakeSession:
-        async def close(self):
-            closed["n"] += 1
-
-    monkeypatch.setattr(main.aiohttp, "ClientSession", lambda *a, **k: FakeSession())
-
-    async def boom(ws, loc):
-        raise RuntimeError("login refused")
-
-    monkeypatch.setattr(main, "_login_vehicle", boom)
-
-    async def scenario():
-        vs = main.VehicleSession("en_GB")
-        with pytest.raises(RuntimeError):
-            await vs.vehicle()
-        assert closed["n"] == 1          # half-open session was closed
-        assert vs._vehicle is None
-
-    asyncio.run(scenario())
-
-
 def test_supports_awaits_the_pinned_api():
     """supports_endpoint() is a coroutine in the pinned renault-api, so its result is awaited."""
     class V:
@@ -1711,55 +1333,6 @@ def test_run_command_gates_refresh_location_on_the_opt_in(
     assert logins["n"] == (1 if dispatched else 0)
 
 
-def test_poll_once_skips_hvac_settings_when_the_car_does_not_advertise_it():
-    """A5E1AE (A290) does not list hvac-settings among its supported endpoints, and calling it
-    anyway returned errorCode 502000 on every poll - a warning every five minutes, forever.
-    Gating it means no call and no log spam; the two climate-schedule fields are simply absent."""
-    called = []
-
-    class _V(FakeVehicle):
-        async def get_hvac_settings(self):
-            called.append(1)
-            raise AssertionError("hvac-settings must not be called when unsupported")
-
-    data, _ = asyncio.run(
-        main.poll_once(FakeVSession(_V()), {}, 52.0, {"pressure", "charge-mode"}, "km"))
-    assert not called
-    assert "climate_schedule_mode" not in data and "climate_ready_time" not in data
-
-
-def test_sentinel_fix_does_not_advance_gps_last_activity():
-    """binary_sensor.a290_gps_stale is templated on sensor.*_gps_last_activity. Writing the
-    sentinel's fresh timestamp would disarm the staleness guard at the moment the position became
-    unknown — fixing the coordinates while silencing the sensor that reports the problem.
-    Found in review, after the first cut of the fix did exactly that."""
-    class _V(FakeVehicle):
-        async def get_location(self):
-            return types.SimpleNamespace(gpsLatitude=91, gpsLongitude=181,
-                                         lastUpdateTime="2026-01-01T12:00:00Z")
-
-    data, loc_attrs = asyncio.run(
-        main.poll_once(FakeVSession(_V()), {}, 52.0,
-                       {"pressure", "charge-mode", "hvac-settings"}, "km"))
-    assert loc_attrs is None                      # coordinates rejected
-    assert "gps_last_activity" not in data        # and the guard is NOT disarmed
-
-
-def test_valid_fix_does_advance_gps_last_activity():
-    class _V(FakeVehicle):
-        async def get_location(self):
-            return types.SimpleNamespace(gpsLatitude=51.5, gpsLongitude=-0.1,   # synthetic: valid, in-range, deliberately low-precision
-                                         lastUpdateTime="2026-01-01T12:00:00Z")
-
-    state = {}
-    data, loc_attrs = asyncio.run(
-        main.poll_once(FakeVSession(_V()), state, 52.0,
-                       {"pressure", "charge-mode", "hvac-settings"}, "km"))
-    assert loc_attrs is not None
-    assert data["gps_last_activity"] == "2026-01-01T12:00:00Z"
-    assert state["gps_last_activity"] == "2026-01-01T12:00:00Z"
-
-
 def test_pessimistic_endpoint_is_restored_when_the_car_does_support_it():
     """hvac-settings starts outside the supported set, so the probe loop must be able to ADD it
     back — a discard-only loop would leave it dark forever on cars that do support it, defeating
@@ -1792,24 +1365,6 @@ def test_pessimistic_endpoint_stays_out_when_the_car_does_not_support_it():
     assert "pressure" in supported
 
 
-def test_rejected_fix_carries_the_last_good_timestamp_forward():
-    """`data` is published as a COMPLETE retained state document, so dropping the key renders the
-    sensor empty; the stale guard's `t is not none` then short-circuits to "not stale" — the same
-    disarm as advancing it, by the opposite route. Carrying the last usable fix time forward is
-    the only behaviour that leaves the guard armed. Found in review."""
-    class _V(FakeVehicle):
-        async def get_location(self):
-            return types.SimpleNamespace(gpsLatitude=91, gpsLongitude=181,
-                                         lastUpdateTime="2026-01-01T12:00:00Z")
-
-    st = {"gps_last_activity": "2026-09-02T11:43:14Z"}
-    data, loc_attrs = asyncio.run(
-        main.poll_once(FakeVSession(_V()), st, 52.0,
-                       {"pressure", "charge-mode", "hvac-settings"}, "km"))
-    assert loc_attrs is None
-    assert data["gps_last_activity"] == "2026-09-02T11:43:14Z"   # old, not the sentinel's
-
-
 def test_rejected_fix_falls_back_to_the_last_published_timestamp():
     """state['gps_last_activity'] is introduced by this change, so the first poll after an upgrade
     has no persisted value. If that poll is a sentinel — the case on the vehicle that prompted this
@@ -1831,48 +1386,11 @@ def test_rejected_fix_falls_back_to_the_last_published_timestamp():
         main._LATEST.update(data={})
 
 
-def test_hvac_breaker_stops_calling_after_repeated_failures():
-    """v1.23.0 gated hvac-settings on supports_endpoint(), which returns True on this model while
-    every call answers 502000 — so the warning continued every five minutes. What the endpoint
-    does is the only reliable signal. Bounded log spam, then silence."""
-    calls = []
-
-    class _V(FakeVehicle):
-        async def get_hvac_settings(self):
-            calls.append(1)
-            raise RuntimeError("('err.tech.vcps.ev.hvac-settings.error', '502000')")
-
-    eps = {"pressure", "charge-mode", "hvac-settings"}
-    for _ in range(6):
-        asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-    assert len(calls) == main.BREAKER_TRIP, "must stop calling once the breaker trips"
-    assert main._BREAKERS.get("hvac-settings") is True
-
-
-def test_hvac_breaker_resets_on_success():
-    """A server-side fix must be picked up without intervention, so any success clears the count."""
-    state = {"fail": True}
-
-    class _V(FakeVehicle):
-        async def get_hvac_settings(self):
-            if state["fail"]:
-                raise RuntimeError("502000")
-            return types.SimpleNamespace(raw_data={})
-
-    eps = {"pressure", "charge-mode", "hvac-settings"}
-    for _ in range(main.BREAKER_TRIP - 1):
-        asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-    assert main._BREAKER_FAILS["hvac-settings"] == main.BREAKER_TRIP - 1
-    state["fail"] = False
-    asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-    assert main._BREAKER_FAILS["hvac-settings"] == 0
-    assert not main._BREAKERS.get("hvac-settings")
-
-
-def test_tripped_breaker_retries_and_re_enables_on_recovery():
-    """A tripped breaker that never retried would make "re-enabled automatically" false: the reset
-    lives inside the call it stops making, so recovery would need a restart nobody knows to do.
-    Found in review."""
+def test_hvac_breaker_real_poll_trip_retry_recovery_and_bounded_logging(caplog):
+    """Real poll_once wires BREAKER_TRIP, BREAKER_RETRY_EVERY, _hvac_due, breaker state,
+    bounded warning/recovery logs, and _hvac_schedule_fields across pre-trip reset, trip,
+    silent skipped polls, silent failed retry probe, and retry probe recovery."""
+    assert (main.BREAKER_TRIP, main.BREAKER_RETRY_EVERY) == (3, 12)
     calls = []
     broken = {"v": True}
 
@@ -1880,95 +1398,69 @@ def test_tripped_breaker_retries_and_re_enables_on_recovery():
         async def get_hvac_settings(self):
             calls.append(1)
             if broken["v"]:
-                raise RuntimeError("502000")
-            return types.SimpleNamespace(raw_data={})
+                raise RuntimeError("('err.tech.vcps.ev.hvac-settings.error', '502000')")
+            day = types.SimpleNamespace(readyAtTime="T07:15Z")
+            sched = types.SimpleNamespace(
+                activated=True, monday=day, tuesday=None, wednesday=None,
+                thursday=None, friday=None, saturday=None, sunday=None,
+            )
+            return types.SimpleNamespace(mode="scheduled", schedules=[sched])
 
     eps = {"pressure", "charge-mode", "hvac-settings"}
-    for _ in range(main.BREAKER_TRIP):
-        asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-    assert main._BREAKERS.get("hvac-settings") is True
-    tripped_at = len(calls)
-
-    # skipped while tripped ...
-    for _ in range(main.BREAKER_RETRY_EVERY - 1):
-        asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-    assert len(calls) == tripped_at, "must not call while tripped"
-
-    # ... then probes once, and recovery clears the breaker
-    broken["v"] = False
+    # Pre-trip failure then immediate recovery resets _BREAKER_FAILS without tripping.
     asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-    assert len(calls) == tripped_at + 1
-    assert "hvac-settings" not in main._BREAKERS
+    assert main._BREAKER_FAILS["hvac-settings"] == 1
+    assert not main._BREAKERS.get("hvac-settings")
+    broken["v"] = False
+    data, _ = asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
+    assert main._BREAKER_FAILS["hvac-settings"] == 0
+    assert not main._BREAKERS.get("hvac-settings")
+    assert data["climate_schedule_mode"] == "Scheduled"
+    assert data["climate_ready_time"] == "Mon 07:15"
 
+    # Trip after BREAKER_TRIP consecutive failures; failed periodic probe stays tripped and silent;
+    # subsequent periodic probe recovers, logs INFO, and clears breaker state.
+    calls.clear()
+    caplog.clear()
+    broken["v"] = True
+    with caplog.at_level(logging.INFO):
+        for _ in range(main.BREAKER_TRIP):
+            data, _ = asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
+            assert "climate_schedule_mode" not in data and "climate_ready_time" not in data
+        assert len(calls) == main.BREAKER_TRIP
+        assert main._BREAKERS.get("hvac-settings") is True
+        assert main._BREAKER_FAILS["hvac-settings"] == main.BREAKER_TRIP
 
-def test_failed_probe_stays_tripped_and_silent(caplog):
-    """Spam must stay bounded at BREAKER_TRIP lines however long the outage runs."""
-
-    class _V(FakeVehicle):
-        async def get_hvac_settings(self):
-            raise RuntimeError("502000")
-
-    eps = {"pressure", "charge-mode", "hvac-settings"}
-    with caplog.at_level(logging.WARNING):
-        for _ in range(main.BREAKER_TRIP + main.BREAKER_RETRY_EVERY + 2):
+        # Skipped for BREAKER_RETRY_EVERY - 1 polls while tripped.
+        for expected_skip in range(1, main.BREAKER_RETRY_EVERY):
             asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
-    assert caplog.text.count("hvac-settings") <= main.BREAKER_TRIP
-    assert main._BREAKERS.get("hvac-settings") is True
+            assert len(calls) == main.BREAKER_TRIP
+            assert main._BREAKER_SKIPS["hvac-settings"] == expected_skip
 
+        # Failed retry probe on the BREAKER_RETRY_EVERY-th poll stays tripped and silent.
+        asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
+        assert len(calls) == main.BREAKER_TRIP + 1
+        assert main._BREAKERS.get("hvac-settings") is True
+        assert main._BREAKER_SKIPS["hvac-settings"] == 0
 
-# --- data_stale measures the CAR, poll_failing the FEED (v1.24.0) --------------------------
-# Regression cover: data_stale was wired to poll success, so a vehicle silent since 2026-09-04
-# was polled every five minutes for 68 hours and published as healthy.
+        # Another BREAKER_RETRY_EVERY - 1 skipped polls, then recovery probe succeeds.
+        for _ in range(main.BREAKER_RETRY_EVERY - 1):
+            asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
+        assert len(calls) == main.BREAKER_TRIP + 1
+        broken["v"] = False
+        data, _ = asyncio.run(main.poll_once(FakeVSession(_V()), {}, 52.0, eps, "km"))
 
-def _fresh(state, payload_iso, last_ok, hours=6):
-    return main.freshness_fields(state, payload_iso, hours * 3600, last_ok)
-
-
-def test_data_stale_fires_when_the_car_goes_quiet_though_every_poll_succeeds():
-    """THE reported incident. Polls all succeed, so poll_failing is correctly off — and the
-    68-hour-old payload must still raise data_stale. Before the fix this published "off"."""
-    now = main.now_ts()
-    out = _fresh({}, main.iso(now - 68 * 3600), last_ok=now)
-    assert out["data_stale"] == "on"
-    assert out["poll_failing"] == "off"
-
-
-def test_data_stale_is_off_while_the_car_is_reporting():
-    now = main.now_ts()
-    assert _fresh({}, main.iso(now - 600), last_ok=now) == {"data_stale": "off",
-                                                            "poll_failing": "off"}
-
-
-def test_poll_failure_ages_the_last_known_car_timestamp():
-    """No new payload, so the last car timestamp carries forward and keeps ageing. An outage
-    can neither make stale data look fresh nor invent staleness."""
-    now = main.now_ts()
-    state = {"last_payload_ts": now - 8 * 3600}
-    out = _fresh(state, None, last_ok=now - 8 * 3600)
-    assert out == {"data_stale": "on", "poll_failing": "on"}
-
-
-def test_a_transient_failure_raises_neither_signal():
-    """One missed poll against a car that reported recently is not an alarm — poll_failing keeps
-    the stale_hours tolerance data_stale used to apply on this path."""
-    now = main.now_ts()
-    out = _fresh({"last_payload_ts": now - 600}, None, last_ok=now - 300)
-    assert out == {"data_stale": "off", "poll_failing": "off"}
-
-
-def test_data_stale_is_omitted_until_a_car_timestamp_has_been_seen():
-    """A fresh install whose first polls fail has no basis for the claim. The key is omitted so
-    HA reads `unknown`; publishing "off" would restate the bug this replaces."""
-    out = _fresh({}, None, last_ok=0)
-    assert "data_stale" not in out
-    assert out["poll_failing"] == "on"
-
-
-def test_a_seen_car_timestamp_is_persisted_for_the_next_failure():
-    now = main.now_ts()
-    state = {}
-    _fresh(state, main.iso(now - 600), last_ok=now)
-    assert state["last_payload_ts"] == pytest.approx(now - 600, abs=2)
+    assert len(calls) == main.BREAKER_TRIP + 2
+    assert "hvac-settings" not in main._BREAKERS
+    assert main._BREAKER_FAILS["hvac-settings"] == 0
+    assert main._BREAKER_SKIPS["hvac-settings"] == 0
+    assert data["climate_schedule_mode"] == "Scheduled"
+    assert data["climate_ready_time"] == "Mon 07:15"
+    warnings = [r.getMessage() for r in caplog.records if r.levelno == logging.WARNING and "hvac-settings" in r.getMessage()]
+    assert len(warnings) == main.BREAKER_TRIP
+    assert "pausing it" in warnings[-1]
+    infos = [r.getMessage() for r in caplog.records if r.levelno == logging.INFO and "hvac-settings" in r.getMessage()]
+    assert infos == ["hvac-settings is answering again - re-enabled."]
 
 
 def test_last_updated_is_not_fabricated_when_the_payload_carries_no_timestamp():
@@ -1989,7 +1481,7 @@ def test_last_updated_is_not_fabricated_when_the_payload_carries_no_timestamp():
 
 
 def test_main_publishes_the_car_timestamp_verdict_not_the_poll_verdict(wire_main):
-    """End-to-end through main(): a successful poll returning an old payload must publish
+    """Wiring through main() with a stub poll: an old payload must publish
     data_stale on. This is the assertion that would have caught the original defect."""
     old = main.iso(main.now_ts() - 68 * 3600)
 
@@ -2020,7 +1512,7 @@ def test_main_failure_path_publishes_both_signals(wire_main):
 
 
 # --------------------------------------------------------------------------- #
-# state file shape, a cancelled login, and a failed location fetch
+# state file shape and a cancelled login
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("document", ["[]", '"text"', "3", "null", "{}"])
 def test_load_state_ignores_a_document_of_the_wrong_shape(tmp_path, monkeypatch, document):
@@ -2032,44 +1524,3 @@ def test_load_state_ignores_a_document_of_the_wrong_shape(tmp_path, monkeypatch,
     state = main.load_state()
     assert state == {}
     assert isinstance(state, dict)
-
-
-def test_cancelled_login_closes_its_session(monkeypatch):
-    """The poll timeout cancels mid-login; the next call would overwrite the reference."""
-    closed = []
-
-    class Sess:
-        def __init__(self, *a, **k):
-            pass
-
-        async def close(self):
-            closed.append(True)
-
-    async def slow_login(ws, locale):
-        await asyncio.sleep(10)
-
-    monkeypatch.setattr(main.aiohttp, "ClientSession", Sess)
-    monkeypatch.setattr(main, "_login_vehicle", slow_login)
-    session = main.VehicleSession("en")
-
-    async def scenario():
-        with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(session.vehicle(), timeout=0.01)
-
-    asyncio.run(scenario())
-    assert closed == [True]
-    assert session._websession is None
-
-
-def test_location_failure_carries_the_last_good_timestamp_forward():
-    """The sentinel branch's invariant, reached by the other route: the fetch itself failed.
-    Dropping the key renders the sensor empty and disarms the stale guard."""
-    class _V(FakeVehicle):
-        async def get_location(self):
-            raise RuntimeError("location boom")
-
-    st = {"gps_last_activity": "2026-09-02T11:43:14Z"}
-    data, loc_attrs = asyncio.run(
-        main.poll_once(FakeVSession(_V()), st, 52.0, {"pressure"}, "km"))
-    assert loc_attrs is None
-    assert data["gps_last_activity"] == "2026-09-02T11:43:14Z"

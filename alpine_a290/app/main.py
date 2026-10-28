@@ -12,17 +12,13 @@ destructive on a parked car; see the option's description in DOCS.md.
 import asyncio
 import json
 import logging
-import math
 import os
-import signal
-import sys
 import time
-from contextlib import nullcontext
+from contextlib import asynccontextmanager
 
 import aiohttp
 import catalog
 import deploy
-from aiohttp import web
 from catalog import (
     ACTION_BUTTONS,
     ENV_PREFIX,
@@ -39,20 +35,38 @@ from renault_api.kamereon.enums import ChargeState, PlugState
 from renault_api.kamereon.exceptions import UnauthorizedException
 from renault_api.renault_client import RenaultClient
 from renault_mqtt import config, mqtt
-from renault_mqtt.charge import CHARGES_ENDPOINT, _epoch, resolve_last_charge, update_charge_session
-from renault_mqtt.config import _RedactingFilter, cfg, redact
-from renault_mqtt.debug import maybe_dump_api
-from renault_mqtt.parse import (
-    _bool_on,
-    _charge_schedule_fields,
-    _dist,
-    _enum_label,
-    _find_precond,
-    _hvac_schedule_fields,
-    available_energy,
+from renault_mqtt.charge import CHARGES_ENDPOINT
+from renault_mqtt.commands import (
+    COMMAND_DEBOUNCE_S,
+    command_lock_get,
+    dispatch_command,
+    hvac_start_action,
+    precondition_temp,
 )
-from renault_mqtt.parse import location_attrs as build_location_attrs
-from renault_mqtt.util import _num, iso, now_ts
+from renault_mqtt.commands import set_soc_level as shared_set_soc_level
+from renault_mqtt.config import _RedactingFilter, cfg, redact
+from renault_mqtt.freshness import freshness_fields  # noqa: F401
+from renault_mqtt.hvac import hvac_due
+from renault_mqtt.parse import (
+    _charge_schedule_fields,  # noqa: F401
+    _dist,  # noqa: F401
+    _enum_label,
+    _hvac_schedule_fields,  # noqa: F401
+)
+from renault_mqtt.plug import detect_plug_suspect as shared_plug_suspect
+from renault_mqtt.poll import RHD_LOCALES, poll_vehicle
+from renault_mqtt.runtime import (
+    HEALTH_PORT,
+    MILES_LOCALES,
+    panel_page,
+    panel_state,
+    run_main,
+)
+from renault_mqtt.runtime import resolve_account as shared_resolve_account
+from renault_mqtt.runtime import start_health_server as shared_start_health_server
+from renault_mqtt.session import VehicleSession as SharedVehicleSession
+from renault_mqtt.support import resolve_support
+from renault_mqtt.util import _num, iso, now_ts  # noqa: F401
 
 # Inject this model's env-var prefix into the shared core's redaction net before anything is
 # logged, so config.redact / _config_secrets mask this add-on's configured VIN / account_id /
@@ -109,8 +123,6 @@ PLUG_STATUS_LABELS = {
     PlugState.PLUG_ERROR: "Plug Error",
     PlugState.PLUG_UNKNOWN: "Unknown",
 }
-RHD_LOCALES = {"en_gb", "en_ie"}
-MILES_LOCALES = {"en_gb"}
 PLUG_KM_DELTA = 1
 PLUG_SOC_DROP = 2
 PLUG_MIN_AGE = 600
@@ -151,39 +163,6 @@ def save_state(state):
         LOG.warning("Could not persist state: %s", err)
 
 
-def freshness_fields(state, payload_iso, stale_secs, last_ok):
-    """The two freshness signals, kept deliberately separate.
-
-    `data_stale` answers "has the CAR reported within stale_hours", from the timestamp inside
-    the battery-status payload. `poll_failing` answers "can WE reach Kamereon", from our own
-    poll clock. Before v1.24.0 one entity carried the second meaning and was forced "off" on
-    every successful poll, so the first was never asked: a vehicle silent for days was
-    polled successfully every five minutes and reported as healthy, showing a stale charge
-    level while the car was well above it.
-
-    battery-status is the right source and `cockpit` is not: cockpit commits at power-off, so
-    keying on it would mark every parked car stale — the same mistake `gps_last_activity` makes.
-    battery-status refreshes while the car sits.
-
-    Called on both the success and failure paths. On failure `payload_iso` is None and the last
-    known car timestamp is carried forward from `state`, so data merely goes on ageing: an
-    outage cannot make stale data look fresh, and it cannot invent staleness either.
-
-    `data_stale` is OMITTED entirely when no car timestamp has ever been seen (a fresh install
-    whose first polls all failed). A missing key renders empty and HA shows `unknown`, which is
-    the honest answer; publishing "off" would restate the bug this replaces.
-    """
-    ts = _epoch(payload_iso) if payload_iso else None
-    if ts:
-        state["last_payload_ts"] = ts
-    else:
-        ts = state.get("last_payload_ts")
-    fields = {"poll_failing": "on" if (now_ts() - last_ok) > stale_secs or not last_ok else "off"}
-    if ts:
-        fields["data_stale"] = "on" if (now_ts() - ts) > stale_secs else "off"
-    return fields
-
-
 def charging_status_label(battery):
     return _enum_label(battery.get_charging_status(), CHARGE_STATUS_LABELS,
                        getattr(battery, "chargingStatus", None))
@@ -204,46 +183,22 @@ async def _login_vehicle(websession, locale):
 API_TIMEOUT = aiohttp.ClientTimeout(total=60, connect=10)
 
 
-class VehicleSession:
-    """One logged-in vehicle + aiohttp session, reused across polls instead of a fresh
-    Gigya login each cycle (~288/day). renault-api refreshes its own tokens; invalidate()
-    drops the cached login so the next call re-authenticates. Owned by the poll loop only —
-    button presses keep their own short-lived login in run_command."""
+class VehicleSession(SharedVehicleSession):
+    """Poll-owned lifecycle with app transport, locale, login and logging adapters."""
 
     def __init__(self, locale):
         self.locale = locale
-        self._websession = None
-        self._vehicle = None
+        super().__init__(
+            session_factory=lambda: aiohttp.ClientSession(timeout=API_TIMEOUT),
+            login=lambda ws: _login_vehicle(ws, self.locale),
+        )
 
     async def vehicle(self):
-        if self._vehicle is None:
-            self._websession = aiohttp.ClientSession(timeout=API_TIMEOUT)
-            try:
-                self._vehicle = await _login_vehicle(self._websession, self.locale)
-            except asyncio.CancelledError:
-                # The poll timeout cancelled us mid-login. Close the session here:
-                # the next call would overwrite the reference and leak it.
-                await self.invalidate()
-                raise
-            except Exception:
-                await self.invalidate()
-                raise
+        cached = self._vehicle is not None
+        vehicle = await super().vehicle()
+        if not cached:
             LOG.info("Logged in to the Renault API (session cached for reuse)")
-        return self._vehicle
-
-    async def invalidate(self):
-        """Drop the cached login so the next vehicle() re-authenticates."""
-        if self._websession is not None:
-            try:
-                await self._websession.close()
-            except Exception:  # noqa: BLE001
-                pass
-        self._websession = None
-        self._vehicle = None
-
-    async def close(self):
-        """Release the session at shutdown."""
-        await self.invalidate()
+        return vehicle
 
 
 async def _supports(vehicle, ep):
@@ -268,17 +223,10 @@ async def detect_supported(vsession, supported=None, unresolved=None):
         unresolved = set(SUPPORT_ENDPOINTS)
     try:
         vehicle = await vsession.vehicle()
-        for ep in sorted(unresolved):
-            try:
-                # add AND discard: a pessimistic endpoint starts outside the set, so a
-                # discard-only loop could never put it back on a car that does support it.
-                if await _supports(vehicle, ep):
-                    supported.add(ep)
-                else:
-                    supported.discard(ep)
-                unresolved.discard(ep)
-            except Exception as err:  # noqa: BLE001
-                LOG.warning("supports_endpoint(%s) check failed: %s", ep, err)
+        await resolve_support(
+            lambda ep: _supports(vehicle, ep), supported, unresolved,
+            lambda ep, err: LOG.warning("supports_endpoint(%s) check failed: %s", ep, err),
+        )
         LOG.info("Supported optional endpoints: %s", sorted(supported))
     except Exception as err:  # noqa: BLE001
         await vsession.invalidate()
@@ -291,20 +239,12 @@ def _precondition_temp():
 
     Unset on the Configuration page means the car decides: its preconditioning temperature is
     the one its own schedule uses, and it is what the dashboard shows as "Desired Temp"."""
-    raw = (cfg("A290_PRECONDITION_TEMPERATURE", "") or "").strip()
-    return float(raw) if raw else None
+    return precondition_temp("A290_PRECONDITION_TEMPERATURE")
 
 
 async def _hvac_start_action(vehicle):
     """Start Climate at the configured temperature, or at the car's own when none is set."""
-    temp = _precondition_temp()
-    if temp is None:
-        try:
-            temp = float(_find_precond(await vehicle.get_charge_schedule())
-                         .get("preconditioningTemperature") or 21)
-        except Exception:  # noqa: BLE001
-            temp = 21.0
-    await vehicle.set_ac_start(temp)
+    await hvac_start_action(vehicle, get_temp=_precondition_temp)
 
 
 COMMAND_ACTIONS = {
@@ -316,10 +256,6 @@ COMMAND_ACTIONS = {
     "refresh_location": lambda v: v.refresh_location(),
 }
 
-# A double-tap, or the same press arriving from a dashboard and an automation at once, would
-# otherwise log in twice and send the car the action twice. Per command, and buttons only: the
-# charge-limit sliders must apply every value, and Start then Stop Climate must both go through.
-COMMAND_DEBOUNCE_S = 5
 _last_command = {}
 # Commands still logging in or executing. A login can take the whole 60s API timeout, so the 5s
 # window alone would let a repeat through while the first press's outcome is still unknown.
@@ -330,6 +266,7 @@ def _debounce_now():
     """The debounce's clock. Monotonic, not wall time: an NTP or manual correction that moves the
     wall clock back would otherwise hold a button suppressed for the size of the jump."""
     return time.monotonic()
+
 
 # Command suffixes that trigger a location refresh, rejected unless the user opted in AND
 # location publishing is on (publish_discovery clears the button in the same cases). Gating
@@ -342,164 +279,61 @@ NUMBER_CMDS = {obj[_P:] for obj in NUMBERS}
 # The sliders' (min, max, step), enforced on the command too: any MQTT client can publish to the topic.
 NUMBER_RANGES = {obj[_P:]: (lo, hi, step) for obj, (_n, _i, lo, hi, step) in NUMBERS.items()}
 
-_command_locks = {}
-_command_lock_loop = None
-
 
 def _command_lock_get(group):
     """Separate climate and charge-limit locks, recreated when the event loop changes."""
-    global _command_lock_loop
-    loop = asyncio.get_running_loop()
-    if _command_lock_loop is not loop:
-        _command_locks.clear()
-        _command_lock_loop = loop
-    if group not in _command_locks:
-        _command_locks[group] = asyncio.Lock()
-    return _command_locks[group]
+    return command_lock_get(group)
 
 
 async def set_soc_level(which, payload):
     """Write a charge limit. set_battery_soc needs both min and target together, so the
     opposing slider's current value is read back first and re-sent unchanged. Serialised so
     adjusting both sliders in quick succession can't interleave and clobber a change."""
-    try:
-        number = float(payload)
-    except (TypeError, ValueError):
-        LOG.warning("Ignoring non-numeric %s value: %r", which, payload)
-        return
-    # isfinite first: int(inf) raises OverflowError, outside the except above.
-    if not math.isfinite(number) or not number.is_integer():
-        LOG.warning("Ignoring %s value %r: not a whole number", which, payload)
-        return
-    value = int(number)
-    lo, hi, step = NUMBER_RANGES[which]
-    if not lo <= value <= hi or (value - lo) % step:
-        LOG.warning("Ignoring %s=%s: not %s-%s in steps of %s", which, value, lo, hi, step)
-        return
     locale = cfg("A290_LOCALE", "en_GB")
-    async with _command_lock_get("soc"):
-        try:
-            async with aiohttp.ClientSession(timeout=API_TIMEOUT) as websession:
-                vehicle = await _login_vehicle(websession, locale)
-                soc = await vehicle.get_battery_soc()
-                cur_min = getattr(soc, "socMin", None)
-                cur_target = getattr(soc, "socTarget", None)
-                new_min, new_target = (value, cur_target) if which == "soc_min" else (cur_min, value)
-                if new_min is None or new_target is None:
-                    LOG.error("Cannot set %s: current limits unavailable (min=%s, target=%s)",
-                              which, cur_min, cur_target)
-                    return
-                if int(new_min) >= int(new_target):
-                    LOG.warning("Ignoring %s=%s: minimum %s%% must be below target %s%%",
-                                which, value, new_min, new_target)
-                    return
-                await vehicle.set_battery_soc(min=int(new_min), target=int(new_target))
-            LOG.info("Set charge limits: min=%s%%, target=%s%%", new_min, new_target)
-        except Exception as err:  # noqa: BLE001
-            LOG.error("Failed to set %s=%s: %s", which, value, redact(err))
+
+    @asynccontextmanager
+    async def acquire():
+        async with aiohttp.ClientSession(timeout=API_TIMEOUT) as websession:
+            yield await _login_vehicle(websession, locale)
+
+    await shared_set_soc_level(
+        which, payload, number_ranges=NUMBER_RANGES,
+        acquire_vehicle=acquire, log=LOG, lock_get=_command_lock_get,
+    )
 
 
 async def run_command(cmd, payload=""):
     """Dispatch an MQTT command: a button press to its renault-api action, or a number set
     to set_battery_soc. Never fatal."""
-    if cmd in NUMBER_CMDS:
-        await set_soc_level(cmd, payload)
-        return
-    if cmd in LOCATION_CMDS and not mqtt.PUBLISH_LOCATION:
-        LOG.info("Ignoring '%s' — location is disabled (publish_location: false)", cmd)
-        return
-    if cmd in LOCATION_CMDS and not mqtt.ENABLE_REFRESH_LOCATION:
-        LOG.info("Ignoring '%s' — refresh-location is off (enable_refresh_location: false). "
-                 "On a parked car it replaces the car's recorded position with 'no fix' until "
-                 "the next completed journey; see DOCS.md before enabling it.", cmd)
-        return
-    action = COMMAND_ACTIONS.get(cmd)
-    if action is None:
-        LOG.warning("Ignoring unknown command: %s", cmd)
-        return
-    # No await between these checks and the marks below, so two presses scheduled together cannot
-    # both pass.
-    if cmd in _in_flight:
-        LOG.info("Ignoring '%s': the previous one is still being sent", cmd)
-        return
-    # No 0 default: monotonic time starts near zero at boot, so "never pressed" must not read as t=0.
-    if cmd in _last_command and _debounce_now() - _last_command[cmd] < COMMAND_DEBOUNCE_S:
-        LOG.info("Ignoring repeated '%s' within %ds (debounce)", cmd, COMMAND_DEBOUNCE_S)
-        return
-    _last_command[cmd] = _debounce_now()
-    _in_flight.add(cmd)
     locale = cfg("A290_LOCALE", "en_GB")
-    dispatched = False
-    try:
-        lock = _command_lock_get("climate") if cmd in {"climate_start", "climate_stop"} else nullcontext()
-        async with lock:
-            async with aiohttp.ClientSession(timeout=API_TIMEOUT) as websession:
-                vehicle = await _login_vehicle(websession, locale)
-                dispatched = True
-                await action(vehicle)
-        LOG.info("Command '%s' sent", cmd)
-    except Exception as err:  # noqa: BLE001
-        LOG.error("Command '%s' failed: %s", cmd, redact(err))
-    finally:
-        # Also on cancellation, so a cancelled press cannot wedge the button. If nothing reached the
-        # car, drop the stamp so a retry goes through; once started, the outcome is unknown and a
-        # retry could send it twice, so the stamp stays. A press ignored in flight is not replayed.
-        _in_flight.discard(cmd)
-        if not dispatched:
-            _last_command.pop(cmd, None)
+
+    @asynccontextmanager
+    async def acquire():
+        async with aiohttp.ClientSession(timeout=API_TIMEOUT) as websession:
+            yield await _login_vehicle(websession, locale)
+
+    await dispatch_command(
+        cmd, payload, number_cmds=NUMBER_CMDS, set_soc=set_soc_level,
+        location_cmds=LOCATION_CMDS, publish_location=mqtt.PUBLISH_LOCATION,
+        enable_refresh_location=mqtt.ENABLE_REFRESH_LOCATION, actions=COMMAND_ACTIONS,
+        last_command=_last_command, in_flight=_in_flight,
+        acquire_vehicle=acquire, log=LOG,
+        climate_cmds=frozenset({"climate_start", "climate_stop"}),
+        debounce_s=COMMAND_DEBOUNCE_S, now=_debounce_now, lock_get=_command_lock_get,
+    )
 
 
 def detect_plug_suspect(state, plug, mileage, soc, charging):
-    """Connected-but-driven / Disconnected-but-charging detection. `plug` is a PlugState
-    (matches the rest of the poll). Returns 'on'/'off'. State stores a JSON-safe string."""
-    plugged = plug == PlugState.PLUGGED
-    if plugged and (state.get("plug_prev") != "plugged" or "plug_base_ts" not in state):
-        state.update(plug_base_mileage=mileage, plug_base_soc=soc, plug_base_ts=now_ts())
-    state["plug_prev"] = "plugged" if plugged else "unplugged"
-
-    drove = False
-    bts, bkm, bsoc = state.get("plug_base_ts"), state.get("plug_base_mileage"), state.get("plug_base_soc")
-    if bts and None not in (mileage, soc, bkm, bsoc):
-        age = now_ts() - bts
-        if PLUG_MIN_AGE <= age <= PLUG_MAX_AGE:
-            drove = (mileage - bkm >= PLUG_KM_DELTA) and (bsoc - soc >= PLUG_SOC_DROP)
-    stuck = (plugged and drove) or (plug == PlugState.UNPLUGGED and charging)
-    return "on" if stuck else "off"
+    """Interpret Renault plug reports and apply this model's suspicion policy."""
+    return shared_plug_suspect(
+        state, plugged=plug == PlugState.PLUGGED, unplugged=plug == PlugState.UNPLUGGED,
+        mileage=mileage, soc=soc, charging=charging, now=now_ts(),
+        min_age=PLUG_MIN_AGE, max_age=PLUG_MAX_AGE, km_delta=PLUG_KM_DELTA, soc_drop=PLUG_SOC_DROP)
 
 
 async def resolve_account(client):
-    account_id = cfg("A290_ACCOUNT_ID")
-    if account_id:
-        return account_id
-    # Match the account whose garage holds our VIN: this car is registered under MYALPINE, not
-    # MYRENAULT, so keying on account type mis-resolves, while a VIN match is model-agnostic and
-    # robust to the several types one login carries. Fall back to MYRENAULT only if no garage
-    # matches.
-    vin = (cfg("A290_VIN") or "").strip().upper()
-    person = await client.get_person()
-    fallback = None
-    for account in person.accounts:
-        if vin:
-            try:
-                api_account = await client.get_api_account(account.accountId)
-                vehicles = await api_account.get_vehicles()
-                garage = {(getattr(link, "vin", "") or "").upper()
-                          for link in (getattr(vehicles, "vehicleLinks", None) or [])}
-                if vin in garage:
-                    config._DISCOVERED_ACCOUNT_ID = account.accountId  # so redact() can mask it (URL embeds it)
-                    LOG.info("Auto-discovered %s account (its garage contains the configured VIN)",
-                             account.accountType)
-                    return account.accountId
-            except Exception as err:  # noqa: BLE001 — one bad account must not abort discovery
-                LOG.debug("Garage lookup for the %s account failed: %s", account.accountType, err)
-        if account.accountType == "MYRENAULT" and fallback is None:
-            fallback = account.accountId
-    if fallback is not None:
-        config._DISCOVERED_ACCOUNT_ID = fallback  # so redact() can mask it (URL embeds it)
-        LOG.warning("No account garage matched the configured VIN; falling back to the MYRENAULT "
-                    "account. If polling fails, set account_id on the Configuration page.")
-        return fallback
-    raise RuntimeError("No account contains the configured VIN and A290_ACCOUNT_ID is not set")
+    """Resolve the Kamereon account id for this Alpine A290."""
+    return await shared_resolve_account(client, log=LOG, prefix="A290_", cfg_fn=cfg)
 
 
 def _hvac_due(supported_eps):
@@ -507,155 +341,22 @@ def _hvac_due(supported_eps):
     yes once every BREAKER_RETRY_EVERY polls while tripped, so a server-side recovery is noticed
     without a restart (the reset lives inside the call, so a breaker that never retried could
     never clear itself); no otherwise."""
-    if "hvac-settings" not in supported_eps:
-        return False
-    if not _BREAKERS.get("hvac-settings"):
-        return True
-    n = _BREAKER_SKIPS["hvac-settings"] = _BREAKER_SKIPS.get("hvac-settings", 0) + 1
-    if n >= BREAKER_RETRY_EVERY:
-        _BREAKER_SKIPS["hvac-settings"] = 0
-        return True
-    return False
+    return hvac_due(supported_eps, _BREAKERS, _BREAKER_SKIPS, retry_every=BREAKER_RETRY_EVERY)
 
 
 async def poll_once(vsession, state, capacity_kwh, supported_eps, dist_unit):
-    vehicle = await vsession.vehicle()
-    locale = vsession.locale
-    battery = await vehicle.get_battery_status()
-    plug = battery.get_plug_status()
-    charging = is_charging(battery)
-    data = {
-        "battery_level": battery.batteryLevel,
-        "range": _dist(battery.batteryAutonomy, dist_unit),
-        "battery_temperature": battery.batteryTemperature,
-        "charging_power": _num(getattr(battery, "chargingInstantaneousPower", None)),
-        "charging_remaining": getattr(battery, "chargingRemainingTime", None),
-        "available_energy": available_energy(getattr(battery, "batteryAvailableEnergy", None), battery.batteryLevel, capacity_kwh),
-        "plug_status": _enum_label(plug, PLUG_STATUS_LABELS, getattr(battery, "plugStatus", None)),
-        "charging_flap": "Open: Plugged In" if plug == PlugState.PLUGGED else "Closed",
-        "charging_status": "Charging" if charging else charging_status_label(battery),
-        # The car's own report time, never our clock. The old `or iso(now_ts())` fallback stamped a
-        # payload that carried no time as if it had just arrived - the GPS-sentinel failure again: a
-        # fabricated-fresh time silences the guard that exists to catch it. Unknown stays unknown.
-        "last_updated": getattr(battery, "timestamp", None),
-        "drive_side": "RHD" if locale.lower() in RHD_LOCALES else "LHD",
-    }
-    mileage = None
-    try:
-        mileage = getattr(await vehicle.get_cockpit(), "totalMileage", None)
-        data["mileage"] = _dist(mileage, dist_unit)
-    except Exception as err:  # noqa: BLE001
-        LOG.warning("cockpit unavailable: %s", err)
-    try:
-        hvac = await vehicle.get_hvac_status()
-        data["external_temperature"] = getattr(hvac, "externalTemperature", None)
-        data["hvac_status"] = str(getattr(hvac, "hvacStatus", ""))
-        data["hvac_soc_threshold"] = getattr(hvac, "socThreshold", None)
-        data["hvac_last_activity"] = getattr(hvac, "lastUpdateTime", None)
-    except Exception as err:  # noqa: BLE001
-        LOG.warning("hvac unavailable: %s", err)
-    try:
-        sched = await vehicle.get_charge_schedule()
-        p = _find_precond(sched)
-        data["preconditioning_temperature"] = p.get("preconditioningTemperature")
-        data["heated_steering_wheel"] = _bool_on(p.get("preconditioningHeatedStrgWheel"))
-        left = p.get("preconditioningHeatedLeftSeat")
-        right = p.get("preconditioningHeatedRightSeat")
-        rhd = locale.lower() in RHD_LOCALES
-        data["heated_seat_driver"] = _bool_on(right if rhd else left)
-        data["heated_seat_passenger"] = _bool_on(left if rhd else right)
-        data.update(_charge_schedule_fields(p))
-    except Exception as err:  # noqa: BLE001
-        LOG.warning("ev/settings unavailable: %s", err)
-    # renault-api <= 0.5.13 advertised hvac-settings while the server answered 502000 to every
-    # call, so advertised support was no gate. 0.5.14 withdrew it, but the failure is the
-    # server's: trip a breaker after a few failures, log once, stop calling, and reset on success
-    # so a server-side fix is picked up.
-    if _hvac_due(supported_eps):
-        tripped = bool(_BREAKERS.get("hvac-settings"))
-        try:
-            data.update(_hvac_schedule_fields(await vehicle.get_hvac_settings()))
-            _BREAKER_FAILS["hvac-settings"] = 0
-            if _BREAKERS.pop("hvac-settings", None):
-                LOG.info("hvac-settings is answering again - re-enabled.")
-        except Exception as err:  # noqa: BLE001
-            # A failed periodic probe stays tripped and stays quiet. Only pre-trip failures count
-            # and log, so spam is bounded at BREAKER_TRIP lines however long the outage lasts.
-            if not tripped:
-                n = _BREAKER_FAILS["hvac-settings"] = _BREAKER_FAILS.get("hvac-settings", 0) + 1
-                if n < BREAKER_TRIP:
-                    LOG.warning("hvac-settings unavailable: %s", err)
-                elif n == BREAKER_TRIP:
-                    _BREAKERS["hvac-settings"] = True
-                    LOG.warning("hvac-settings has failed %d polls in a row (%s) - pausing it. It "
-                                "is retried every %d polls and re-enabled automatically if it "
-                                "recovers.", n, err, BREAKER_RETRY_EVERY)
-    try:
-        soc_lvl = await vehicle.get_battery_soc()
-        data["soc_target"] = getattr(soc_lvl, "socTarget", None)
-        data["soc_min"] = getattr(soc_lvl, "socMin", None)
-    except Exception as err:  # noqa: BLE001
-        LOG.warning("battery_soc unavailable: %s", err)
-    if "pressure" in supported_eps:
-        try:
-            tp = await vehicle.get_tyre_pressure()
-            data["tyre_pressure_fl"] = getattr(tp, "flPressure", None)
-            data["tyre_pressure_fr"] = getattr(tp, "frPressure", None)
-            data["tyre_pressure_rl"] = getattr(tp, "rlPressure", None)
-            data["tyre_pressure_rr"] = getattr(tp, "rrPressure", None)
-        except Exception as err:  # noqa: BLE001
-            LOG.warning("tyre_pressure unavailable: %s", err)
-    if "charge-mode" in supported_eps:
-        try:
-            cm = await vehicle.get_charge_mode()
-            data["charge_mode"] = str(getattr(cm, "chargeMode", "") or "")
-        except Exception as err:  # noqa: BLE001
-            LOG.warning("charge_mode unavailable: %s", err)
+    """Assemble one Alpine A290 poll snapshot and optional coarsened location attributes."""
+    return await poll_vehicle(
+        vsession, state, capacity_kwh, supported_eps, dist_unit,
+        plug_status_labels=PLUG_STATUS_LABELS, plug_plugged=PlugState.PLUGGED,
+        charging_check=is_charging, charging_label=charging_status_label,
+        breakers=_BREAKERS, breaker_fails=_BREAKER_FAILS, breaker_skips=_BREAKER_SKIPS,
+        breaker_trip=BREAKER_TRIP, breaker_retry_every=BREAKER_RETRY_EVERY,
+        hvac_due=_hvac_due, gps_precision=GPS_PRECISION,
+        latest_data=lambda: _LATEST.get("data"), detect_plug_suspect=detect_plug_suspect,
+        log=LOG, rhd_locales=RHD_LOCALES,
+    )
 
-    location_attrs = None
-    if mqtt.PUBLISH_LOCATION:   # skipped entirely when the user opts out of location publishing
-        try:
-            loc = await vehicle.get_location()
-            # build_location_attrs returns None for no usable fix, which Kamereon signals out-of-band:
-            # this car returned 91/181 on a fresh timestamp and the old `is not None` check published it
-            # as a real position, flipping a parked car to not_home.
-            location_attrs = build_location_attrs(loc, GPS_PRECISION)
-            if location_attrs is None:
-                # Neither advance nor drop: both disarm binary_sensor.a290_gps_stale. Carry the last usable
-                # fix forward, preferring the persisted value and falling back to _LATEST for the first poll
-                # after upgrading, when the state file has no value yet.
-                prev = (state.get("gps_last_activity")
-                        or (_LATEST.get("data") or {}).get("gps_last_activity"))
-                if prev:
-                    data["gps_last_activity"] = prev
-                    state.setdefault("gps_last_activity", prev)
-                if getattr(loc, "gpsLatitude", None) is not None:
-                    LOG.warning("location fix rejected: the API reported no usable position "
-                                "(sentinel or out-of-range coordinates); keeping the last known "
-                                "fix and leaving the staleness guard armed")
-            else:
-                data["gps_last_activity"] = getattr(loc, "lastUpdateTime", None)
-                state["gps_last_activity"] = data["gps_last_activity"]
-        except Exception as err:  # noqa: BLE001
-            # Same invariant as the sentinel branch: a missing gps_last_activity
-            # disarms the gps_stale guard, so carry the last usable fix forward.
-            LOG.warning("location unavailable: %s", err)
-            prev = (state.get("gps_last_activity")
-                    or (_LATEST.get("data") or {}).get("gps_last_activity"))
-            if prev:
-                data["gps_last_activity"] = prev
-                state.setdefault("gps_last_activity", prev)
-
-    live_lc = update_charge_session(state, battery, capacity_kwh, charging)
-    data.update(await resolve_last_charge(vehicle, state, supported_eps, capacity_kwh, live_lc))
-    data["charging"] = "on" if charging else "off"
-    data["plug_suspect"] = detect_plug_suspect(state, plug, mileage,
-                                                battery.batteryLevel, charging)
-    await maybe_dump_api(vehicle)
-    return data, location_attrs
-
-
-HEALTH_PORT = 8099
 
 # Latest poll snapshot for the read-only ingress status panel. Deliberately excludes raw
 # GPS (lat/lon are published separately to MQTT, not stored here) and any credential.
@@ -663,151 +364,62 @@ _LATEST = {"version": VERSION, "ok": False, "last_poll": None, "supported": [],
            "dist_unit": "km", "data": {}}
 
 _PANEL_FILE = os.path.join(os.path.dirname(__file__), "panel.html")
+_AUTH_EXCEPTIONS = (
+    NotAuthenticatedException,
+    UnauthorizedException,
+    PendingTwoFactorAuthenticationException,
+)
 
 
 async def _panel_page(_req):
     """Serve the self-contained, read-only ingress status panel."""
-    if os.path.isfile(_PANEL_FILE):
-        return web.FileResponse(_PANEL_FILE)
-    return web.Response(text="Status panel unavailable", content_type="text/plain")
+    return await panel_page(_PANEL_FILE)
 
 
 async def _panel_state(_req):
     """JSON the panel polls — latest car state + diagnostics; no credentials, no raw GPS."""
-    return web.json_response(_LATEST)
+    return await panel_state(_LATEST)
 
 
-async def start_health_server():
+async def start_health_server(health_state=None):
     """/healthz (backs the Dockerfile HEALTHCHECK) plus the read-only ingress status panel
-    (GET / and GET /api/state) on the poll loop. A deadlocked loop can't answer /healthz,
-    so the container is marked unhealthy and restarted."""
-    app = web.Application()
-    app.router.add_get("/healthz", lambda _req: web.Response(text="ok"))
-    app.router.add_get("/", _panel_page)
-    app.router.add_get("/api/state", _panel_state)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    await web.TCPSite(runner, "0.0.0.0", HEALTH_PORT).start()  # nosec B104
-    LOG.info("Health endpoint + status panel listening on :%d", HEALTH_PORT)
-    return runner
+    (GET / and GET /api/state) on the poll loop. The shared server answers 503 once the loop
+    misses its expected-progress deadline, so a stalled container is marked unhealthy and
+    restarted; a deadlocked loop cannot answer at all."""
+    return await shared_start_health_server(
+        panel_file=_PANEL_FILE, latest=_LATEST, log=LOG, port=HEALTH_PORT,
+        panel_page_fn=_panel_page, panel_state_fn=_panel_state, health_state=health_state,
+    )
 
 
 async def main():
-    setup_logging()
-    LOG.info("Alpine A290 add-on v%s starting", VERSION)
-    for req in ("A290_USERNAME", "A290_PASSWORD", "A290_VIN", "MQTT_HOST"):
-        if not cfg(req):
-            LOG.error("Missing required setting: %s — set it on the add-on Configuration page.", req)
-            sys.exit(1)
-
-    locale = cfg("A290_LOCALE", "en_GB")
-    dist_unit = "mi" if locale.lower() in MILES_LOCALES else "km"
-    interval = int(cfg("A290_POLL_INTERVAL", "300") or "300")
-    capacity = float(cfg("A290_BATTERY_CAPACITY_KWH", "52") or "52")
-    stale_secs = int(cfg("A290_STALE_HOURS", "6") or "6") * 3600
-
-    loop = asyncio.get_running_loop()
-    # Inject the loop + command handler into the MQTT seam so its _on_message can schedule an
-    # inbound command onto our loop without importing main (keeps the dependency one-directional).
-    mqtt._LOOP = loop
-    mqtt._COMMAND_HANDLER = run_command
-    health = await start_health_server()
-    state = load_state()
-    # Only this process's successful polls seed the snapshot; never reuse another run's car data.
-    last_data = {}
-    _LATEST.update(ok=False, last_poll=None, data={})
-    vsession = VehicleSession(locale)
-    unresolved = set(SUPPORT_ENDPOINTS)
-    supported = await detect_supported(vsession, unresolved=unresolved)
-    mqtt._MQTT_CTX["supported"], mqtt._MQTT_CTX["dist_unit"] = supported, dist_unit
-    _LATEST["supported"] = sorted(supported)
-    _LATEST["dist_unit"] = dist_unit  # so the status panel can label range/mileage
-    client = mqtt.mqtt_connect()
-    mqtt.publish_discovery(client, supported, dist_unit)
-    await deploy.run_deploy(refresh_location=bool(mqtt.PUBLISH_LOCATION and mqtt.ENABLE_REFRESH_LOCATION))
-
-    stop = asyncio.Event()
-    for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, stop.set)
-
-    fails = 0
-    max_backoff = max(interval, 1800)
-    while not stop.is_set():
-        try:
-            data, location_attrs = await asyncio.wait_for(
-                poll_once(vsession, state, capacity, supported, dist_unit),
-                timeout=max(30, interval - 10))
-            if unresolved:
-                previous = set(supported)
-                try:
-                    await asyncio.wait_for(detect_supported(vsession, supported, unresolved),
-                                           timeout=min(API_TIMEOUT.total, max(30, interval - 10)))
-                except Exception as err:  # noqa: BLE001
-                    LOG.warning("Endpoint-support retry failed: %s", redact(err))
-                if supported != previous:
-                    mqtt._MQTT_CTX["supported"] = supported
-                    _LATEST["supported"] = sorted(supported)
-                    mqtt.publish_discovery(client, supported, dist_unit)
-            fails = 0
-            state["last_success"] = now_ts()
-            data["api_auth_failure"] = "off"
-            data["last_successful_poll"] = iso(state["last_success"])
-            # NOT `data_stale = "off"`. A successful poll proves we reached Kamereon; it says
-            # nothing about how old the payload it returned is, and asserting freshness here is
-            # precisely the defect being fixed.
-            data.update(freshness_fields(state, data.get("last_updated"), stale_secs,
-                                         state["last_success"]))
-            last_data = data
-            client.publish(mqtt.STATE_TOPIC, json.dumps(data), retain=True)
-            _LATEST.update(ok=True, last_poll=iso(now_ts()), data=data)
-            if location_attrs:
-                # Attributes only. The tracker declares no state topic: HA turns a state payload
-                # into location_name, which then wins over these lat/lon attributes and stops the
-                # entity ever resolving home or a zone. Connectivity belongs on AVAIL_TOPIC below.
-                client.publish(mqtt.ATTR_TOPIC, json.dumps(location_attrs), retain=True)
-            client.publish(mqtt.AVAIL_TOPIC, "online", retain=True)
-            save_state(state)
-            LOG.info("Published: %s%% battery, plug=%s, charging=%s, suspect=%s",
-                     data.get("battery_level"), data.get("plug_status"),
-                     data.get("charging"), data.get("plug_suspect"))
-        except Exception as err:  # noqa: BLE001
-            fails += 1
-            LOG.error("Poll failed (%d in a row): %s", fails, redact(err))
-            last_ok = state.get("last_success", 0)
-            # No new payload, so the last known car timestamp simply ages. poll_failing keeps
-            # the exact rule data_stale used to carry here (no success within stale_hours), so
-            # the connectivity alarm users already have is preserved, not dropped.
-            fresh = freshness_fields(state, None, stale_secs, last_ok)
-            # Prefer the exception type (HTTP 401/403, or Kamereon's unauthorized reply); fall back to
-            # the message text for gigya/library errors raised as neither. That text match misses
-            # Kamereon's reply, whose str() is "('err.func.wired.unauthorized', 'Not authorized')".
-            auth = isinstance(err, (NotAuthenticatedException, UnauthorizedException,
-                                    PendingTwoFactorAuthenticationException)) or \
-                (isinstance(err, aiohttp.ClientResponseError) and err.status in (401, 403)) or \
-                any(s in str(err).lower() for s in ("login", "password", "credential", "401", "403"))
-            if auth or fails % 3 == 0:
-                await vsession.invalidate()
-            data = {**last_data,
-                "api_auth_failure": "on" if auth else "off",
-                "last_successful_poll": iso(last_ok),
-                **fresh,
-            }
-            client.publish(mqtt.STATE_TOPIC, json.dumps(data), retain=True)
-            client.publish(mqtt.AVAIL_TOPIC, "online", retain=True)
-            _LATEST.update(ok=False, last_poll=iso(now_ts()), error=redact(err), data=data)
-            save_state(state)
-        wait = interval if fails == 0 else min(interval * 2 ** (fails - 1), max_backoff)
-        try:
-            await asyncio.wait_for(stop.wait(), timeout=wait)
-        except asyncio.TimeoutError:
-            pass
-
-    LOG.info("Shutting down")
-    await vsession.close()
-    await health.cleanup()
-    client.publish(mqtt.AVAIL_TOPIC, "offline", retain=True)
-    client.loop_stop()
-    client.disconnect()
+    await run_main(
+        addon_name="Alpine A290",
+        version=VERSION,
+        setup_logging=setup_logging,
+        run_command=run_command,
+        start_health_server=start_health_server,
+        load_state=load_state,
+        save_state=save_state,
+        latest=_LATEST,
+        vsession_factory=VehicleSession,
+        support_endpoints=SUPPORT_ENDPOINTS,
+        initial_supported=set(OPTIONAL_ENDPOINTS) - PESSIMISTIC_ENDPOINTS,
+        detect_supported=detect_supported,
+        run_deploy=deploy.run_deploy,
+        poll_once=poll_once,
+        api_timeout_total=API_TIMEOUT.total,
+        log=LOG,
+        prefix="A290_",
+        miles_locales=MILES_LOCALES,
+        auth_exceptions=_AUTH_EXCEPTIONS,
+        http_error_type=aiohttp.ClientResponseError,
+        now=now_ts,
+        monotonic=time.monotonic,
+        event_factory=asyncio.Event,
+        wait_for=asyncio.wait_for,
+        cfg_fn=cfg,
+    )
 
 
 if __name__ == "__main__":  # pragma: no cover
