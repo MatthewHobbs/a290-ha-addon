@@ -115,7 +115,7 @@ pending	.github/workflows/ci.yaml	both	hunk:name: Parity with r5|name: Parity wi
 pending	justfile	both	hunk:parity|against r5-ha-addon through|against a290-ha-addon through|twin=	8	r5 added its own reciprocal parity recipes (#126), symmetric wording (each names the other repo as its twin). Target: converge wording
 local	.github/workflows/ci.yaml	both	re:BUILD_FROM|FROM ghcr.io/home-assistant/base	2	the same comment on the build step, in a different place. Target: one place in both
 local	.github/workflows/ci.yaml	both	hunk:a VIN in a test fixture|pair of public add-on repos	6	each repo's own account of the same script (a290 dates its leaks, r5 names the twin); both true, so neither is drift
-local	.gitignore	both	*	3	section order differs; r5 ignores a local reference/ checkout. Target: one section order
+local	.gitignore	both	*	5	section order differs; r5 ignores a local reference/ checkout. Target: one section order
 
 # --- UI gate coverage: dispatching-off pass and all Bubble pop-ups
 # Listed before the whole-file harness entries below so these lines are taken here, not there.
@@ -143,4 +143,7 @@ pending	alpine_a290/README.md	both	*	40	the add-on's store README. Target: same 
 model	scripts/supervisor-pilot.sh	both	re:a290-supervisor|r5-supervisor|local_alpine_a290|local_renault_5|pilot-registry|pilot-build|pilot-no-egress	16	the pilot's container, registry, provenance-label and egress-rule names carry each add-on's own short name
 local	scripts/supervisor-pilot.sh	both	hunk:poll-success line is|addon_log_has "Published	4	r5's poll-success log line is "Published in <s>s" where a290's is "Published: ", so each pilot greps its own; the guard follows each repo's main.py and r5 keeps its line (confirmed on r5 2026-09-27)
 local	ui-tests/run.sh	both	re:^\# hand, together, when the gate's HA floor allows it	2	each copy names the other as the twin it must match; the sentence is otherwise the same
-pending	justfile	both	*	4	same comment rewrite on both sides (word cap); no behaviour change. Target: r5 takes the rewrite; and a290 has a `tag` recipe. Target: r5 takes it
+pending	.github/workflows/release.yaml	both	*	106	per-arch Trivy scan by digest and staged attestation before the version tag. Target: R5 mirrors in #205; drop after #205 merges
+pending	alpine_a290/Dockerfile	both	re:^FROM ghcr\.io/home-assistant/base:	2	base image digest refreshed (992dc6a -> 8800161). Target: R5 mirrors in #205; drop after #205 merges
+pending	scripts/*check-release-gates.sh	a290	only	2	the tag gate wait moved into a script with its self-test. Target: R5 mirrors in #205; drop after #205 merges
+pending	justfile	both	*	24	same comment rewrite on both sides (word cap) plus the `just tag` preflight. Target: R5 mirrors in #205; drop the preflight count after #205 merges

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Base image updated** to the current Home Assistant 3.24 build (Python 3.14.10, curl 8.23.0). No change in behaviour.
+
 - Start and Stop Climate are sent in order, even when sign-in is slow. Other controls remain independent.
 - Controls recover automatically after a temporary capability-check failure, without restarting the app.
 - Failed polls retain the last good vehicle readings and original timestamps, matching the status panel.
