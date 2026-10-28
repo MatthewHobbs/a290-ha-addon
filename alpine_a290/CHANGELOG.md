@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.30.0
 
 - **Base image updated** to the current Home Assistant 3.24 build (Python 3.14.10, curl 8.23.0). No change in behaviour.
 - **Start Climate uses the car's own preconditioning temperature by default** (shown as Desired Temp on the dashboard) instead of a fixed 20 °C. Leave `precondition_temperature` empty to use the car's setting, or enter 16–27 °C to override it.
