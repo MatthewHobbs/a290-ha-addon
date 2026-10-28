@@ -264,10 +264,16 @@ waives that.
 Only when the maintainer asks for a release: `just release <version>` (read the entries it
 prints, then choose the number: a new feature is a minor, otherwise a patch), commit the two
 files it changes as their own PR titled `chore(release): <version>`, and let the existing gates
-run. Merging that PR publishes nothing. `just tag <version>` then signs and pushes `v<version>`;
-that run installs the per-arch image under a real stable Supervisor on four legs, waits for CI
-and the UI gate, and only then publishes the image users pull and cuts the Release. Never put a
-version bump in a feature PR "to get it out".
+run. Merging that PR publishes nothing. `just tag <version>` first refuses unless the version order
+is right, the release commit is on main, and every workflow on that exact merge commit has
+passed; it then signs and pushes `v<version>`. That run scans each architecture image by digest
+(HIGH/CRITICAL, failing the release), installs it under a real stable Supervisor on four legs,
+waits for CI and the UI gate, attests the staged manifest, and only then publishes the version
+tag users pull. Never put a version bump in a feature PR "to get it out". A tag run that fails after the per-arch push burns
+that version, because a re-run re-scans the same bytes: fix the cause and cut the next patch. A
+transient failure is recoverable — delete the `<arch>-<image>:<version>` and `staging-<version>`
+image tags and re-run, which rebuilds and repushes. `.trivyignore` is read from the tagged commit,
+so an exception has to land before the tag.
 
 **What reaches users on merge, whatever the version.** Batching holds back the container image
 only. The Supervisor reads the add-on's *files* straight from `main`, so a merge that changes

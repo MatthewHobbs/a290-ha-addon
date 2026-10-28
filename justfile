@@ -30,11 +30,48 @@ release version *flags:
 tag version:
     #!/usr/bin/env bash
     set -euo pipefail
-    git fetch --quiet origin main
+    git fetch --quiet --tags origin main
     sha="$(git log origin/main -1 --format=%H --grep="^chore(release): {{version}} ")"
     [[ -n "$sha" ]] || { echo "no merged chore(release): {{version}} commit on origin/main"; exit 1; }
     [[ "$(git show "$sha:alpine_a290/config.yaml" | awk -F'"' '/^version:/{print $2}')" == "{{version}}" ]] ||
         { echo "config.yaml at $sha is not version {{version}}"; exit 1; }
+    ! git rev-parse -q --verify "refs/tags/v{{version}}" >/dev/null ||
+        { echo "v{{version}} already exists locally"; exit 1; }
+    rc=0
+    git ls-remote --exit-code --tags origin "refs/tags/v{{version}}" >/dev/null 2>&1 || rc=$?
+    case "$rc" in
+      0) echo "v{{version}} already exists on origin"; exit 1 ;;
+      2) : ;;
+      *) echo "could not check origin for v{{version}} (git ls-remote exit $rc)"; exit 1 ;;
+    esac
+
+    # Every check runs before the irreversible tag: version order, on main, and the
+    # workflows that validated this exact merge commit. A failure costs nothing yet.
+    { git tag -l 'v*'; echo "v{{version}}"; } | scripts/check-version-order.sh "{{version}}"
+    git merge-base --is-ancestor "$sha" origin/main ||
+        { echo "$sha is not on origin/main"; exit 1; }
+    echo "Waiting for workflows on ${sha} (timeout ${TAG_WAIT_SECONDS:-1800}s)..."
+    deadline=$(( SECONDS + ${TAG_WAIT_SECONDS:-1800} ))
+    while :; do
+      (( SECONDS < deadline )) || { echo "timed out waiting for workflows on ${sha}"; exit 1; }
+      runs="$(gh run list --commit "$sha" --limit 50 --json workflowName,status,conclusion,url)"
+      failed="$(jq -r '.[] | select(.status == "completed" and
+        (.conclusion | IN("success","skipped","neutral") | not)) |
+        "\(.workflowName): \(.conclusion) \(.url)"' <<<"$runs")"
+      [[ -z "$failed" ]] || { echo "$failed"; exit 1; }
+      count="$(jq 'length' <<<"$runs")"
+      pending="$(jq '[.[] | select(.status != "completed")] | length' <<<"$runs")"
+      # A workflow registers its run seconds after the push, so an empty pending set is
+      # not proof every gate ran. Settle, then require the run count to be unchanged.
+      if (( count > 0 && pending == 0 )); then
+        sleep "${TAG_SETTLE_SECONDS:-60}"
+        settled="$(gh run list --commit "$sha" --limit 50 --json workflowName)"
+        if [[ "$(jq 'length' <<<"$settled")" == "$count" ]]; then break; fi
+        continue
+      fi
+      sleep 20
+    done
+
     git tag -s "v{{version}}" -m "Alpine A290 {{version}}" "$sha"
     git push origin "v{{version}}"
 
