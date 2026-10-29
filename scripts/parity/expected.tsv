@@ -47,6 +47,7 @@ local	docs/adr/0001-what-this-add-on-is-why-and-how.md	both	*	227	each repo's ow
 # ---------------------------------------------------------------- add-on config
 model	alpine_a290/config.yaml	r5	re:car_render	2	r5's render picker (see Images/Models)
 model	alpine_a290/run.sh	r5	re:CAR_RENDER	1	r5's render picker
+pending	alpine_a290/run.sh	both	re:A290_CHARGER_	10	wrap the five optional charger_* settings in opt() in run.sh. Target: r5 mirrors
 legacy	alpine_a290/app/panel.html	both	re:num\(d\.	12	the panel reads poll_once's data keys, which r5 keeps under legacy names. Goes with r5's naming migration release
 
 # ---------------------------------------------------------------- catalog.py

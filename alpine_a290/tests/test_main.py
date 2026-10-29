@@ -238,6 +238,89 @@ source "{run_sh}"
     assert config.redact("payload has null field") == "payload has null field"
 
 
+def test_every_optional_schema_key_uses_opt_in_run_sh(tmp_path):
+    """Every ? key in config.yaml schema: must be exported via opt() in run.sh, never raw
+    bashio::config, and must export as empty string when options.json is {}."""
+    import json
+    import os
+    import re
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    import yaml
+
+    addon_dir = Path(main.__file__).resolve().parents[1]
+    schema = yaml.safe_load((addon_dir / "config.yaml").read_text(encoding="utf-8"))["schema"]
+    opt_keys = sorted(k for k, v in schema.items() if str(v).endswith("?"))
+    assert opt_keys
+
+    run_text = (addon_dir / "run.sh").read_text(encoding="utf-8")
+    raw_keys = sorted(
+        k for k in opt_keys
+        if re.search(rf"bashio::config\s+['\"]?{re.escape(k)}['\"]?\b", run_text)
+    )
+    assert not raw_keys, f"optional schema keys exported with raw bashio::config: {raw_keys}"
+    missing_opt = sorted(
+        k for k in opt_keys
+        if not re.search(rf"\bopt\s+['\"]?{re.escape(k)}['\"]?\b", run_text)
+    )
+    assert not missing_opt, f"optional schema keys not exported via opt(): {missing_opt}"
+
+    env_vars = {}
+    for k in opt_keys:
+        m = re.search(
+            rf"export\s+(A290_[A-Z0-9_]+)=\"\$\(opt\s+['\"]?{re.escape(k)}['\"]?\)\"",
+            run_text,
+        )
+        assert m, f"no export A290_...=\"$(opt '{k}')\" line in run.sh"
+        env_vars[k] = m.group(1)
+
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    probe = fake_bin / "python3"
+    probe.write_text(
+        f"#!{sys.executable}\n"
+        "import json, os\n"
+        f"keys = {list(env_vars.values())!r}\n"
+        "print(json.dumps({k: os.environ.get(k) for k in keys}))\n",
+        encoding="utf-8",
+    )
+    probe.chmod(0o755)
+
+    script = f"""
+set -e
+bashio::log.info() {{ :; }}
+bashio::log.warning() {{ :; }}
+bashio::services.available() {{ return 1; }}
+bashio::config() {{
+    local key=${{1}}
+    local default_value=${{2:-null}}
+    local result
+    result=$("{sys.executable}" -c '
+import json, sys
+opts, k = json.loads(sys.argv[1]), sys.argv[2]
+v = opts.get(k)
+print("null" if v is None else v, end="")
+' "$OPTIONS_JSON" "$key")
+    if [[ "${{result}}" == "null" ]]; then
+        echo "${{default_value}}"
+    else
+        printf "%s" "${{result}}"
+    fi
+}}
+export PATH="{fake_bin}:$PATH"
+source "{addon_dir / 'run.sh'}"
+"""
+    proc = subprocess.run(
+        ["bash", "-c", script],
+        env={**os.environ, "OPTIONS_JSON": "{}"},
+        capture_output=True, text=True, check=True,
+    )
+    exported = json.loads(proc.stdout.strip())
+    assert exported == {env: "" for env in env_vars.values()}
+
+
 def test_start_climate_sends_the_option_when_set(monkeypatch):
     import asyncio
     monkeypatch.setenv("A290_PRECONDITION_TEMPERATURE", "23")
