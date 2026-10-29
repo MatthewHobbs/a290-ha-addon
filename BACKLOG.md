@@ -319,3 +319,19 @@ and 1.30.1 runs failed before staging, so 1.30.2 is the only evidence so far.
 The check that shows it:
 `gh api user/packages/container/alpine_a290/versions --jq '[.[]|select(.metadata.container.tags|any(startswith("staging-")))|.metadata.container.tags]'`.
 Whether to prune, and how to remove a tag without deleting its version, is a choice for an RFC.
+
+## P3 — `hvac_start_action` falls back to 21 °C without logging when the car's setting cannot be read
+
+**Component:** `renault-mqtt` (`renault_mqtt/commands.py`) + `alpine_a290` (`app/main.py`) · **Logged:** 2026-10-29
+
+When `precondition_temperature` is unset (`_precondition_temp()` returns `None`), `_hvac_start_action`
+delegates to `renault_mqtt.commands.hvac_start_action(vehicle, get_temp=_precondition_temp)`.
+`hvac_start_action` reads `await vehicle.get_charge_schedule()` and extracts
+`_find_precond(...).get("preconditioningTemperature")`; if that value is missing or falsy (`or default`),
+or if `get_charge_schedule()` raises `Exception`, it substitutes `default=21.0` and calls
+`vehicle.set_ac_start(21.0)` without logging either fallback. `dispatch_command` then logs only
+`Command 'climate_start' sent`, so the container log does not distinguish a press that used the car's
+own preconditioning temperature from one that fell back to 21.0 °C.
+
+Disproving check:
+`.venv/bin/python -c 'import inspect, renault_mqtt.commands as c; print(inspect.getsource(c.hvac_start_action))'`.
