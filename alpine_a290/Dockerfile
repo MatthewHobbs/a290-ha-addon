@@ -13,7 +13,9 @@ ARG BUILD_VERSION="dev"
 ENV A290_VERSION=${BUILD_VERSION}
 
 # renault-api needs Python 3 + a few build deps for its crypto/aiohttp wheels.
-RUN apk add --no-cache python3 py3-pip
+# krb5-libs comes in through the base image's bind-tools and is older than Alpine's fix, which
+# the image scan fails on; the floor makes apk upgrade it. Drop it once the base ships 1.22.3-r0.
+RUN apk add --no-cache "krb5-libs>=1.22.3-r0" python3 py3-pip
 
 # requirements.txt is a fully-resolved, hash-pinned lockfile (generated from requirements.in
 # with `uv pip compile --generate-hashes --python-version 3.14 --python-platform linux`), so
