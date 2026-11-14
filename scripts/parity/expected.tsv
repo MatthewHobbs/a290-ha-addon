@@ -53,8 +53,6 @@ legacy	alpine_a290/app/panel.html	both	re:num\(d\.	12	the panel reads poll_once'
 legacy	alpine_a290/app/catalog.py	both	py:<docstring>	6	r5's docstring records its Topolino65 naming
 model	alpine_a290/app/catalog.py	both	py:OBJ_PREFIX,ENV_PREFIX,NODE	11	each comment names the OTHER twin ("the r5 twin sets r5_"), which normalisation cannot make equal; plus obj[len(OBJ_PREFIX):] vs removeprefix wording (main.py _P)
 model	alpine_a290/app/catalog.py	both	py:DEVICE	2	device name and manufacturer (Alpine / Renault)
-pending	alpine_a290/app/requirements.in	both	re:^(renault-api>=|paho-mqtt==)	4	a290 takes renault-api 0.6.3 and paho-mqtt 2.2.0 first; r5 mirrors them in its own bump. Target: r5 takes the same pins, then delete this entry
-pending	alpine_a290/app/requirements.txt	both	re:^(renault-api==|paho-mqtt==|    --hash=sha256:)	12	a290 takes renault-api 0.6.3 and paho-mqtt 2.2.0 first; r5 mirrors them in its own bump. Target: r5 takes the same pins, then delete this entry
 pending	alpine_a290/app/catalog.py	both	py:SENSORS	6	r5 publishes Cabin Temperature, a290 retired it (the A290 never returns it; whether an R5 does is not established; open difference), plus comment wording. Target: owner decision on cabin temperature
 pending	alpine_a290/app/catalog.py	both	py:RETIRED_SENSORS	7	a290 retires cabin_temperature; comment wording. Target: follows the cabin-temperature decision
 model	alpine_a290/app/catalog.py	both	py:OPTIONAL_ENDPOINTS,PESSIMISTIC_ENDPOINTS	13	both list hvac-settings as a pessimistic optional endpoint; only the comment differs, and each names its own evidence
