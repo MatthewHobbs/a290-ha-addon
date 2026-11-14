@@ -7,6 +7,20 @@ surface as A290 add-on behaviour.
 
 ---
 
+## P2 — Image scan fails on `krb5-libs` until the Home Assistant base image is rebuilt
+
+**Component:** `alpine_a290/Dockerfile` (base image) · **Logged:** 2026-11-14
+
+The Trivy gate in `release.yaml` fails on 16 HIGH findings in `krb5-libs` 1.22.2-r1, fixed in
+1.22.3-r0. The base `ghcr.io/home-assistant/base:3.24` (Alpine 3.24.4, digest `5842248…`) still ships
+the old version, so a digest bump does not clear it; `apk list -u` inside that image shows the
+upgrade waiting. Every PR that builds the image fails the scan until the base is rebuilt. The
+findings concern the KDC and kadmind, which this add-on is not known to run (not checked).
+Decision: wait for the base rebuild rather than patching the Dockerfile or ignoring the finding.
+Disproved when `apk list -u` in a newer base shows no `krb5-libs` upgrade, and the scan passes.
+
+---
+
 ## P1 — Three PII leaks reached the public repo
 
 **Component:** repo-wide · **Logged:** 2026-09-08
