@@ -47,7 +47,7 @@ jobs:
           src: alpine_a290/app alpine_a290/tests scripts ui-tests
 
       - name: Home Assistant add-on linter
-        uses: frenck/action-addon-linter@b9cfd1bc62ba60d2c4fc96317b5f7ada5923f4a7  # v2.21.1
+        uses: frenck/action-addon-linter@d51677290aef26cdfc835271dd3c7343ce502809  # v2.21.2
         with:
           path: ./alpine_a290
 
