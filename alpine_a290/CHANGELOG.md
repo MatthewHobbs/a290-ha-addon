@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.30.4
 
 - **Dependencies updated:** the Home Assistant base image, `renault-api` (0.6.3) and `paho-mqtt` (2.2.0). No change in behaviour.
 - **Security scan fix:** the image now upgrades `krb5-libs` to 1.22.3 or later, which clears 16 high-severity findings reported against the base image. The add-on does not use Kerberos, so nothing was exposed in normal use.
