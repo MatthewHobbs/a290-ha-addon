@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Updated the bundled XML library. No change to vehicle polling or controls.
+
 ## 1.30.4
 
 - **Dependencies updated:** the Home Assistant base image, `renault-api` (0.6.3) and `paho-mqtt` (2.2.0). No change in behaviour.
