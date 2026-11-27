@@ -1,6 +1,5 @@
   - title: Alpine
     icon: mdi:car-sports
-    theme: poplars-dark
     background:
       image: /local/backgrounds/alpine_a290_background.webp
       size: cover

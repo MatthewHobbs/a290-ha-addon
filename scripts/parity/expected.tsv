@@ -83,6 +83,7 @@ pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUT
 pending	alpine_a290/app/deploy.py	both	py:_WS	4	one comment. Target: converge, either way.
 
 # ---------------------------------------------------------------- dashboards
+pending	alpine_a290/dashboards/front-end*.txt	r5	re:^    theme: poplars-dark$	2	Use the user's selected Home Assistant theme. Target: r5 mirrors removal of the personal theme
 model	alpine_a290/dashboards/Packages/a290_test.yaml	both	hunk:Every helper	2	each package names the OTHER car's test mode
 model	alpine_a290/dashboards/INSTALLATION.md	both	hunk:^> \*\*Charging control:	12	r5 retains the greyed-out Start Charging tile and distinguishes the A290's measured scheduling outcome from the R5 inference
 local	alpine_a290/dashboards/INSTALLATION.md	both	hunk:Entities, filter	4	r5's current production range and plug names, plus its entity-picker filter

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Dashboards now use your selected Home Assistant theme instead of referencing a personal theme. For an existing dashboard, enable `redeploy_dashboard` and restart the app to apply the fix; redeploying replaces dashboard edits.
+
 ## 1.30.5
 
 - Updated the bundled XML library. No change to vehicle polling or controls.
