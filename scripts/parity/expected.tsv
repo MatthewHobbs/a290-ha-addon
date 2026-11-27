@@ -83,6 +83,11 @@ pending	alpine_a290/app/deploy.py	both	py:_fetch_dashboard,_REFRESH_LOCATION_BUT
 pending	alpine_a290/app/deploy.py	both	py:_WS	4	one comment. Target: converge, either way.
 
 # ---------------------------------------------------------------- dashboards
+pending	alpine_a290/dashboards/front-end*.txt	r5	re:^    theme: poplars-dark$	2	Use the user's selected Home Assistant theme. Target: r5 mirrors removal of the personal theme
+pending	alpine_a290/dashboards/front-end-bubble.txt	a290	re:^[ ]+styles: '.bubble-pop-up	9	Keep dark popups readable without a personal theme. Target: r5 mirrors popup text and surface colours
+pending	alpine_a290/tests/test_dashboard_conformance.py	a290	py:test_dashboard_views_inherit_theme_and_popup_colours	8	Guard theme inheritance and readable popup colours. Target: r5 mirrors the regression test
+pending	alpine_a290/app/deploy.py	both	py:_charger_popup	4	Apply the popup palette to injected Smart Charging too. Target: r5 mirrors injected popup styling
+pending	alpine_a290/tests/test_deploy.py	a290	re:bundled.count.*charger_popup	1	Verify injected and bundled popup palettes match. Target: r5 mirrors the assertion
 model	alpine_a290/dashboards/Packages/a290_test.yaml	both	hunk:Every helper	2	each package names the OTHER car's test mode
 model	alpine_a290/dashboards/INSTALLATION.md	both	hunk:^> \*\*Charging control:	12	r5 retains the greyed-out Start Charging tile and distinguishes the A290's measured scheduling outcome from the R5 inference
 local	alpine_a290/dashboards/INSTALLATION.md	both	hunk:Entities, filter	4	r5's current production range and plug names, plus its entity-picker filter

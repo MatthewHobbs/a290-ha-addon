@@ -3,7 +3,6 @@
     path: car-alpine
     title: Alpine A290
     icon: mdi:car
-    theme: poplars-dark
     sections:
     - type: grid
       card_mod:

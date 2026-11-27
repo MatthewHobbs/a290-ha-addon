@@ -283,7 +283,9 @@ def _charger_popup():
     return {"type": "custom:bubble-card", "card_type": "pop-up", "hash": _CHARGER_HASH,
             "name": "Smart Charging", "icon": "mdi:ev-station", "button_type": "name",
             "bg_color": "#14171b", "bg_opacity": "85", "bg_blur": "6",
-            "shadow_opacity": "0", "cards": cards}
+            "shadow_opacity": "0", "cards": cards,
+            "styles": ".bubble-pop-up{--primary-text-color:#e1e1e1;--secondary-text-color:#9e9e9e;"
+                      "--card-background-color:#14171b;--secondary-background-color:#14171b;}"}
 
 
 async def _fetch_dashboard(style, refresh_location=False):
