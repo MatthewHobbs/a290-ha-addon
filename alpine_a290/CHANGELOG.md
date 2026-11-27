@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.30.5
 
 - Updated the bundled XML library. No change to vehicle polling or controls.
 
