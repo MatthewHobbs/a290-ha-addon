@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Dashboards now use your selected Home Assistant theme instead of referencing a personal theme. For an auto-deployed dashboard, enable `redeploy_dashboard` and restart the app; redeploying replaces dashboard edits. For a manually pasted dashboard, remove its `theme: poplars-dark` line in the dashboard YAML editor.
+- Dashboards no longer reference a personal theme. Bubble pop-ups keep their dark design and readable text even when Home Assistant uses a light theme. For an auto-deployed dashboard, enable `redeploy_dashboard` and restart the app; redeploying replaces dashboard edits. For a manually pasted dashboard, paste the updated dashboard YAML again, preserving any personal edits first.
 
 ## 1.30.5
 

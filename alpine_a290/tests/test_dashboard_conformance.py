@@ -449,3 +449,13 @@ def test_dark_sections_set_light_text() -> None:
                if "--primary-text-color:#e1e1e1" not in c["card_mod"]["style"]
                or "--secondary-text-color:#9e9e9e" not in c["card_mod"]["style"]]
     assert not missing, f"dark sections without light text: {missing}"
+
+
+def test_dashboard_views_inherit_theme_and_popup_colours() -> None:
+    for name in ("front-end.txt", "front-end-bubble.txt"):
+        assert all("theme" not in view for view in _load(name)), name
+    popups = [c for c, _ in _walk_cards(_load("front-end-bubble.txt"), {}) if c.get("card_type") == "pop-up"]
+    assert popups
+    assert all(c.get("bg_color") == "#14171b" for c in popups)
+    assert all("--primary-text-color:#e1e1e1" in c.get("styles", "")
+               and "--card-background-color:#14171b" in c["styles"] for c in popups)
