@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Dashboards now use your selected Home Assistant theme instead of referencing a personal theme. For an existing dashboard, enable `redeploy_dashboard` and restart the app to apply the fix; redeploying replaces dashboard edits.
+- Dashboards now use your selected Home Assistant theme instead of referencing a personal theme. For an auto-deployed dashboard, enable `redeploy_dashboard` and restart the app; redeploying replaces dashboard edits. For a manually pasted dashboard, remove its `theme: poplars-dark` line in the dashboard YAML editor.
 
 ## 1.30.5
 
