@@ -254,6 +254,7 @@ def test_charger_popup_separator_matches_the_bundled_separators(monkeypatch):
     assert separators == 13
     assert bundled.count(f"styles: {sep['styles']}\n") == separators
     assert "white-space:normal !important" in sep["styles"]
+    assert bundled.count(f"styles: '{deploy._charger_popup()['styles']}'\n") == 9
 
 
 def _flat_menu_names(menu):
