@@ -172,9 +172,14 @@ jobs:
       # The image is the release. Scan the pushed digest, or the locally loaded image on a
       # dry run, before any user-facing version tag exists.
       - name: Set up Trivy
-        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567  # v0.3.1
-        with:
-          version: v0.76.0
+        run: |
+          set -euo pipefail
+          scanner="$(docker create aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222)"
+          trap 'docker rm "$scanner" >/dev/null' EXIT
+          mkdir -p "$RUNNER_TEMP/trivy-bin"
+          docker cp "$scanner:/usr/local/bin/trivy" "$RUNNER_TEMP/trivy-bin/trivy"
+          echo "$RUNNER_TEMP/trivy-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/trivy-bin/trivy" --version
 
       - name: Trivy image scan (vulns)
         env:
