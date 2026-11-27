@@ -41,6 +41,9 @@ model	alpine_a290/dashboards/Images/Models/*	r5	only	22	r5's car_render option p
 model	alpine_a290/dashboards/Images/Map Markers/*	r5	only	6	r5's map markers per paint colour; a290's dashboards use the default marker
 
 # ---------------------------------------------------------------- one repository only
+pending	alpine_a290/Dockerfile	both	re:^RUN apk add --no-cache "krb5-libs	2	Upgrade inherited libxml2 to 2.13.9-r5 or newer. Target: r5 mirrors this package floor
+pending	.github/workflows/ci.yaml	both	hunk:trivy-bin|setup-trivy	15	Extract the same scanner from its digest-pinned container when GitHub release-page lookup fails. Target: r5 mirrors Trivy setup
+pending	.github/workflows/release.yaml	both	hunk:trivy-bin|setup-trivy	11	Extract the same scanner from its digest-pinned container when GitHub release-page lookup fails. Target: r5 mirrors Trivy setup
 local	BACKLOG.md	a290	only	1	a290's own backlog; r5 tracks work in its issues
 local	docs/adr/0001-what-this-add-on-is-why-and-how.md	both	*	227	each repo's own retrospective record: the decisions and the evidence differ where the two cars and the two histories do
 
